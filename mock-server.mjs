@@ -26,18 +26,18 @@ const iso = (n) => new Date(Date.now() - n * 864e5).toISOString()
 const PARTS = ['catering', 'facility', 'cleaning', 'commute', 'night_duty']
 
 const schools = [
-  { id: 's01', name: '한빛초등학교', school_level: '초', manager: '김담당', principal: '박교장', supervisor: '이감독', address: '서울시 강남구 한빛로 12', email: 'hanbit@sen.go.kr', is_private: false, education_count: 6, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp01' },
+  { id: 's01', name: '한빛초등학교', school_level: '초', manager: '김담당', principal: '박교장', supervisor: '이감독', address: '서울시 강남구 한빛로 12', email: 'hanbit@sen.go.kr', is_private: false, education_count: 6, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'admin' },
   { id: 's02', name: '푸른중학교', school_level: '중', manager: '이담당', principal: '최교장', supervisor: '정감독', address: '서울시 서초구 푸른길 45', email: 'pureun@sen.go.kr', is_private: false, education_count: 8, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp01' },
   { id: 's03', name: '세종고등학교', school_level: '고', manager: '박담당', principal: '김교장', supervisor: '오감독', address: '서울시 송파구 세종대로 8', email: 'sejong@sen.go.kr', is_private: true, education_count: 10, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp02' },
-  { id: 's04', name: '샛별유치원', school_level: '유', manager: '김담당', principal: '한원장', supervisor: '', address: '서울시 강동구 샛별길 3', email: 'satbyul@sen.go.kr', is_private: true, education_count: 3, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp02' },
+  { id: 's04', name: '샛별유치원', school_level: '유', manager: '김담당', principal: '한원장', supervisor: '', address: '서울시 강동구 샛별길 3', email: 'satbyul@sen.go.kr', is_private: true, education_count: 3, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'admin' },
   { id: 's05', name: '동산초등학교', school_level: '초', manager: '이담당', principal: '유교장', supervisor: '문감독', address: '경기도 성남시 동산로 77', email: 'dongsan@goe.go.kr', is_private: false, education_count: 5, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp03' },
-  { id: 's06', name: '해솔중학교', school_level: '중', manager: '박담당', principal: '임교장', supervisor: '서감독', address: '경기도 고양시 해솔길 21', email: 'haesol@goe.go.kr', is_private: false, education_count: 7, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp03' },
+  { id: 's06', name: '해솔중학교', school_level: '중', manager: '박담당', principal: '임교장', supervisor: '서감독', address: '경기도 고양시 해솔길 21', email: 'haesol@goe.go.kr', is_private: false, education_count: 7, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'admin' },
   { id: 's07', name: '미래공업고등학교', school_level: '고', manager: '최담당', principal: '장교장', supervisor: '권감독', address: '인천시 남동구 미래로 102', email: 'mirae@ice.go.kr', is_private: false, education_count: 12, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp01' },
   { id: 's08', name: '가온초등학교', school_level: '초', manager: '최담당', principal: '신교장', supervisor: '홍감독', address: '서울시 마포구 가온길 55', email: 'gaon@sen.go.kr', is_private: false, education_count: 6, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp02' },
   { id: 's09', name: '늘봄여자중학교', school_level: '중', manager: '김담당', principal: '조교장', supervisor: '배감독', address: '서울시 은평구 늘봄로 9', email: 'neulbom@sen.go.kr', is_private: true, education_count: 8, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp03' },
-  { id: 's10', name: '한마음고등학교', school_level: '고', manager: '이담당', principal: '윤교장', supervisor: '남감독', address: '경기도 부천시 한마음로 31', email: 'hanmaum@goe.go.kr', is_private: false, education_count: 9, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp01' },
+  { id: 's10', name: '한마음고등학교', school_level: '고', manager: '이담당', principal: '윤교장', supervisor: '남감독', address: '경기도 부천시 한마음로 31', email: 'hanmaum@goe.go.kr', is_private: false, education_count: 9, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'admin' },
   { id: 's11', name: '초록유치원', school_level: '유', manager: '박담당', principal: '강원장', supervisor: '', address: '서울시 노원구 초록길 17', email: 'chorok@sen.go.kr', is_private: true, education_count: 2, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp02' },
-  { id: 's12', name: '바다초등학교', school_level: '초', manager: '최담당', principal: '전교장', supervisor: '심감독', address: '인천시 연수구 바다로 88', email: 'bada@ice.go.kr', is_private: false, education_count: 5, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'insp03' },
+  { id: 's12', name: '바다초등학교', school_level: '초', manager: '최담당', principal: '전교장', supervisor: '심감독', address: '인천시 연수구 바다로 88', email: 'bada@ice.go.kr', is_private: false, education_count: 5, inspection_agency: '한국산업안전협회', assigned_inspector_id: 'admin' },
 ]
 
 // 학교별 종사자 구성(대장) — 일부 학교는 인원대조 불일치(headcount_mismatch)
