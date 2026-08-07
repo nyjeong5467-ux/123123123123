@@ -217,6 +217,59 @@ function mergeSurvey(sections: Partial<SurveyData>): SurveyData {
   return { ...emptySurvey(), ...sections }
 }
 
+// ===== 1단계(개편 0807): 작성된 보고서 리스트 — 정기 보고서(문서) + 수시 케이스 =====
+type RiskReportRow = {
+  school: School
+  kind: '정기' | '수시'
+  title: string
+  statusLabel: string
+  statusCls: string
+  progress: string
+  date: string
+}
+// 정기 보고서 요약 — 학교 컨텍스트 카드와 동일한 섹션 완성 판정
+function regularSummary(d: SurveyData) {
+  const deptDone = d.dept_info ? Object.values(d.dept_info).filter((x) => x.etc.reviewed).length : 0
+  const hearAll = d.hearing ? Object.values(d.hearing) : []
+  const hearDone = hearAll.filter((h) => h.done).length
+  const assessRows = d.assess ? Object.values(d.assess).flat() : []
+  const high = assessRows.filter((r) => r.likelihood * r.severity >= 8).length
+  const partCnt = d.participants?.length ?? 0
+  const started = !!(d.report_info || d.dept_info || hearAll.length || assessRows.length || partCnt)
+  const okCnt = [
+    !!d.report_info,
+    deptDone >= 5,
+    hearAll.length > 0 && hearDone === hearAll.length,
+    assessRows.length > 0,
+    partCnt > 0,
+  ].filter(Boolean).length
+  const year = d.report_info?.report_ym?.slice(0, 4) || String(new Date().getFullYear())
+  return { started, okCnt, high, year }
+}
+const RISK_REPORT_QUERY: TableQueryConfig<RiskReportRow> = {
+  searchFields: [(r) => r.school.name, (r) => r.title],
+  searchPlaceholder: '학교명·보고서 검색',
+  filters: [{
+    key: 'kind',
+    label: '구분',
+    options: [
+      { value: '정기', label: '정기' },
+      { value: '수시', label: '수시' },
+    ],
+    accessor: (r) => r.kind,
+  }],
+  sortAccessors: { date: (r) => r.date, name: (r) => r.school.name },
+  initialSort: { key: 'date', dir: 'desc' },
+}
+const RISK_REPORT_EXPORT: ExportColumn<RiskReportRow>[] = [
+  { header: '구분', value: (r) => r.kind },
+  { header: '보고서', value: (r) => r.title },
+  { header: '학교', value: (r) => r.school.name },
+  { header: '진행', value: (r) => r.progress },
+  { header: '상태', value: (r) => r.statusLabel },
+  { header: '최근 저장', value: (r) => r.date },
+]
+
 // 신규 UI(서브탭 바 · 폼) 전용 인라인 스타일
 const SUBTAB_BAR: CSSProperties = { display: 'flex', gap: 4, flexWrap: 'wrap', background: 'var(--bg)', padding: 4, borderRadius: 13, marginBottom: 18 }
 const TEXTAREA_STYLE: CSSProperties = { height: 'auto', minHeight: 92, padding: '10px 13px', resize: 'vertical', lineHeight: 1.6, width: '100%', fontFamily: 'inherit' }
@@ -242,6 +295,60 @@ export function Risk() {
   const [riskMap, setRiskMap] = useState<Record<string, RiskItem[]>>({})
   const [sumLoading, setSumLoading] = useState(false)
 
+  // 작성물 리스트(0807 개편) — 전 학교 보고서 문서 병렬 조회
+  const [docMap, setDocMap] = useState<Record<string, { d: SurveyData; updated: string }>>({})
+  const [docLoading, setDocLoading] = useState(false)
+  useEffect(() => {
+    if (!schools.length) return
+    let alive = true
+    setDocLoading(true)
+    void Promise.all(
+      schools.map(async (s) => {
+        const r = await api<SurveyGetResp>(`/risk/survey?school_id=${s.id}`).catch(() => null)
+        return { id: s.id, doc: r ? { d: mergeSurvey(r.sections ?? {}), updated: r.updated_at || '' } : null }
+      }),
+    ).then((list) => {
+      if (!alive) return
+      const m: Record<string, { d: SurveyData; updated: string }> = {}
+      for (const it of list) if (it.doc) m[it.id] = it.doc
+      setDocMap(m)
+      setDocLoading(false)
+    })
+    return () => { alive = false }
+  }, [schools])
+
+  const reportRows: RiskReportRow[] = useMemo(() => {
+    const out: RiskReportRow[] = []
+    for (const s of schools) {
+      const doc = docMap[s.id]
+      if (!doc) continue
+      const sm = regularSummary(doc.d)
+      if (sm.started) {
+        out.push({
+          school: s, kind: '정기',
+          title: `${sm.year}년 정기 위험성평가 결과보고서`,
+          statusLabel: sm.okCnt === 5 ? '작성 완료' : '작성 중',
+          statusCls: sm.okCnt === 5 ? 'ok' : 'doing',
+          progress: `섹션 ${sm.okCnt}/5` + (sm.high > 0 ? ` · 8점 이상 ${sm.high}건` : ''),
+          date: (doc.updated || '').slice(0, 10),
+        })
+      }
+      for (const c of doc.d.adhoc_cases ?? []) {
+        const doneCnt = [c.invest.done, c.prevent.done, c.assess.done, c.edu.done].filter(Boolean).length
+        out.push({
+          school: s, kind: '수시',
+          title: `수시 위험성평가 — ${c.title || '사고성 산재'}`,
+          statusLabel: doneCnt === 4 ? '완료' : '진행 중',
+          statusCls: doneCnt === 4 ? 'ok' : 'doing',
+          progress: `단계 ${doneCnt}/4`,
+          date: (c.created || '').slice(0, 10),
+        })
+      }
+    }
+    return out
+  }, [schools, docMap])
+  const rq = useTableQuery(reportRows, RISK_REPORT_QUERY)
+
   // 위계 상태: 선택 학교(2단계) · 접힌 그룹
   const [sel, setSel] = useState<School | null>(null)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -253,9 +360,8 @@ export function Risk() {
   const [ctxTab, setCtxTab] = useState<'regular' | 'adhoc'>('regular')
   const [ctxAccidents, setCtxAccidents] = useState<{ id: string }[]>([])
   useEffect(() => {
-    setCtxTab('regular')
     setRegularEdit(false)
-    if (!sel) { setCtxAccidents([]); return }
+    if (!sel) { setCtxTab('regular'); setCtxAccidents([]); return }
     let alive = true
     api<{ id: string; school_id: string; kind: string }[]>('/accidents')
       .then((l) => { if (alive) setCtxAccidents((Array.isArray(l) ? l : []).filter((a) => a.school_id === sel.id && a.kind === 'accident')) })
@@ -441,6 +547,7 @@ export function Risk() {
   function openSchool(s: School) {
     setSel(s)
     setSid(s.id) // 조사표 탭도 같은 학교로 동기화
+    setCtxTab('regular') // 기본 정기 탭 (리스트에서 수시 행 클릭 시 호출측에서 'adhoc'으로 재지정)
     setCollapsed({})
     refetchSchool(s.id)
   }
@@ -674,49 +781,46 @@ export function Risk() {
 
           <div className="ledger">
             <div className="lh">
-              <h2><ClipboardCheck size={18} /> 학교 목록</h2>
+              <h2><ClipboardCheck size={18} /> 작성된 보고서</h2>
+              <span className="pillx doing">{rq.total}건</span>
               <div className="sp" />
-              <FilterBar q={q} />
-              <ExportButton q={q} columns={SCHOOL_EXPORT} filename="위험성평가_학교별" />
+              <FilterBar q={rq} />
+              <ExportButton q={rq} columns={RISK_REPORT_EXPORT} filename="위험성평가_보고서목록" />
             </div>
             <div className="twrap">
               <table className="tbl">
                 <thead>
                   <tr>
-                    <SortableTh q={q} col="name">학교</SortableTh>
-                    <SortableTh q={q} col="manager">담당자</SortableTh>
-                    <SortableTh q={q} col="count" className="c">평가</SortableTh>
-                    <th className="c">수시</th>
-                    <SortableTh q={q} col="latest">최근 평가일</SortableTh>
+                    <SortableTh q={rq} col="date">최근 저장</SortableTh>
+                    <th className="c">구분</th>
+                    <th>보고서</th>
+                    <SortableTh q={rq} col="name">학교</SortableTh>
+                    <th>진행</th>
+                    <th className="c">상태</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {loading && <tr><td colSpan={6}><div className="tstate">불러오는 중…</div></td></tr>}
-                  {!loading && error && <tr><td colSpan={6}><div className="tstate">오류: {error}</div></td></tr>}
-                  {!loading && !error && q.view.map((s) => (
-                    <tr key={s.id} onClick={() => openSchool(s)}>
-                      <td><b>{s.name}</b></td>
-                      <td className="rkh-mgr">{s.manager || '—'}</td>
-                      <td className="c">{sumLoading ? <span className="rkh-dim">…</span> : `${s.count}건`}</td>
-                      <td className="c">
-                        {sumLoading
-                          ? <span className="rkh-dim">…</span>
-                          : s.adhocCount > 0
-                            ? <span className="pillx warn">{s.adhocCount}건</span>
-                            : <span className="rkh-dim">—</span>}
-                      </td>
-                      <td>{sumLoading ? <span className="rkh-dim">…</span> : (s.latest || '—')}</td>
+                  {(loading || docLoading) && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
+                  {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
+                  {!loading && !docLoading && !error && rq.view.map((r, i) => (
+                    <tr key={r.school.id + r.kind + i} onClick={() => { openSchool(r.school); if (r.kind === '수시') setCtxTab('adhoc') }}>
+                      <td>{r.date || '—'}</td>
+                      <td className="c"><span className={'pillx ' + (r.kind === '수시' ? 'warn' : 'doing')}>{r.kind}</span></td>
+                      <td><b>{r.title}</b></td>
+                      <td>{r.school.name}</td>
+                      <td>{r.progress}</td>
+                      <td className="c"><span className={'pillx ' + r.statusCls}>{r.statusLabel}</span></td>
                       <td className="c"><span className="chev"><ChevronRight size={15} /></span></td>
                     </tr>
                   ))}
-                  {!loading && !error && q.view.length === 0 && (
-                    <tr><td colSpan={6}><div className="tstate">{schools.length === 0 ? '등록된 학교가 없습니다.' : '조건에 맞는 학교가 없습니다.'}</div></td></tr>
+                  {!loading && !docLoading && !error && rq.view.length === 0 && (
+                    <tr><td colSpan={7}><div className="tstate">{reportRows.length === 0 ? '작성된 보고서가 없습니다. 학교 탭의 [위험성평가] 바로가기에서 작성하세요.' : '조건에 맞는 보고서가 없습니다.'}</div></td></tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <Pagination q={q} />
+            <Pagination q={rq} />
           </div>
 
           <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>

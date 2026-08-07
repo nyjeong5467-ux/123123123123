@@ -98,6 +98,47 @@ const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
   { header: '최근 점검일', value: (r) => r.latest },
 ]
 
+// ===== 1단계(개편 0807): 작성된 점검표 리스트 — 점검자들이 작성한 보고서가 곧 첫 화면 =====
+type InsReportRow = { school: School; ins: Inspection }
+const REPORT_QUERY: TableQueryConfig<InsReportRow> = {
+  searchFields: [(r) => r.school.name, (r) => r.school.manager ?? ''],
+  searchPlaceholder: '학교명·담당자 검색',
+  filters: [
+    {
+      key: 'status',
+      label: '상태',
+      options: [
+        { value: 'draft', label: '작성중' },
+        { value: 'signed', label: '서명완료' },
+        { value: 'submitted', label: '제출' },
+      ],
+      accessor: (r) => r.ins.status,
+    },
+    {
+      key: 'level',
+      label: '학교급',
+      options: LEVELS.map((l) => ({ value: l, label: l })),
+      accessor: (r) => r.school.school_level ?? '',
+    },
+  ],
+  sortAccessors: {
+    date: (r) => dateOf(r.ins),
+    name: (r) => r.school.name,
+    part: (r) => PART_LABEL[r.ins.part] || r.ins.part,
+  },
+  initialSort: { key: 'date', dir: 'desc' },
+}
+const REPORT_EXPORT: ExportColumn<InsReportRow>[] = [
+  { header: '점검일', value: (r) => dateOf(r.ins) },
+  { header: '학교', value: (r) => r.school.name },
+  { header: '담당자', value: (r) => r.school.manager || '' },
+  { header: '공정', value: (r) => PART_LABEL[r.ins.part] || r.ins.part },
+  { header: '항목수', value: (r) => r.ins.items.length },
+  { header: '서명', value: (r) => (r.ins.signatures.length > 0 ? '서명완료' : '미서명') },
+  { header: '상태', value: (r) => STATUS[r.ins.status]?.label || r.ins.status },
+  { header: '교육청전송', value: (r) => EDUOFFICE[r.ins.eduoffice_submit_status]?.label || r.ins.eduoffice_submit_status },
+]
+
 // ===== 2단계: 월별 그룹 (안전점검은 매월 반복 업무) =====
 const UNKNOWN_MONTH = '일자 미상'
 type MonthGroup = { month: string; rows: Inspection[] }
@@ -239,6 +280,13 @@ export function Inspection() {
   const totalSubmitted = useMemo(() => schoolRows.reduce((a, r) => a + r.submitted, 0), [schoolRows])
   const q = useTableQuery(schoolRows, SCHOOL_QUERY)
 
+  // 작성물 리스트(0807 개편) — 전 학교 점검표를 평탄화해 최신순 표시
+  const reportRows: InsReportRow[] = useMemo(
+    () => schools.flatMap((s) => (insMap[s.id] ?? []).map((ins) => ({ school: s, ins }))),
+    [schools, insMap],
+  )
+  const rq = useTableQuery(reportRows, REPORT_QUERY)
+
   function openSchool(s: School) {
     setSel(s)
     setCollapsed({})
@@ -361,61 +409,59 @@ export function Inspection() {
 
           <div className="ledger">
             <div className="lh">
-              <h2><ClipboardCheck size={18} /> 학교 목록</h2>
+              <h2><ClipboardCheck size={18} /> 작성된 점검표</h2>
+              <span className="pillx doing">{rq.total}건</span>
               <div className="sp" />
-              <FilterBar q={q} />
-              <ExportButton q={q} columns={SCHOOL_EXPORT} filename="안전점검_학교별" />
+              <FilterBar q={rq} />
+              <ExportButton q={rq} columns={REPORT_EXPORT} filename="안전점검_점검표목록" />
             </div>
             <div className="twrap">
               <table className="tbl">
                 <thead>
                   <tr>
-                    <SortableTh q={q} col="level">학교급</SortableTh>
-                    <SortableTh q={q} col="name">학교</SortableTh>
-                    <SortableTh q={q} col="manager">담당자</SortableTh>
-                    <SortableTh q={q} col="count" className="c">점검</SortableTh>
-                    <th className="c">상태 분포</th>
-                    <SortableTh q={q} col="latest">최근 점검일</SortableTh>
+                    <SortableTh q={rq} col="date">점검일</SortableTh>
+                    <SortableTh q={rq} col="name">학교</SortableTh>
+                    <th>담당자</th>
+                    <SortableTh q={rq} col="part">공정</SortableTh>
+                    <th className="c">항목수</th>
+                    <th className="c">서명</th>
+                    <th className="c">상태</th>
+                    <th className="c">교육청 전송</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {loading && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
-                  {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
-                  {!loading && !error && q.view.map((s) => (
-                    <tr key={s.id} onClick={() => openSchool(s)}>
-                      <td>{s.school_level ? <span className="pillx doing">{s.school_level}</span> : '—'}</td>
-                      <td><b>{s.name}</b></td>
-                      <td className="inh-mgr">{s.manager || '—'}</td>
-                      <td className="c">{sumLoading ? <span className="inh-dim">…</span> : `${s.count}건`}</td>
-                      <td className="c">
-                        {sumLoading
-                          ? <span className="inh-dim">…</span>
-                          : s.count === 0
-                            ? <span className="inh-dim">—</span>
-                            : (
-                              <span className="inh-dist">
-                                {s.draft > 0 && <span className="pillx todo">작성중 {s.draft}</span>}
-                                {s.signed > 0 && <span className="pillx doing">서명 {s.signed}</span>}
-                                {s.submitted > 0 && <span className="pillx ok">제출 {s.submitted}</span>}
-                              </span>
-                            )}
-                      </td>
-                      <td>{sumLoading ? <span className="inh-dim">…</span> : (s.latest || '—')}</td>
-                      <td className="c"><span className="chev"><ChevronRight size={15} /></span></td>
-                    </tr>
-                  ))}
-                  {!loading && !error && q.view.length === 0 && (
-                    <tr><td colSpan={7}><div className="tstate">{schools.length === 0 ? '등록된 학교가 없습니다.' : '조건에 맞는 학교가 없습니다.'}</div></td></tr>
+                  {(loading || sumLoading) && <tr><td colSpan={9}><div className="tstate">불러오는 중…</div></td></tr>}
+                  {!loading && error && <tr><td colSpan={9}><div className="tstate">오류: {error}</div></td></tr>}
+                  {!loading && !sumLoading && !error && rq.view.map((r) => {
+                    const st = STATUS[r.ins.status] ?? { label: r.ins.status, cls: 'na' }
+                    const eo = EDUOFFICE[r.ins.eduoffice_submit_status] ?? { label: '—', cls: 'na' }
+                    const signed = r.ins.signatures.length > 0
+                    return (
+                      <tr key={r.ins.id} onClick={() => openSchool(r.school)}>
+                        <td>{dateOf(r.ins) || '—'}</td>
+                        <td><b>{r.school.name}</b></td>
+                        <td className="inh-mgr">{r.school.manager || '—'}</td>
+                        <td><span className="pillx doing">{PART_LABEL[r.ins.part] || r.ins.part}</span></td>
+                        <td className="c">{r.ins.items.length}</td>
+                        <td className="c"><span className={'pillx ' + (signed ? 'ok' : 'todo')}>{signed ? '서명완료' : '미서명'}</span></td>
+                        <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
+                        <td className="c"><span className={'pillx ' + eo.cls}>{eo.label}</span></td>
+                        <td className="c"><span className="chev"><ChevronRight size={15} /></span></td>
+                      </tr>
+                    )
+                  })}
+                  {!loading && !sumLoading && !error && rq.view.length === 0 && (
+                    <tr><td colSpan={9}><div className="tstate">{reportRows.length === 0 ? '작성된 점검표가 없습니다. 학교 탭의 [안전점검] 바로가기에서 작성하세요.' : '조건에 맞는 점검표가 없습니다.'}</div></td></tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <Pagination q={q} />
+            <Pagination q={rq} />
           </div>
 
           <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-            학교를 선택하면 월별 안전점검 이력이 표시됩니다. 안전점검은 5대 공정(급식·시설·미화·통학·당직)에 대해 매월 실시합니다.
+            행을 클릭하면 해당 학교의 월별 안전점검 이력으로 이동합니다. 새 점검표 작성은 학교 탭의 [안전점검] 바로가기에서 시작하세요.
           </div>
         </>
       )}

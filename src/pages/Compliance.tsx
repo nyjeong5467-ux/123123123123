@@ -29,6 +29,35 @@ function sheetStatus(s: CxSheet | undefined): [string, string] {
   return ['작성 중', 'doing']
 }
 
+// ===== 1단계(개편 0807): 작성된 조사지 리스트 — 점검자들이 작성한 조사지가 곧 첫 화면 =====
+type CxReportRow = { school: School; periodKey: string; sheet: CxSheet }
+const CX_REPORT_QUERY: TableQueryConfig<CxReportRow> = {
+  searchFields: [(r) => r.school.name, (r) => r.school.manager ?? ''],
+  searchPlaceholder: '학교명·담당자 검색',
+  filters: [{
+    key: 'status',
+    label: '상태',
+    options: [
+      { value: 'submitted', label: '제출 완료' },
+      { value: 'draft', label: '작성 중' },
+    ],
+    accessor: (r) => (r.sheet.status === 'submitted' ? 'submitted' : 'draft'),
+  }],
+  sortAccessors: {
+    period: (r) => r.periodKey,
+    name: (r) => r.school.name,
+    submitted: (r) => r.sheet.submitted_date ?? '',
+  },
+  initialSort: { key: 'period', dir: 'desc' },
+}
+const CX_REPORT_EXPORT: ExportColumn<CxReportRow>[] = [
+  { header: '조사지', value: (r) => periodLabel(r.periodKey) },
+  { header: '학교', value: (r) => r.school.name },
+  { header: '담당자', value: (r) => r.school.manager || '' },
+  { header: '상태', value: (r) => sheetStatus(r.sheet)[0] },
+  { header: '제출일', value: (r) => r.sheet.submitted_date || '' },
+]
+
 // ===== 1단계: 학교 목록 =====
 type SchoolRow = School & { h1: string; h2: string }
 const SCHOOL_LEVELS = ['유', '초', '중', '고', '기타']
@@ -131,6 +160,17 @@ export function Compliance() {
   )
   const q = useTableQuery(rows, SCHOOL_QUERY)
 
+  // 작성물 리스트(0807 개편) — 전 학교의 작성된 조사지를 평탄화해 반기 역순 표시
+  const reportRows: CxReportRow[] = useMemo(() => {
+    const out: CxReportRow[] = []
+    for (const s of schools) {
+      const sheets = doc[s.id] ?? {}
+      for (const key of Object.keys(sheets)) out.push({ school: s, periodKey: key, sheet: sheets[key] })
+    }
+    return out
+  }, [schools, doc])
+  const rq = useTableQuery(reportRows, CX_REPORT_QUERY)
+
   /* ── 학교별 조사지 목록: 실제 작성된 조사지만 표시 (연도 역순) — 새 조사지는 [조사지 작성]으로 생성 ── */
   const periodKeys = useMemo(() => {
     if (!sel) return [] as string[]
@@ -182,45 +222,50 @@ export function Compliance() {
       {!sel && (
         <div className="ledger">
           <div className="lh">
-            <h2><FileCheck2 size={18} /> 학교 목록</h2>
+            <h2><FileCheck2 size={18} /> 작성된 조사지</h2>
+            <span className="pillx doing">{rq.total}건</span>
             <div className="sp" />
-            <FilterBar q={q} />
-            <ExportButton q={q} columns={SCHOOL_EXPORT} filename="이행점검_학교별" />
+            <FilterBar q={rq} />
+            <ExportButton q={rq} columns={CX_REPORT_EXPORT} filename="이행점검_조사지목록" />
           </div>
           <div className="twrap">
             <table className="tbl">
               <thead>
                 <tr>
-                  <SortableTh q={q} col="name">학교</SortableTh>
-                  <SortableTh q={q} col="manager">담당자</SortableTh>
-                  <th className="c">{YEAR} 상반기</th>
-                  <th className="c">{YEAR} 하반기</th>
+                  <SortableTh q={rq} col="period">조사지</SortableTh>
+                  <SortableTh q={rq} col="name">학교</SortableTh>
+                  <th>담당자</th>
+                  <th className="c">결과 기입</th>
+                  <th className="c">상태</th>
+                  <SortableTh q={rq} col="submitted">제출일</SortableTh>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {loading && <tr><td colSpan={5}><div className="tstate">불러오는 중…</div></td></tr>}
-                {!loading && error && <tr><td colSpan={5}><div className="tstate">오류: {error}</div></td></tr>}
-                {!loading && !error && q.view.map((r) => {
-                  const st1 = sheetStatus(doc[r.id]?.[CUR_PERIODS[0]])
-                  const st2 = sheetStatus(doc[r.id]?.[CUR_PERIODS[1]])
+                {loading && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
+                {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
+                {!loading && !error && rq.view.map((r) => {
+                  const st = sheetStatus(r.sheet)
+                  const pg = sheetProgress(r.sheet)
                   return (
-                    <tr key={r.id} onClick={() => { setSel(schools.find((s) => s.id === r.id) ?? null); setEditKey('') }}>
-                      <td><b>{r.name}</b></td>
-                      <td>{r.manager || '—'}</td>
-                      <td className="c"><span className={'pillx ' + st1[1]}>{st1[0]}</span></td>
-                      <td className="c"><span className={'pillx ' + st2[1]}>{st2[0]}</span></td>
+                    <tr key={r.school.id + r.periodKey} onClick={() => { setSel(r.school); setEditKey('') }}>
+                      <td><b>{periodLabel(r.periodKey)} 점검 조사지</b></td>
+                      <td>{r.school.name}</td>
+                      <td>{r.school.manager || '—'}</td>
+                      <td className="c">{pg.done}/{pg.total}</td>
+                      <td className="c"><span className={'pillx ' + st[1]}>{st[0]}</span></td>
+                      <td>{r.sheet.submitted_date || '—'}</td>
                       <td className="c"><span className="chev"><ChevronRight size={15} /></span></td>
                     </tr>
                   )
                 })}
-                {!loading && !error && q.view.length === 0 && (
-                  <tr><td colSpan={5}><div className="tstate">조건에 맞는 학교가 없습니다.</div></td></tr>
+                {!loading && !error && rq.view.length === 0 && (
+                  <tr><td colSpan={7}><div className="tstate">{reportRows.length === 0 ? '작성된 조사지가 없습니다. 학교 탭의 [이행점검] 바로가기에서 교육청 공문 접수 후 작성하세요.' : '조건에 맞는 조사지가 없습니다.'}</div></td></tr>
                 )}
               </tbody>
             </table>
           </div>
-          <Pagination q={q} />
+          <Pagination q={rq} />
         </div>
       )}
 

@@ -352,7 +352,12 @@ export function Education() {
     if (!withData.length) return 0
     return Math.round(withData.reduce((a, r) => a + r.pct, 0) / withData.length)
   }, [schoolRows])
-  const q = useTableQuery(schoolRows, SCHOOL_QUERY)
+  // 작성물 리스트(0807 개편) — 진도 데이터(기록)가 있는 학교만 첫 화면에 표시
+  const dataRows: SchoolRow[] = useMemo(
+    () => schoolRows.filter((r) => r.total > 0 || r.latest),
+    [schoolRows],
+  )
+  const q = useTableQuery(dataRows, SCHOOL_QUERY)
 
   function openSchool(s: School) {
     setSel(s)
@@ -528,7 +533,8 @@ export function Education() {
 
           <div className="ledger">
             <div className="lh">
-              <h2><GraduationCap size={18} /> 학교 목록</h2>
+              <h2><GraduationCap size={18} /> 교육 진도 기록</h2>
+              <span className="pillx doing">{q.total}교</span>
               <div className="sp" />
               <FilterBar q={q} />
               <label className="btn btn-ghost" htmlFor="edu-import-csv" style={{ cursor: 'pointer' }}>
@@ -587,7 +593,7 @@ export function Education() {
                     </tr>
                   ))}
                   {!loading && !error && q.view.length === 0 && (
-                    <tr><td colSpan={7}><div className="tstate">{schools.length === 0 ? '등록된 학교가 없습니다.' : '조건에 맞는 학교가 없습니다.'}</div></td></tr>
+                    <tr><td colSpan={7}><div className="tstate">{dataRows.length === 0 ? '교육 진도 기록이 없습니다. CMS 진도 CSV를 인입하거나 학교 탭의 [교육] 바로가기에서 시작하세요.' : '조건에 맞는 기록이 없습니다.'}</div></td></tr>
                   )}
                 </tbody>
               </table>

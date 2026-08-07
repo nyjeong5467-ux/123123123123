@@ -43,6 +43,48 @@ type Survey = {
 type Part = 'catering' | 'facility' | 'cleaning' | 'commute' | 'night_duty'
 type BurdenResult = { has_burden: boolean; burden_clauses: number[] }
 
+// ===== 1단계(개편 0807): 작성된 조사 리스트 — 점검자들이 작성한 조사가 곧 첫 화면 =====
+type MusReportRow = { school: School; sv: Survey }
+const MUS_REPORT_QUERY: TableQueryConfig<MusReportRow> = {
+  searchFields: [(r) => r.school.name, (r) => r.school.manager ?? ''],
+  searchPlaceholder: '학교명·담당자 검색',
+  filters: [
+    {
+      key: 'burden',
+      label: '부담작업',
+      options: [
+        { value: 'y', label: '있음' },
+        { value: 'n', label: '없음' },
+      ],
+      accessor: (r) => (r.sv.has_burden ? 'y' : 'n'),
+    },
+    {
+      key: 'review',
+      label: '검수',
+      options: [
+        { value: 'y', label: '검수 대기' },
+        { value: 'n', label: '없음' },
+      ],
+      accessor: (r) => (r.sv.needs_review > 0 ? 'y' : 'n'),
+    },
+  ],
+  sortAccessors: {
+    date: (r) => (r.sv.created_at ?? '').slice(0, 10),
+    name: (r) => r.school.name,
+    needs: (r) => r.sv.needs_review,
+  },
+  initialSort: { key: 'date', dir: 'desc' },
+}
+const MUS_REPORT_EXPORT: ExportColumn<MusReportRow>[] = [
+  { header: '조사일', value: (r) => (r.sv.created_at ?? '').slice(0, 10) },
+  { header: '학교', value: (r) => r.school.name },
+  { header: '담당자', value: (r) => r.school.manager || '' },
+  { header: '기본조사', value: (r) => r.sv.basic_surveys },
+  { header: '증상조사표', value: (r) => r.sv.sheets },
+  { header: '부담작업', value: (r) => (r.sv.has_burden ? '있음' : '없음') },
+  { header: '검수대기', value: (r) => r.sv.needs_review },
+]
+
 // ===== 2단계: 조사 목록 필터·정렬·내보내기 (기존 기능 보존) =====
 const MUS_FILTERS: FilterDef<Survey>[] = [
   {
@@ -284,6 +326,13 @@ export function Musculo() {
   const totalNeeds = useMemo(() => schoolRows.reduce((a, r) => a + r.needsReview, 0), [schoolRows])
   const q = useTableQuery(schoolRows, SCHOOL_QUERY)
 
+  // 작성물 리스트(0807 개편) — 전 학교 조사를 평탄화해 최신순 표시
+  const reportRows: MusReportRow[] = useMemo(
+    () => schools.flatMap((s) => (surveyMap[s.id] ?? []).map((sv) => ({ school: s, sv }))),
+    [schools, surveyMap],
+  )
+  const rq = useTableQuery(reportRows, MUS_REPORT_QUERY)
+
   function openSchool(s: School) {
     setSel(s)
     setTab('list')
@@ -497,60 +546,57 @@ export function Musculo() {
 
           <div className="ledger">
             <div className="lh">
-              <h2><Activity size={18} /> 학교 목록</h2>
+              <h2><Activity size={18} /> 작성된 조사</h2>
+              <span className="pillx doing">{rq.total}건</span>
               <div className="sp" />
-              <FilterBar q={q} />
-              <ExportButton q={q} columns={SCHOOL_EXPORT} filename="근골격계_학교별" />
+              <FilterBar q={rq} />
+              <ExportButton q={rq} columns={MUS_REPORT_EXPORT} filename="근골격계_조사목록" />
             </div>
             <div className="twrap">
               <table className="tbl">
                 <thead>
                   <tr>
-                    <SortableTh q={q} col="name">학교</SortableTh>
-                    <SortableTh q={q} col="manager">담당자</SortableTh>
-                    <SortableTh q={q} col="count" className="c">조사</SortableTh>
+                    <SortableTh q={rq} col="date">조사일</SortableTh>
+                    <SortableTh q={rq} col="name">학교</SortableTh>
+                    <th>담당자</th>
+                    <th className="c">기본조사</th>
+                    <th className="c">증상조사표</th>
                     <th className="c">부담작업</th>
-                    <SortableTh q={q} col="needs" className="c">검수 대기</SortableTh>
-                    <SortableTh q={q} col="latest">최근 조사일</SortableTh>
+                    <SortableTh q={rq} col="needs" className="c">검수 대기</SortableTh>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {loading && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
-                  {!loading && q.view.map((s) => (
-                    <tr key={s.id} onClick={() => openSchool(s)} style={{ cursor: 'pointer' }}>
-                      <td><b>{s.name}</b></td>
-                      <td className="muh-mgr">{s.manager || '—'}</td>
-                      <td className="c">{sumLoading ? <span className="muh-dim">…</span> : `${s.count}건`}</td>
+                  {(loading || sumLoading) && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
+                  {!loading && !sumLoading && rq.view.map((r) => (
+                    <tr key={r.sv.id} onClick={() => openSchool(r.school)} style={{ cursor: 'pointer' }}>
+                      <td>{(r.sv.created_at ?? '').slice(0, 10) || '—'}</td>
+                      <td><b>{r.school.name}</b></td>
+                      <td className="muh-mgr">{r.school.manager || '—'}</td>
+                      <td className="c">{r.sv.basic_surveys}</td>
+                      <td className="c">{r.sv.sheets}</td>
                       <td className="c">
-                        {sumLoading
-                          ? <span className="muh-dim">…</span>
-                          : s.burdenCount > 0
-                            ? <span className="pillx doing">{s.burdenCount}건</span>
-                            : <span className="muh-dim">—</span>}
+                        <span className={'pillx ' + (r.sv.has_burden ? 'doing' : 'na')}>{r.sv.has_burden ? '있음' : '없음'}</span>
                       </td>
                       <td className="c">
-                        {sumLoading
-                          ? <span className="muh-dim">…</span>
-                          : s.needsReview > 0
-                            ? <span className="pillx warn">{s.needsReview}건</span>
-                            : <span className="muh-dim">—</span>}
+                        {r.sv.needs_review > 0
+                          ? <span className="pillx warn">{r.sv.needs_review}건</span>
+                          : <span className="muh-dim">—</span>}
                       </td>
-                      <td>{sumLoading ? <span className="muh-dim">…</span> : (s.latest || '—')}</td>
                       <td className="c"><span className="chev"><ChevronRight size={15} /></span></td>
                     </tr>
                   ))}
-                  {!loading && q.view.length === 0 && (
-                    <tr><td colSpan={7}><div className="tstate">{schools.length === 0 ? '등록된 학교가 없습니다.' : '조건에 맞는 학교가 없습니다.'}</div></td></tr>
+                  {!loading && !sumLoading && rq.view.length === 0 && (
+                    <tr><td colSpan={8}><div className="tstate">{reportRows.length === 0 ? '작성된 조사가 없습니다. 학교 탭의 [근골격계] 바로가기에서 시작하세요.' : '조건에 맞는 조사가 없습니다.'}</div></td></tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <Pagination q={q} />
+            <Pagination q={rq} />
           </div>
 
           <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-            학교를 선택하면 해당 학교의 근골격계 조사 이력(연도별)과 부담작업 판정, 보고서 작성 기능이 표시됩니다.
+            행을 클릭하면 해당 학교의 조사 이력(연도별)·부담작업 판정·보고서 작성으로 이동합니다.
           </div>
         </>
       )}

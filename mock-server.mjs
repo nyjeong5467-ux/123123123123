@@ -218,6 +218,13 @@ const store = {
   // risk survey by school — s01에는 작년(2025) 부서별 유해위험정보(dept_info_prev)를 시드 (프리필·변경비교 시연용)
   surveys: {
     s01: {
+      // 작성 중 샘플 — 업무 탭 "작성된 보고서" 리스트 확인용 (④ 평가표 2행 작성 상태)
+      assess: {
+        catering: [
+          { id: 'ar01', task: '국솥 조리 작업', factor_class: '화상', legal_basis: '', situation: '끓는 국물 튐으로 인한 화상', measure_current: '앞치마·장갑 착용', likelihood: 3, severity: 3, reduction: '국솥 주변 미끄럼방지 매트, 보호구 착용 점검', after_risk: '', plan_date: '', done_date: '', owner: '김담당' },
+          { id: 'ar02', task: '식자재 운반', factor_class: '근골격계', legal_basis: '', situation: '무거운 식자재 반복 운반', measure_current: '2인 1조 운반', likelihood: 2, severity: 3, reduction: '운반 대차 사용', after_risk: '', plan_date: '', done_date: '', owner: '김담당' },
+        ],
+      },
       dept_info_prev: {
         catering: {
           equips: [{ name: '국솥(회전식)', qty: 2 }, { name: '오븐', qty: 1 }, { name: '식기세척기', qty: 1 }, { name: '야채절단기', qty: 1 }, { name: '튀김기', qty: 1 }],
