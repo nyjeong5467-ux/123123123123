@@ -779,61 +779,6 @@ export function Home() {
         </div>
       </div>
 
-      {/* ===== 4. 담당 학교 표 ===== */}
-      <div className="ledger hm-mt">
-        <div className="lh">
-          <h2><Building2 size={18} /> 담당 학교</h2>
-          <div className="sp" />
-          <FilterBar q={q} />
-          <button className="btn btn-primary" onClick={() => setSchoolModal(true)}>+ 학교 등록</button>
-        </div>
-        <div className="twrap">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>No</th>
-                <SortableTh q={q} col="name">학교명</SortableTh>
-                <SortableTh q={q} col="level">학교급</SortableTh>
-                <SortableTh q={q} col="manager">담당자</SortableTh>
-                <th className="c">{CUR_MONTH}월 방문</th>
-              </tr>
-            </thead>
-            <tbody>
-              {q.view.map((s, i) => {
-                const curKey = `${today.getFullYear()}-${pad2(CUR_MONTH)}`
-                const visited = visits.some((v) => v.school_id === s.id && (v.date || '').startsWith(curKey))
-                return (
-                  <tr key={s.id} onClick={() => nav('/schools/' + s.id)}>
-                    <td>{(q.page - 1) * q.pageSize + i + 1}</td>
-                    <td><b>{s.name}</b></td>
-                    <td>{s.school_level ? <span className="pillx doing">{s.school_level}</span> : '—'}</td>
-                    <td>{s.manager || '—'}</td>
-                    <td className="c">
-                      <span className={'pillx ' + (visited ? 'ok' : 'todo')}>{visited ? '완료' : '미방문'}</span>
-                    </td>
-                  </tr>
-                )
-              })}
-              {!loading && q.view.length === 0 && (
-                <tr>
-                  <td colSpan={5}>
-                    <div className="tstate">
-                      {schools.length === 0 ? '등록된 학교가 없습니다.' : '조건에 맞는 학교가 없습니다.'}
-                    </div>
-                  </td>
-                </tr>
-              )}
-              {loading && (
-                <tr>
-                  <td colSpan={5}><div className="tstate">불러오는 중…</div></td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <Pagination q={q} />
-      </div>
-
       {/* ===== 공지 등록 모달 ===== */}
       {noticeOpen && (
         <Modal
