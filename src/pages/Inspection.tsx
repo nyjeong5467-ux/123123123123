@@ -1,7 +1,7 @@
 // 안전점검 — 학교 목록(1단계) → 학교별 월별 이력(2단계) → 상세 모달 위계.
 // Risk.tsx("학교별 평가")와 동일 패턴: 학교 테이블 → 백버튼 있는 학교 컨텍스트 → 드릴다운 모달.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, ClipboardCheck } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
@@ -179,6 +179,7 @@ const FLAT_EXPORT: ExportColumn<Inspection>[] = [
 ]
 
 export function Inspection() {
+  const nav = useNavigate()
   const [schools, setSchools] = useState<School[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -335,6 +336,7 @@ export function Inspection() {
                     <th className="c">상태</th>
                     <th className="c">교육청 전송</th>
                     <th>점검일</th>
+                    <th className="c">작업</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -350,6 +352,25 @@ export function Inspection() {
                         <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
                         <td className="c"><span className={'pillx ' + eo.cls}>{eo.label}</span></td>
                         <td>{dateOf(r) || '—'}</td>
+                        <td className="c">
+                          {r.status === 'draft' ? (
+                            <button
+                              className="btn btn-primary"
+                              style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                              onClick={(e) => { e.stopPropagation(); nav(`/inspection/new?school=${sel!.id}&part=${r.part}&resume=${r.id}`) }}
+                            >
+                              이어서 작성
+                            </button>
+                          ) : (
+                            <button
+                              className="btn btn-ghost"
+                              style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                              onClick={(e) => { e.stopPropagation(); setDetail(r) }}
+                            >
+                              보기
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     )
                   })}
@@ -450,7 +471,7 @@ export function Inspection() {
 
           <div className="ledger" style={{ background: 'transparent', border: 0, boxShadow: 'none' }}>
             <div className="lh" style={{ paddingLeft: 0, paddingRight: 0 }}>
-              <h2><ClipboardCheck size={18} /> 월별 점검 이력</h2>
+              <h2><ClipboardCheck size={18} /> 점검 현황</h2>
               <div className="sp" />
               <ExportButton q={flatQ} columns={FLAT_EXPORT} filename={`안전점검_${sel.name}`} />
             </div>
