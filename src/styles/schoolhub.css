@@ -25,6 +25,103 @@
   color: var(--violet);
 }
 
+/* ---------- 허브: 상단 검색 패널 (구 KPI 카드 자리) ---------- */
+.shub-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg, 14px);
+  box-shadow: var(--sh-soft);
+  padding: 14px 16px;
+  margin-top: 14px;
+}
+.shub-search-input {
+  flex: 1;
+  min-width: 300px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 42px;
+  padding: 0 13px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.shub-search-input:focus-within {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px var(--violet-soft);
+  color: var(--violet);
+}
+.shub-search-input input {
+  flex: 1;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.shub-search-input input::placeholder {
+  color: var(--muted);
+}
+.shub-search-clear {
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 6px;
+}
+.shub-search-clear:hover {
+  color: var(--ink);
+  background: var(--line-2);
+}
+.shub-seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.shub-seg button {
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  height: 42px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.shub-seg button:first-child {
+  border-left: 0;
+}
+.shub-seg button:hover {
+  color: var(--violet);
+}
+.shub-seg button.on {
+  background: var(--violet);
+  color: #fff;
+}
+.shub-search-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.shub-search-hint b {
+  color: var(--violet);
+  font-weight: 800;
+}
+
 /* ---------- 허브: 카드형 보기 ---------- */
 .shub-cards {
   display: grid;
