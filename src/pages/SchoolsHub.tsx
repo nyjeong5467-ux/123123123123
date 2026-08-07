@@ -2,9 +2,9 @@
 // GET /schools + 학교별 GET /schools/{id}/ledger 요약(종사자수·인원대조)을 합쳐
 // 검색/학교급 필터/정렬/CSV/페이지네이션(useTableQuery) + 표·카드 토글을 제공.
 // 행 클릭 → /schools/{id} 상세. 라우팅 배선은 리드 담당.
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Building2, LayoutGrid, List, Search, X } from 'lucide-react'
+import { Building2, LayoutGrid, List, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, Pagination, SortableTh, type ExportColumn } from '../components/table'
@@ -39,10 +39,6 @@ type Row = {
 const LEVELS = ['유', '초', '중', '고', '기타']
 const LEVEL_ORDER: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, 기타: 4 }
 
-const HUB_SEARCH = [
-  (r: Row) => r.school.name,
-  (r: Row) => r.school.address ?? '', // 지역명 검색(주소 부분일치)
-]
 const HUB_FILTERS: FilterDef<Row>[] = [
   {
     key: 'level',
@@ -86,6 +82,8 @@ export function SchoolsHub() {
   const [reload, setReload] = useState(0)
   const [modal, setModal] = useState<'create' | 'bulk' | null>(null)
   const [mode, setMode] = useState<'table' | 'cards'>('table')
+  const [nameQ, setNameQ] = useState('') // 학교명 검색어
+  const [regionQ, setRegionQ] = useState('') // 지역명 검색어(주소 부분일치)
 
   useEffect(() => {
     let alive = true
@@ -112,16 +110,29 @@ export function SchoolsHub() {
     return () => { alive = false }
   }, [reload])
 
-  const q = useTableQuery(rows, {
-    searchFields: HUB_SEARCH,
+  // 학교명·지역명 검색 (각각 독립된 입력창 — 둘 다 입력 시 AND 조건)
+  const searchedRows = useMemo(() => {
+    const nq = nameQ.trim().toLowerCase()
+    const rq = regionQ.trim().toLowerCase()
+    if (!nq && !rq) return rows
+    return rows.filter(
+      (r) =>
+        (!nq || r.school.name.toLowerCase().includes(nq)) &&
+        (!rq || (r.school.address ?? '').toLowerCase().includes(rq)),
+    )
+  }, [rows, nameQ, regionQ])
+
+  const q = useTableQuery(searchedRows, {
     filters: HUB_FILTERS,
     sortAccessors: HUB_SORTS,
-    searchPlaceholder: '학교명 또는 지역명으로 검색',
   })
+
+  // 검색어가 바뀌면 1페이지로
+  useEffect(() => { q.setPage(1) }, [nameQ, regionQ]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const colSpan = 9
   const activeLevel = q.filterValues.level ?? ''
-  const filtering = !!(q.search || activeLevel || q.filterValues.mismatch)
+  const filtering = !!(nameQ.trim() || regionQ.trim() || activeLevel || q.filterValues.mismatch)
 
   return (
     <div className="page rv">
@@ -135,18 +146,27 @@ export function SchoolsHub() {
 
       {/* ===== 검색 · 학교급 필터 ===== */}
       <div className="shub-search">
-        <div className="shub-search-input">
-          <Search size={16} />
-          <input
-            value={q.search}
-            onChange={(e) => q.setSearch(e.target.value)}
-            placeholder="학교명 또는 지역명으로 검색 (예: 한빛초등학교, 순천시)"
-          />
-          {q.search && (
-            <button className="shub-search-clear" onClick={() => q.setSearch('')} aria-label="검색어 지우기">
-              <X size={14} />
-            </button>
-          )}
+        <div className="shub-field">
+          <span className="lab">학교명</span>
+          <div className="in">
+            <input value={nameQ} onChange={(e) => setNameQ(e.target.value)} placeholder="예: 한빛초등학교" />
+            {nameQ && (
+              <button className="shub-search-clear" onClick={() => setNameQ('')} aria-label="학교명 지우기">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="shub-field">
+          <span className="lab">지역명</span>
+          <div className="in">
+            <input value={regionQ} onChange={(e) => setRegionQ(e.target.value)} placeholder="예: 순천시, 강남구" />
+            {regionQ && (
+              <button className="shub-search-clear" onClick={() => setRegionQ('')} aria-label="지역명 지우기">
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
         <div className="shub-seg" role="group" aria-label="학교급 선택">
           <button className={activeLevel === '' ? 'on' : ''} onClick={() => q.setFilter('level', '')}>전체</button>

@@ -38,35 +38,56 @@
   padding: 14px 16px;
   margin-top: 14px;
 }
-.shub-search-input {
+.shub-field {
   flex: 1;
-  min-width: 300px;
+  min-width: 260px;
   display: flex;
-  align-items: center;
-  gap: 9px;
-  height: 42px;
-  padding: 0 13px;
-  background: var(--bg);
+  align-items: stretch;
   border: 1px solid var(--line);
   border-radius: 12px;
-  color: var(--muted);
+  overflow: hidden;
+  background: var(--card);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.shub-search-input:focus-within {
+.shub-field:focus-within {
   border-color: var(--violet);
   box-shadow: 0 0 0 3px var(--violet-soft);
+}
+.shub-field .lab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 86px;
+  padding: 0 14px;
+  height: 42px;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.shub-field:focus-within .lab {
+  background: var(--violet-soft);
   color: var(--violet);
 }
-.shub-search-input input {
+.shub-field .in {
   flex: 1;
-  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 13px;
+}
+.shub-field .in input {
+  flex: 1;
+  height: 42px;
   border: 0;
   background: transparent;
   outline: none;
   font-size: 13.5px;
   color: var(--ink);
 }
-.shub-search-input input::placeholder {
+.shub-field .in input::placeholder {
   color: var(--muted);
 }
 .shub-search-clear {
