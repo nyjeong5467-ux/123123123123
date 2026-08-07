@@ -142,6 +142,48 @@
   flex: none;
 }
 
+/* ---------- 허브: 5대 업무 바로가기 칩 (상태 배지) ---------- */
+.shub-works-cell {
+  display: flex;
+  gap: 5px;
+  flex-wrap: nowrap;
+}
+.shub-w {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 999px;
+  padding: 4.5px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s, background 0.12s, transform 0.12s;
+}
+.shub-w i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+.shub-w:hover {
+  border-color: var(--violet);
+  color: var(--violet);
+  transform: translateY(-1px);
+}
+.shub-w.ok i { background: var(--green, #2eaf7d); }
+.shub-w.warn i { background: var(--orange, #f5a524); }
+.shub-w.warn { border-color: color-mix(in srgb, var(--orange, #f5a524) 45%, var(--line)); }
+.shub-w.doing i { background: var(--violet); }
+.shub-w.bad i { background: var(--red, #e5484d); }
+.shub-w.bad { border-color: color-mix(in srgb, var(--red, #e5484d) 45%, var(--line)); }
+.shub-w.muted i { background: var(--muted); }
+
 /* ---------- 허브: 카드형 보기 ---------- */
 .shub-cards {
   display: grid;

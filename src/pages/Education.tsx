@@ -1,7 +1,7 @@
 // 안전·보건 교육 — 학교 목록(진도 요약) → 학교별 교육 상세(진도율·회차대장·이수현황·관리감독자) 위계 뷰.
 // Risk.tsx의 "학교별 평가" 위계 패턴을 따름.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, GraduationCap, Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
@@ -359,6 +359,16 @@ export function Education() {
     setTab('progress')
     setResult('')
   }
+
+  // 학교 탭 바로가기(?school=id) — 학교 목록 로드 후 해당 학교 컨텍스트 자동 진입
+  const [linkParams] = useSearchParams()
+  useEffect(() => {
+    const sid = linkParams.get('school')
+    if (!sid || sel || !schools.length) return
+    const s = schools.find((x) => x.id === sid)
+    if (s) openSchool(s)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schools])
 
   const avgPct = data ? Math.round((data.avg_progress || 0) * 100) : 0
 

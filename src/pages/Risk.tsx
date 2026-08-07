@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, ClipboardCheck } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
@@ -444,6 +444,16 @@ export function Risk() {
     setCollapsed({})
     refetchSchool(s.id)
   }
+
+  // 학교 탭 바로가기(?school=id) — 학교 목록 로드 후 해당 학교 컨텍스트 자동 진입
+  const [linkParams] = useSearchParams()
+  useEffect(() => {
+    const sid = linkParams.get('school')
+    if (!sid || sel || !schools.length) return
+    const s = schools.find((x) => x.id === sid)
+    if (s) openSchool(s)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schools])
 
   // ── 2단계: 선택 학교 연도별 그룹 ──
   const selItems = sel ? riskMap[sel.id] ?? [] : []
