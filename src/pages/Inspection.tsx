@@ -448,19 +448,6 @@ export function Inspection() {
             <span className="inh-schoolmgr">담당자 {sel.manager || '—'}</span>
           </div>
 
-          <div className="kpis">
-            <div className="kpi">
-              <div className="l">점검 수</div>
-              <div className="v">{selItems.length}<small> 건</small></div>
-              <div className="d">5대 공정 점검표</div>
-            </div>
-            <div className="kpi">
-              <div className="l">제출 수</div>
-              <div className="v">{selSubmitted}<small> 건</small></div>
-              <div className="d">서명 후 교육청 제출</div>
-            </div>
-          </div>
-
           <div className="ledger" style={{ background: 'transparent', border: 0, boxShadow: 'none' }}>
             <div className="lh" style={{ paddingLeft: 0, paddingRight: 0 }}>
               <h2><ClipboardCheck size={18} /> 월별 점검 이력</h2>
