@@ -761,24 +761,6 @@ export function Risk() {
         <>
           {actionErr && <div className="login-err" style={{ marginBottom: 12 }}>{actionErr}</div>}
 
-          <div className="kpis">
-            <div className="kpi">
-              <div className="l">학교 수</div>
-              <div className="v">{schools.length}<small> 곳</small></div>
-              <div className="d">위험성평가 관리 대상</div>
-            </div>
-            <div className="kpi">
-              <div className="l">전체 평가</div>
-              <div className="v">{totalCount}<small> 건</small></div>
-              <div className="d">전 학교 누적 평가</div>
-            </div>
-            <div className={'kpi ' + (totalAdhoc ? 'red' : '')}>
-              <div className="l">수시 평가</div>
-              <div className="v">{totalAdhoc}<small> 건</small></div>
-              <div className="d">산재 등 사유 발생 시 실시</div>
-            </div>
-          </div>
-
           <div className="ledger">
             <div className="lh">
               <h2><ClipboardCheck size={18} /> 작성된 보고서</h2>
