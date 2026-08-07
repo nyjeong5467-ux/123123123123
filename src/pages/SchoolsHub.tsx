@@ -4,10 +4,10 @@
 // 행 클릭 → /schools/{id} 상세. 라우팅 배선은 리드 담당.
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Building2, LayoutGrid, List } from 'lucide-react'
+import { Building2, LayoutGrid, List, Search, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
-import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { ExportButton, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { BulkUploadModal } from '../components/BulkUploadModal'
 import '../styles/schoolhub.css'
@@ -41,8 +41,7 @@ const LEVEL_ORDER: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, �
 
 const HUB_SEARCH = [
   (r: Row) => r.school.name,
-  (r: Row) => r.school.manager ?? '',
-  (r: Row) => r.school.principal ?? '',
+  (r: Row) => r.school.address ?? '', // 지역명 검색(주소 부분일치)
 ]
 const HUB_FILTERS: FilterDef<Row>[] = [
   {
@@ -117,12 +116,12 @@ export function SchoolsHub() {
     searchFields: HUB_SEARCH,
     filters: HUB_FILTERS,
     sortAccessors: HUB_SORTS,
-    searchPlaceholder: '학교명·담당자·학교장',
+    searchPlaceholder: '학교명 또는 지역명으로 검색',
   })
 
-  const totalWorkers = rows.reduce((a, r) => a + (r.total ?? 0), 0)
-  const mismatchCount = rows.filter((r) => r.mismatch).length
   const colSpan = 9
+  const activeLevel = q.filterValues.level ?? ''
+  const filtering = !!(q.search || activeLevel || q.filterValues.mismatch)
 
   return (
     <div className="page rv">
@@ -134,10 +133,40 @@ export function SchoolsHub() {
         <button className="btn btn-primary" onClick={() => setModal('create')}>＋ 학교 등록</button>
       </div>
 
-      <div className="kpis">
-        <div className="kpi"><div className="l">전체 학교</div><div className="v">{rows.length}<small> 교</small></div><div className="d">등록된 학교(기관)</div></div>
-        <div className="kpi"><div className="l">현업종사자 합계</div><div className="v">{totalWorkers}<small> 명</small></div><div className="d">5대 파트 전체</div></div>
-        <div className={'kpi ' + (mismatchCount ? 'warn' : '')}><div className="l">인원 불일치</div><div className="v">{mismatchCount}<small> 교</small></div><div className="d">종사자수 vs 교육생수</div></div>
+      {/* ===== 검색 · 학교급 필터 ===== */}
+      <div className="shub-search">
+        <div className="shub-search-input">
+          <Search size={16} />
+          <input
+            value={q.search}
+            onChange={(e) => q.setSearch(e.target.value)}
+            placeholder="학교명 또는 지역명으로 검색 (예: 한빛초등학교, 순천시)"
+          />
+          {q.search && (
+            <button className="shub-search-clear" onClick={() => q.setSearch('')} aria-label="검색어 지우기">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        <div className="shub-seg" role="group" aria-label="학교급 선택">
+          <button className={activeLevel === '' ? 'on' : ''} onClick={() => q.setFilter('level', '')}>전체</button>
+          {LEVELS.map((l) => (
+            <button key={l} className={activeLevel === l ? 'on' : ''} onClick={() => q.setFilter('level', l)}>{l}</button>
+          ))}
+        </div>
+        <select
+          className="lselect"
+          value={q.filterValues.mismatch ?? ''}
+          onChange={(e) => q.setFilter('mismatch', e.target.value)}
+          aria-label="인원대조 필터"
+        >
+          <option value="">인원대조 전체</option>
+          <option value="y">불일치</option>
+          <option value="n">일치</option>
+        </select>
+        <div className="shub-search-hint">
+          {filtering ? <>검색 결과 <b>{q.total}</b>교</> : <>등록 <b>{rows.length}</b>교</>}
+        </div>
       </div>
 
       <div className="ledger">
@@ -145,7 +174,6 @@ export function SchoolsHub() {
           <h2><Building2 size={18} /> 학교 목록</h2>
           <span className="pillx doing">{q.total}교</span>
           <div className="sp" />
-          <FilterBar q={q} />
           <div className="shub-toggle" role="group" aria-label="보기 전환">
             <button className={mode === 'table' ? 'on' : ''} onClick={() => setMode('table')} title="표형 보기"><List size={13} style={{ verticalAlign: -2 }} /> 표</button>
             <button className={mode === 'cards' ? 'on' : ''} onClick={() => setMode('cards')} title="카드형 보기"><LayoutGrid size={13} style={{ verticalAlign: -2 }} /> 카드</button>
