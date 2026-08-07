@@ -75,7 +75,9 @@ type Ledger = {
 }
 type ApprovalStep = { title: string; name: string }
 type PrevItem = { code: string; remark: string; result: string | null }
-type PrevInsp = { part: string; items: PrevItem[] }
+type PrevInsp = { id?: string; part: string; status?: string; items: PrevItem[] }
+// 이어서 작성(resume): 저장된 결과값 → 폼 답변 역매핑 (구 시드 ok/fix 값도 방어적으로 수용)
+const RES_INV: Record<string, Ans> = { good: '양호', poor: '미흡', na: '해당없음', ok: '양호', fix: '미흡' }
 type Ans = '양호' | '미흡' | '해당없음'
 type Slot = { name: string; dataUrl: string; caption: string }
 type PartStatus = { st: 'idle' | 'run' | 'done' | 'err'; note: string }
@@ -88,6 +90,8 @@ const emptySlot = (): Slot => ({ name: '', dataUrl: '', caption: '' })
 export function InspectionForm() {
   const [params, setParams] = useSearchParams()
   const sid = params.get('school') || ''
+  const partParam = params.get('part') || '' // 점검 현황 [이어서 작성] — 해당 공정만 선택
+  const resumeId = params.get('resume') || '' // 이어서 작성할 작성중 점검 ID (있으면 새로 만들지 않고 이어감)
   const today = new Date().toISOString().slice(0, 10)
 
   const [schools, setSchools] = useState<School[]>([])
@@ -151,6 +155,21 @@ export function InspectionForm() {
         const pv: Record<string, string> = {}
         for (const insp of list) for (const it of insp.items || []) if (CARRY_VALUE[it.code] && it.remark) pv[it.code] = it.remark
         setPrevVals(pv)
+        // 이어서 작성: 대상 점검의 기존 결과·비고를 폼에 프리필 (코드가 폼 규격과 일치하는 항목만)
+        if (resumeId) {
+          const target = list.find((x) => x.id === resumeId)
+          if (target) {
+            const pa: Record<string, Ans | undefined> = {}
+            const pr: Record<string, string | undefined> = {}
+            for (const it of target.items || []) {
+              const inv = it.result ? RES_INV[it.result] : undefined
+              if (inv) pa[it.code] = inv
+              if (it.remark) pr[it.code] = it.remark
+            }
+            if (Object.keys(pa).length) setAnswers((p) => ({ ...pa, ...p }))
+            if (Object.keys(pr).length) setRemarks((p) => ({ ...pr, ...p }))
+          }
+        }
       })
       .catch(() => {})
     // 학교 특징 — 학교 카드에서 저장(GET /schools/{sid}/features), 미설정(빈 맵)이면 자동 해당없음 규칙 미적용
@@ -175,7 +194,7 @@ export function InspectionForm() {
   useEffect(() => {
     if (!ledger) return
     const e: Record<string, boolean> = {}
-    for (const d of PARTDEF) e[d.label] = (counts[d.key] ?? 0) > 0
+    for (const d of PARTDEF) e[d.label] = partParam ? d.key === partParam : (counts[d.key] ?? 0) > 0
     setEnabled(e)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [counts, ledger])
@@ -308,15 +327,18 @@ export function InspectionForm() {
       try {
         setStatus(d.label, 'run', '점검 생성')
         const items = q.map((question, i) => ({ code: `${d.label}-${i + 1}`, label: question.split('||')[0] }))
-        const created = await api<{ id: string }>('/inspections', {
-          method: 'POST',
-          body: JSON.stringify({
-            school_id: sid,
-            part: d.key,
-            is_private_school: ledger.school.is_private,
-            items,
-          }),
-        })
+        // 이어서 작성이면 기존 점검(작성중)에 이어서 기록, 아니면 새로 생성
+        const created = resumeId && d.key === partParam
+          ? { id: resumeId }
+          : await api<{ id: string }>('/inspections', {
+            method: 'POST',
+            body: JSON.stringify({
+              school_id: sid,
+              part: d.key,
+              is_private_school: ledger.school.is_private,
+              items,
+            }),
+          })
         let done = 0
         for (let i = 0; i < items.length; i++) {
           const code = items[i].code
