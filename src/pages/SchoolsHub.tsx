@@ -197,7 +197,7 @@ export function SchoolsHub() {
     q.setPage(1)
   }
 
-  const colSpan = 8
+  const colSpan = scope === 'mine' ? 8 : 7 // 업무 바로가기 컬럼은 담당 학교에서만
   const activeLevel = q.filterValues.level ?? ''
 
   return (
@@ -284,7 +284,7 @@ export function SchoolsHub() {
                 <SortableTh q={q} col="manager">담당자</SortableTh>
                 <SortableTh q={q} col="workers" className="c">종사자수</SortableTh>
                 <th className="c">인원대조</th>
-                <th>업무 바로가기</th>
+                {scope === 'mine' && <th>업무 바로가기</th>}
               </tr>
             </thead>
             <tbody>
@@ -310,26 +310,28 @@ export function SchoolsHub() {
                     <td>{r.school.manager || '—'}</td>
                     <td className="c">{r.total != null ? <b>{r.total}명</b> : <span className="muted">—</span>}</td>
                     <td className="c">{r.mismatch ? <span className="pillx warn">불일치</span> : <span className="pillx ok">일치</span>}</td>
-                    <td>
-                      <div className="shub-works-cell">
-                        {WORKS.map((w) => {
-                          const badge: Badge | undefined =
-                            w.key === 'edu'
-                              ? (r.mismatch ? { txt: '인원 불일치', cls: 'warn' } : { txt: '인원 일치', cls: 'ok' })
-                              : b?.[w.key]
-                          return (
-                            <button
-                              key={w.key}
-                              className={'shub-w ' + (badge?.cls ?? 'muted')}
-                              title={`${w.label} — ${badge?.txt ?? '상태 확인 중'}`}
-                              onClick={(e) => { e.stopPropagation(); nav(`${w.path}?school=${r.school.id}`) }}
-                            >
-                              <i />{w.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </td>
+                    {scope === 'mine' && (
+                      <td>
+                        <div className="shub-works-cell">
+                          {WORKS.map((w) => {
+                            const badge: Badge | undefined =
+                              w.key === 'edu'
+                                ? (r.mismatch ? { txt: '인원 불일치', cls: 'warn' } : { txt: '인원 일치', cls: 'ok' })
+                                : b?.[w.key]
+                            return (
+                              <button
+                                key={w.key}
+                                className={'shub-w ' + (badge?.cls ?? 'muted')}
+                                title={`${w.label} — ${badge?.txt ?? '상태 확인 중'}`}
+                                onClick={(e) => { e.stopPropagation(); nav(`${w.path}?school=${r.school.id}`) }}
+                              >
+                                <i />{w.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 )
               })}
