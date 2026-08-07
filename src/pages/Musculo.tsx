@@ -1,6 +1,6 @@
 // 근골격계 — 학교 목록 → 학교별 조사 이력(연도별) 위계 뷰. Risk.tsx(rkh-) 패턴 준용.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Activity, ArrowLeft, ChevronRight, ClipboardCheck, FileText, Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import { useTableQuery, type FilterDef, type TableQueryConfig } from '../lib/useTableQuery'
@@ -297,6 +297,16 @@ export function Musculo() {
     setActionErr('')
     refetchSchool(s.id)
   }
+
+  // 학교 탭 바로가기(?school=id) — 학교 목록 로드 후 해당 학교 컨텍스트 자동 진입
+  const [linkParams] = useSearchParams()
+  useEffect(() => {
+    const sid = linkParams.get('school')
+    if (!sid || sel || !schools.length) return
+    const s = schools.find((x) => x.id === sid)
+    if (s) openSchool(s)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schools])
   function backToList() {
     setSel(null)
     setSurveyId('')

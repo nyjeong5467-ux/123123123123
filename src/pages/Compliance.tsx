@@ -5,7 +5,7 @@
 // 저장: /ops/docs/compliance-sheets 문서(학교별×반기별) — 백엔드 계약 파일 수정 없음.
 // (구 화면: 학교별 연도·반기 이력 + 항목 체크 모달 — 조사지 체계로 대체. /compliance API 데이터는 서버에 보존)
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, FileCheck2, Mail, Plus, Printer } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
@@ -96,6 +96,16 @@ export function Compliance() {
     })
     return () => { alive = false }
   }, [])
+
+  // 학교 탭 바로가기(?school=id) — 학교 목록 로드 후 해당 학교 컨텍스트 자동 진입
+  const [linkParams] = useSearchParams()
+  useEffect(() => {
+    const sid = linkParams.get('school')
+    if (!sid || sel || !schools.length) return
+    const s = schools.find((x) => x.id === sid)
+    if (s) { setSel(s); setEditKey('') }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schools])
 
   async function saveDoc(next: CxDoc) {
     setDoc(next)

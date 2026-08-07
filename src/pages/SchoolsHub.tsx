@@ -4,8 +4,9 @@
 // 행 클릭 → /schools/{id} 상세. 라우팅 배선은 리드 담당.
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Building2, LayoutGrid, List, X } from 'lucide-react'
+import { Building2, X } from 'lucide-react'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { SchoolFormModal } from '../components/SchoolFormModal'
@@ -24,6 +25,7 @@ type School = {
   supervisor?: string
   manager?: string
   inspection_agency?: string
+  assigned_inspector_id?: string // 담당 점검자(로그인 ID 기준)
 }
 type Ledger = {
   worker_total: number
@@ -34,6 +36,35 @@ type Row = {
   school: School
   total: number | null // null = 대장 조회 실패
   mismatch: boolean
+}
+
+// ── 5대 업무 바로가기 상태 배지 ──
+type Badge = { txt: string; cls: 'ok' | 'warn' | 'doing' | 'bad' | 'muted' }
+type WorkBadges = { insp: Badge; risk: Badge; mus: Badge; comp: Badge }
+type InspLite = { submitted_at?: string | null; signed_at?: string | null }
+type StatusLite = { status: string }
+type MusLite = { needs_review: number }
+type CompSheetLite = { status?: string }
+type CompDoc = Record<string, Record<string, CompSheetLite>>
+
+const WORKS: { key: keyof WorkBadges | 'edu'; label: string; path: string }[] = [
+  { key: 'insp', label: '안전점검', path: '/inspection' },
+  { key: 'risk', label: '위험성평가', path: '/risk' },
+  { key: 'mus', label: '근골격계', path: '/musculo' },
+  { key: 'edu', label: '교육', path: '/education' },
+  { key: 'comp', label: '이행점검', path: '/compliance' },
+]
+
+function deriveBadges(insp: InspLite[], risk: StatusLite[], mus: MusLite[], compSheet: CompSheetLite | undefined, ym: string): WorkBadges {
+  const inspDone = insp.some((r) => ((r.submitted_at || r.signed_at || '') + '').slice(0, 7) === ym)
+  const riskDoing = risk.filter((r) => r.status !== 'completed').length
+  const review = mus.reduce((a, m) => a + (m.needs_review || 0), 0)
+  return {
+    insp: inspDone ? { txt: '이번 달 완료', cls: 'ok' } : { txt: '이번 달 미실시', cls: 'warn' },
+    risk: riskDoing > 0 ? { txt: `진행 ${riskDoing}건`, cls: 'doing' } : risk.length > 0 ? { txt: '완료', cls: 'ok' } : { txt: '미작성', cls: 'muted' },
+    mus: review > 0 ? { txt: `검수 ${review}건`, cls: 'bad' } : { txt: '특이사항 없음', cls: 'ok' },
+    comp: compSheet ? (compSheet.status === 'submitted' ? { txt: '제출 완료', cls: 'ok' } : { txt: '작성 중', cls: 'doing' }) : { txt: '미작성', cls: 'muted' },
+  }
 }
 
 const LEVELS = ['유', '초', '중', '고', '기타']
@@ -67,12 +98,15 @@ const HUB_EXPORT: ExportColumn<Row>[] = [
 
 export function SchoolsHub() {
   const nav = useNavigate()
+  const { user } = useAuth()
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
   const [modal, setModal] = useState<'create' | 'bulk' | null>(null)
-  const [mode, setMode] = useState<'table' | 'cards'>('table')
+  const [scope, setScope] = useState<'mine' | 'all'>('all') // 담당 학교 / 전체 학교
+  const [scopeInit, setScopeInit] = useState(false)
+  const [badges, setBadges] = useState<Record<string, WorkBadges>>({})
   const [nameQ, setNameQ] = useState('') // 학교명 입력값 (조회 전)
   const [regionQ, setRegionQ] = useState('') // 지역명 입력값 (조회 전)
   const [applied, setApplied] = useState({ name: '', region: '' }) // [조회]로 확정된 검색 조건
@@ -102,17 +136,55 @@ export function SchoolsHub() {
     return () => { alive = false }
   }, [reload])
 
+  // 담당 학교 여부 — 점검자(담당 배정 있음)는 '담당'이 기본, 관리자는 '전체'가 기본
+  const myLogin = user?.login ?? ''
+  const mineCount = useMemo(
+    () => rows.filter((r) => r.school.assigned_inspector_id === myLogin).length,
+    [rows, myLogin],
+  )
+  useEffect(() => {
+    if (scopeInit || loading) return
+    setScope(mineCount > 0 ? 'mine' : 'all')
+    setScopeInit(true)
+  }, [loading, mineCount, scopeInit])
+
+  // 5대 업무 상태 배지 — 학교별 3개 API + 이행점검 조사지 문서 1회 병렬 조회 (실패 시 해당 배지만 생략)
+  useEffect(() => {
+    if (rows.length === 0) { setBadges({}); return }
+    let alive = true
+    const now = new Date()
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const halfKey = `${now.getFullYear()}_${now.getMonth() + 1 <= 6 ? 'h1' : 'h2'}`
+    ;(async () => {
+      const compDoc = await api<{ doc: CompDoc }>('/ops/docs/compliance-sheets').catch(() => ({ doc: {} as CompDoc }))
+      const pairs = await Promise.all(
+        rows.map(async (r) => {
+          const id = r.school.id
+          const [insp, risk, mus] = await Promise.all([
+            api<InspLite[]>(`/inspections?school_id=${id}`).catch(() => [] as InspLite[]),
+            api<StatusLite[]>(`/risk?school_id=${id}`).catch(() => [] as StatusLite[]),
+            api<MusLite[]>(`/musculo?school_id=${id}`).catch(() => [] as MusLite[]),
+          ])
+          return [id, deriveBadges(insp, risk, mus, compDoc.doc?.[id]?.[halfKey], ym)] as const
+        }),
+      )
+      if (alive) setBadges(Object.fromEntries(pairs))
+    })()
+    return () => { alive = false }
+  }, [rows])
+
   // 학교명·지역명 검색 — [조회] 버튼(또는 Enter)으로 확정된 조건 기준, 둘 다 입력 시 AND
   const searchedRows = useMemo(() => {
+    const scoped = scope === 'mine' ? rows.filter((r) => r.school.assigned_inspector_id === myLogin) : rows
     const nq = applied.name.toLowerCase()
     const rq = applied.region.toLowerCase()
-    if (!nq && !rq) return rows
-    return rows.filter(
+    if (!nq && !rq) return scoped
+    return scoped.filter(
       (r) =>
         (!nq || r.school.name.toLowerCase().includes(nq)) &&
         (!rq || (r.school.address ?? '').toLowerCase().includes(rq)),
     )
-  }, [rows, applied])
+  }, [rows, applied, scope, myLogin])
 
   const q = useTableQuery(searchedRows, {
     filters: HUB_FILTERS,
@@ -125,7 +197,7 @@ export function SchoolsHub() {
     q.setPage(1)
   }
 
-  const colSpan = 9
+  const colSpan = 8
   const activeLevel = q.filterValues.level ?? ''
 
   return (
@@ -194,81 +266,76 @@ export function SchoolsHub() {
           <h2><Building2 size={18} /> 학교 목록</h2>
           <span className="pillx doing">{q.total}교</span>
           <div className="sp" />
-          <div className="shub-toggle" role="group" aria-label="보기 전환">
-            <button className={mode === 'table' ? 'on' : ''} onClick={() => setMode('table')} title="표형 보기"><List size={13} style={{ verticalAlign: -2 }} /> 표</button>
-            <button className={mode === 'cards' ? 'on' : ''} onClick={() => setMode('cards')} title="카드형 보기"><LayoutGrid size={13} style={{ verticalAlign: -2 }} /> 카드</button>
+          <div className="shub-toggle" role="group" aria-label="담당/전체 전환">
+            <button className={scope === 'mine' ? 'on' : ''} onClick={() => setScope('mine')} title="내가 담당하는 학교만 보기">담당 학교{mineCount > 0 && ` ${mineCount}`}</button>
+            <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')} title="등록된 전체 학교 보기">전체 학교</button>
           </div>
           <ExportButton q={q} columns={HUB_EXPORT} filename="학교목록" />
         </div>
 
-        {mode === 'table' && (
-          <div className="twrap">
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>No</th>
-                  <SortableTh q={q} col="level">구분</SortableTh>
-                  <SortableTh q={q} col="name">학교(기관)명</SortableTh>
-                  <SortableTh q={q} col="principal">학교(기관)장</SortableTh>
-                  <th>관리감독자</th>
-                  <SortableTh q={q} col="manager">담당자</SortableTh>
-                  <th>안전점검기관</th>
-                  <SortableTh q={q} col="workers" className="c">종사자수</SortableTh>
-                  <th className="c">인원대조</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && <tr><td colSpan={colSpan}><div className="tstate">불러오는 중…</div></td></tr>}
-                {error && !loading && <tr><td colSpan={colSpan}><div className="tstate">오류: {error}</div></td></tr>}
-                {!loading && !error && q.view.length === 0 && (
-                  <tr><td colSpan={colSpan}><div className="tstate">{rows.length === 0 ? "등록된 학교(기관)가 없습니다. '학교 등록'으로 추가하세요." : '조건에 맞는 학교가 없습니다.'}</div></td></tr>
-                )}
-                {!loading && q.view.map((r, i) => (
+        <div className="twrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>No</th>
+                <SortableTh q={q} col="level">구분</SortableTh>
+                <SortableTh q={q} col="name">학교(기관)명</SortableTh>
+                <SortableTh q={q} col="principal">학교(기관)장</SortableTh>
+                <SortableTh q={q} col="manager">담당자</SortableTh>
+                <SortableTh q={q} col="workers" className="c">종사자수</SortableTh>
+                <th className="c">인원대조</th>
+                <th>업무 바로가기</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan={colSpan}><div className="tstate">불러오는 중…</div></td></tr>}
+              {error && !loading && <tr><td colSpan={colSpan}><div className="tstate">오류: {error}</div></td></tr>}
+              {!loading && !error && q.view.length === 0 && (
+                <tr><td colSpan={colSpan}><div className="tstate">
+                  {rows.length === 0
+                    ? "등록된 학교(기관)가 없습니다. '학교 등록'으로 추가하세요."
+                    : scope === 'mine' && mineCount === 0
+                      ? '담당으로 배정된 학교가 없습니다. [전체 학교]로 전환해 보세요.'
+                      : '조건에 맞는 학교가 없습니다.'}
+                </div></td></tr>
+              )}
+              {!loading && q.view.map((r, i) => {
+                const b = badges[r.school.id]
+                return (
                   <tr key={r.school.id} onClick={() => nav(`/schools/${r.school.id}`)}>
                     <td>{(q.page - 1) * q.pageSize + i + 1}</td>
                     <td>{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
                     <td><b>{r.school.name}</b></td>
                     <td>{r.school.principal || '—'}</td>
-                    <td>{r.school.supervisor || '—'}</td>
                     <td>{r.school.manager || '—'}</td>
-                    <td>{r.school.inspection_agency || '—'}</td>
                     <td className="c">{r.total != null ? <b>{r.total}명</b> : <span className="muted">—</span>}</td>
                     <td className="c">{r.mismatch ? <span className="pillx warn">불일치</span> : <span className="pillx ok">일치</span>}</td>
+                    <td>
+                      <div className="shub-works-cell">
+                        {WORKS.map((w) => {
+                          const badge: Badge | undefined =
+                            w.key === 'edu'
+                              ? (r.mismatch ? { txt: '인원 불일치', cls: 'warn' } : { txt: '인원 일치', cls: 'ok' })
+                              : b?.[w.key]
+                          return (
+                            <button
+                              key={w.key}
+                              className={'shub-w ' + (badge?.cls ?? 'muted')}
+                              title={`${w.label} — ${badge?.txt ?? '상태 확인 중'}`}
+                              onClick={(e) => { e.stopPropagation(); nav(`${w.path}?school=${r.school.id}`) }}
+                            >
+                              <i />{w.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {mode === 'cards' && (
-          <div className="shub-cards">
-            {loading && <div className="tstate">불러오는 중…</div>}
-            {error && !loading && <div className="tstate">오류: {error}</div>}
-            {!loading && !error && q.view.length === 0 && (
-              <div className="tstate">{rows.length === 0 ? '등록된 학교(기관)가 없습니다.' : '조건에 맞는 학교가 없습니다.'}</div>
-            )}
-            {!loading && q.view.map((r) => (
-              <div className="shub-scard" key={r.school.id} onClick={() => nav(`/schools/${r.school.id}`)}>
-                <div className="top">
-                  <div className="ava">{r.school.name.slice(0, 1)}</div>
-                  <div>
-                    <div className="nm">{r.school.name}</div>
-                    {r.school.school_level && <span className="pillx doing">{r.school.school_level}</span>}
-                  </div>
-                </div>
-                <div className="meta"><span>학교장</span><b>{r.school.principal || '—'}</b></div>
-                <div className="meta"><span>담당자</span><b>{r.school.manager || '—'}</b></div>
-                <div className="meta"><span>안전점검기관</span><b>{r.school.inspection_agency || '—'}</b></div>
-                <div className="meta"><span>현업종사자</span><b>{r.total != null ? `${r.total}명` : '—'}</b></div>
-                <div className="foot">
-                  {r.mismatch ? <span className="pillx warn">인원 불일치</span> : <span className="pillx ok">인원 일치</span>}
-                  {r.school.is_private ? <span className="pillx doing">사립</span> : <span className="pillx na">국공립</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
 
         <Pagination q={q} />
       </div>
