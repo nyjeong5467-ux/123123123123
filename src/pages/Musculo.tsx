@@ -526,24 +526,6 @@ export function Musculo() {
       {/* ── 1단계: 학교 목록 ── */}
       {!sel && !error && (
         <>
-          <div className="kpis">
-            <div className="kpi">
-              <div className="l">학교 수</div>
-              <div className="v">{schools.length}<small> 곳</small></div>
-              <div className="d">근골격계 조사 관리 대상</div>
-            </div>
-            <div className="kpi">
-              <div className="l">전체 조사</div>
-              <div className="v">{totalCount}<small> 건</small></div>
-              <div className="d">전 학교 누적 조사</div>
-            </div>
-            <div className={'kpi ' + (totalNeeds ? 'red' : '')}>
-              <div className="l">검수 대기</div>
-              <div className="v">{totalNeeds}<small> 건</small></div>
-              <div className="d">증상조사표 OMR 검수 필요</div>
-            </div>
-          </div>
-
           <div className="ledger">
             <div className="lh">
               <h2><Activity size={18} /> 작성된 조사</h2>
