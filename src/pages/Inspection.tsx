@@ -373,17 +373,9 @@ export function Inspection() {
         <h2><ClipboardCheck size={20} /> 안전점검</h2>
         <div className="sp" />
         {sel && (
-          <>
-            <Link className="btn btn-primary" to={`/inspection/new?school=${sel.id}`}>
-              점검표 작성
-            </Link>
-            <button
-              className="btn btn-ghost"
-              onClick={() => { setPart('catering'); setCreateErr(''); setOpen(true) }}
-            >
-              점검 생성
-            </button>
-          </>
+          <Link className="btn btn-primary" to={`/inspection/new?school=${sel.id}`}>
+            점검표 작성
+          </Link>
         )}
       </div>
 
@@ -477,7 +469,7 @@ export function Inspection() {
             </div>
             {sumLoading && selItems.length === 0 && <div className="tstate">불러오는 중…</div>}
             {!sumLoading && selItems.length === 0 && (
-              <div className="tstate">등록된 안전점검이 없습니다. '점검표 작성' 또는 '점검 생성'으로 추가하세요.</div>
+              <div className="tstate">등록된 안전점검이 없습니다. 우측 상단 '점검표 작성'으로 추가하세요.</div>
             )}
             {monthGroups.map((g) => renderGroup(g))}
           </div>
