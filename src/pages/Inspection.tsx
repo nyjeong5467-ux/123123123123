@@ -475,16 +475,67 @@ export function Inspection() {
               <div className="sp" />
               <ExportButton q={flatQ} columns={FLAT_EXPORT} filename={`안전점검_${sel.name}`} />
             </div>
-            {sumLoading && selItems.length === 0 && <div className="tstate">불러오는 중…</div>}
-            {!sumLoading && selItems.length === 0 && (
-              <div className="tstate">등록된 안전점검이 없습니다. 우측 상단 '점검표 작성'으로 추가하세요.</div>
-            )}
-            {monthGroups.map((g) => renderGroup(g))}
+            <div className="twrap" style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 'var(--r-lg, 14px)' }}>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>점검일</th>
+                    <th>공정</th>
+                    <th className="c">항목수</th>
+                    <th className="c">서명</th>
+                    <th className="c">상태</th>
+                    <th className="c">교육청 전송</th>
+                    <th className="c">작업</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sumLoading && selItems.length === 0 && (
+                    <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>
+                  )}
+                  {!sumLoading && selItems.length === 0 && (
+                    <tr><td colSpan={7}><div className="tstate">등록된 안전점검이 없습니다. 우측 상단 '점검표 작성'으로 추가하세요.</div></td></tr>
+                  )}
+                  {[...selItems].sort((a, b) => dateOf(b).localeCompare(dateOf(a))).map((r) => {
+                    const st = STATUS[r.status] || { label: r.status, cls: 'todo' }
+                    const eo = EDUOFFICE[r.eduoffice_submit_status] || { label: r.eduoffice_submit_status, cls: 'todo' }
+                    const signed = r.signatures.length > 0
+                    return (
+                      <tr key={r.id} onClick={() => setDetail(r)}>
+                        <td>{dateOf(r) || '—'}</td>
+                        <td><b>{PART_LABEL[r.part] || r.part}</b></td>
+                        <td className="c">{r.items.length}</td>
+                        <td className="c"><span className={'pillx ' + (signed ? 'ok' : 'todo')}>{signed ? '서명완료' : '미서명'}</span></td>
+                        <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
+                        <td className="c"><span className={'pillx ' + eo.cls}>{eo.label}</span></td>
+                        <td className="c">
+                          {r.status === 'draft' ? (
+                            <button
+                              className="btn btn-primary"
+                              style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                              onClick={(e) => { e.stopPropagation(); nav(`/inspection/new?school=${sel.id}&part=${r.part}&resume=${r.id}`) }}
+                            >
+                              이어서 작성
+                            </button>
+                          ) : (
+                            <button
+                              className="btn btn-ghost"
+                              style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                              onClick={(e) => { e.stopPropagation(); setDetail(r) }}
+                            >
+                              보기
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-            안전점검은 매월 반복 업무로, 서명·제출 전 건은 '일자 미상' 그룹에 표시됩니다.
-            점검표는 서명 완료 후 교육청에 제출되며, 미흡 항목은 추후보완으로 관리됩니다.
+            안전점검은 매월 반복 업무입니다. 점검표는 서명 완료 후 교육청에 제출되며, 미흡 항목은 추후보완으로 관리됩니다.
           </div>
         </>
       )}
