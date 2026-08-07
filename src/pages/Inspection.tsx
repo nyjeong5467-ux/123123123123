@@ -389,24 +389,6 @@ export function Inspection() {
 
       {!sel && (
         <>
-          <div className="kpis">
-            <div className="kpi">
-              <div className="l">학교 수</div>
-              <div className="v">{schools.length}<small> 곳</small></div>
-              <div className="d">안전점검 관리 대상</div>
-            </div>
-            <div className="kpi">
-              <div className="l">전체 점검</div>
-              <div className="v">{totalCount}<small> 건</small></div>
-              <div className="d">전 학교 누적 점검표</div>
-            </div>
-            <div className="kpi">
-              <div className="l">제출</div>
-              <div className="v">{totalSubmitted}<small> 건</small></div>
-              <div className="d">서명 후 교육청 제출</div>
-            </div>
-          </div>
-
           <div className="ledger">
             <div className="lh">
               <h2><ClipboardCheck size={18} /> 작성된 점검표</h2>
