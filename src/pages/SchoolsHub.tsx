@@ -46,15 +46,6 @@ const HUB_FILTERS: FilterDef<Row>[] = [
     options: LEVELS.map((l) => ({ value: l, label: l })),
     accessor: (r) => r.school.school_level ?? '',
   },
-  {
-    key: 'mismatch',
-    label: '인원대조',
-    options: [
-      { value: 'y', label: '불일치' },
-      { value: 'n', label: '일치' },
-    ],
-    accessor: (r) => (r.mismatch ? 'y' : 'n'),
-  },
 ]
 const HUB_SORTS = {
   level: (r: Row) => LEVEL_ORDER[r.school.school_level ?? ''] ?? 99,
@@ -82,8 +73,9 @@ export function SchoolsHub() {
   const [reload, setReload] = useState(0)
   const [modal, setModal] = useState<'create' | 'bulk' | null>(null)
   const [mode, setMode] = useState<'table' | 'cards'>('table')
-  const [nameQ, setNameQ] = useState('') // 학교명 검색어
-  const [regionQ, setRegionQ] = useState('') // 지역명 검색어(주소 부분일치)
+  const [nameQ, setNameQ] = useState('') // 학교명 입력값 (조회 전)
+  const [regionQ, setRegionQ] = useState('') // 지역명 입력값 (조회 전)
+  const [applied, setApplied] = useState({ name: '', region: '' }) // [조회]로 확정된 검색 조건
 
   useEffect(() => {
     let alive = true
@@ -110,29 +102,31 @@ export function SchoolsHub() {
     return () => { alive = false }
   }, [reload])
 
-  // 학교명·지역명 검색 (각각 독립된 입력창 — 둘 다 입력 시 AND 조건)
+  // 학교명·지역명 검색 — [조회] 버튼(또는 Enter)으로 확정된 조건 기준, 둘 다 입력 시 AND
   const searchedRows = useMemo(() => {
-    const nq = nameQ.trim().toLowerCase()
-    const rq = regionQ.trim().toLowerCase()
+    const nq = applied.name.toLowerCase()
+    const rq = applied.region.toLowerCase()
     if (!nq && !rq) return rows
     return rows.filter(
       (r) =>
         (!nq || r.school.name.toLowerCase().includes(nq)) &&
         (!rq || (r.school.address ?? '').toLowerCase().includes(rq)),
     )
-  }, [rows, nameQ, regionQ])
+  }, [rows, applied])
 
   const q = useTableQuery(searchedRows, {
     filters: HUB_FILTERS,
     sortAccessors: HUB_SORTS,
   })
 
-  // 검색어가 바뀌면 1페이지로
-  useEffect(() => { q.setPage(1) }, [nameQ, regionQ]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 조회 실행 — 입력값을 검색 조건으로 확정하고 1페이지로
+  const doSearch = () => {
+    setApplied({ name: nameQ.trim(), region: regionQ.trim() })
+    q.setPage(1)
+  }
 
   const colSpan = 9
   const activeLevel = q.filterValues.level ?? ''
-  const filtering = !!(nameQ.trim() || regionQ.trim() || activeLevel || q.filterValues.mismatch)
 
   return (
     <div className="page rv">
@@ -149,9 +143,18 @@ export function SchoolsHub() {
         <div className="shub-field">
           <span className="lab">학교명</span>
           <div className="in">
-            <input value={nameQ} onChange={(e) => setNameQ(e.target.value)} placeholder="예: 한빛초등학교" />
+            <input
+              value={nameQ}
+              onChange={(e) => setNameQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') doSearch() }}
+              placeholder="예: 한빛초등학교"
+            />
             {nameQ && (
-              <button className="shub-search-clear" onClick={() => setNameQ('')} aria-label="학교명 지우기">
+              <button
+                className="shub-search-clear"
+                onClick={() => { setNameQ(''); setApplied((a) => ({ ...a, name: '' })) }}
+                aria-label="학교명 지우기"
+              >
                 <X size={14} />
               </button>
             )}
@@ -160,9 +163,18 @@ export function SchoolsHub() {
         <div className="shub-field">
           <span className="lab">지역명</span>
           <div className="in">
-            <input value={regionQ} onChange={(e) => setRegionQ(e.target.value)} placeholder="예: 순천시, 강남구" />
+            <input
+              value={regionQ}
+              onChange={(e) => setRegionQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') doSearch() }}
+              placeholder="예: 순천시, 강남구"
+            />
             {regionQ && (
-              <button className="shub-search-clear" onClick={() => setRegionQ('')} aria-label="지역명 지우기">
+              <button
+                className="shub-search-clear"
+                onClick={() => { setRegionQ(''); setApplied((a) => ({ ...a, region: '' })) }}
+                aria-label="지역명 지우기"
+              >
                 <X size={14} />
               </button>
             )}
@@ -174,19 +186,7 @@ export function SchoolsHub() {
             <button key={l} className={activeLevel === l ? 'on' : ''} onClick={() => q.setFilter('level', l)}>{l}</button>
           ))}
         </div>
-        <select
-          className="lselect"
-          value={q.filterValues.mismatch ?? ''}
-          onChange={(e) => q.setFilter('mismatch', e.target.value)}
-          aria-label="인원대조 필터"
-        >
-          <option value="">인원대조 전체</option>
-          <option value="y">불일치</option>
-          <option value="n">일치</option>
-        </select>
-        <div className="shub-search-hint">
-          {filtering ? <>검색 결과 <b>{q.total}</b>교</> : <>등록 <b>{rows.length}</b>교</>}
-        </div>
+        <button className="btn btn-primary shub-go" onClick={doSearch}>조회</button>
       </div>
 
       <div className="ledger">
