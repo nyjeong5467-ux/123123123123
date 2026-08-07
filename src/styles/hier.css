@@ -1,0 +1,189 @@
+/* 학교-우선 위계 페이지 공용 스타일 — edh(교육)/rkh(위평)/inh(점검)/cph(이행)/muh(근골) 공통.
+   페이지별 *hier.css에는 고유 규칙만 남긴다(중복 규칙 추가 금지 — 여기에 그룹 셀렉터로). */
+
+.edh-back,
+.rkh-back,
+.inh-back,
+.cph-back,
+.muh-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 10px;
+  transition: background 0.13s, color 0.13s;
+}
+.edh-back:hover,
+.rkh-back:hover,
+.inh-back:hover,
+.cph-back:hover,
+.muh-back:hover {
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+
+.edh-schoolhead,
+.rkh-schoolhead,
+.inh-schoolhead,
+.cph-schoolhead,
+.muh-schoolhead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.edh-schoolhead .edh-schoolname,
+.rkh-schoolhead .rkh-schoolname,
+.inh-schoolhead .inh-schoolname,
+.cph-schoolhead .cph-schoolname,
+.muh-schoolhead .muh-schoolname {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.edh-mgr,
+.rkh-mgr,
+.inh-mgr,
+.cph-mgr,
+.muh-mgr {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.edh-dim,
+.rkh-dim,
+.inh-dim,
+.cph-dim,
+.muh-dim {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.edh-schoolhead .edh-schoolmgr,
+.rkh-schoolhead .rkh-schoolmgr,
+.inh-schoolhead .inh-schoolmgr,
+.cph-schoolhead .cph-schoolmgr,
+.muh-schoolhead .muh-schoolmgr {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.edh-year,
+.rkh-year,
+.inh-year,
+.cph-year,
+.muh-year {
+  margin-bottom: 22px;
+}
+
+.edh-yearlab,
+.rkh-yearlab,
+.inh-yearlab,
+.cph-yearlab,
+.muh-yearlab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+
+.edh-yearlab .edh-yearcount,
+.rkh-yearlab .rkh-yearcount,
+.inh-yearlab .inh-yearcount,
+.cph-yearlab .cph-yearcount,
+.muh-yearlab .muh-yearcount {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.edh-group,
+.rkh-group,
+.inh-group,
+.cph-group,
+.muh-group {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: var(--sh-soft);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.edh-grouphead,
+.rkh-grouphead,
+.inh-grouphead,
+.cph-grouphead,
+.muh-grouphead {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 13px 18px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: left;
+  transition: background 0.13s;
+}
+
+.edh-grouphead:hover,
+.rkh-grouphead:hover,
+.inh-grouphead:hover,
+.cph-grouphead:hover,
+.muh-grouphead:hover {
+  background: var(--card-2);
+}
+
+.edh-grouphead .edh-chev,
+.rkh-grouphead .rkh-chev,
+.inh-grouphead .inh-chev,
+.cph-grouphead .cph-chev,
+.muh-grouphead .muh-chev {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+
+.edh-grouphead .edh-chev.open,
+.rkh-grouphead .rkh-chev.open,
+.inh-grouphead .inh-chev.open,
+.cph-grouphead .cph-chev.open,
+.muh-grouphead .muh-chev.open {
+  transform: rotate(90deg);
+}
+
+.edh-grouphead .edh-count,
+.rkh-grouphead .rkh-count,
+.inh-grouphead .inh-count,
+.cph-grouphead .cph-count,
+.muh-grouphead .muh-count {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.edh-groupbody,
+.rkh-groupbody,
+.inh-groupbody,
+.cph-groupbody,
+.muh-groupbody {
+  border-top: 1px solid var(--line-2);
+}

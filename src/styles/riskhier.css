@@ -1,0 +1,9 @@
+/* 위험성평가 — 학교 → 연도별(정기/수시) 위계 뷰 전용 스타일. 접두사 rkh- */
+
+/* 행 내부 뱃지 묶음 */
+.rkh-badges {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: wrap;
+}

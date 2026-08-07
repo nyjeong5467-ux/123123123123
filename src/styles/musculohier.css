@@ -1,0 +1,5 @@
+/* 근골격계 — 학교 → 연도별 조사 이력 위계 뷰 전용 스타일. 접두사 muh- (riskhier.css rkh- 패턴 준용) */
+
+.muh-schoolhead .muh-sp {
+  flex: 1;
+}

@@ -1,0 +1,199 @@
+/* 종사자 안전·보건 점검표 작성 화면 — insf- 접두사.
+   기존 보라 디자인 시스템 토큰(tokens.css)·components.css(.btn/.field/.input/.select) 재사용. */
+
+/* ---- 자동 해당없음 배너 (프로토타입 ins-autobar 상당) ---- */
+.insf-autobar {
+  display: flex; gap: 12px; align-items: flex-start;
+  background: var(--amber-soft); border: 1px solid rgba(234, 154, 28, 0.28);
+  border-radius: var(--r-sm); padding: 13px 16px; margin-bottom: 14px;
+}
+.insf-autobar.none { background: var(--card); border: 1.5px dashed var(--line); }
+.insf-bang {
+  width: 26px; height: 26px; border-radius: 50%; flex: none;
+  background: var(--amber); color: #fff; font-weight: 800; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.insf-autobar.none .insf-bang { background: var(--muted); }
+.insf-auto-t { font-weight: 700; font-size: 13px; color: var(--ink); }
+.insf-auto-d { font-size: 12px; color: var(--ink-2); margin-top: 4px; line-height: 1.9; }
+.insf-auto-d code, .insf-hint code {
+  background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+  padding: 1px 6px; font-size: 11px; margin-right: 4px; color: var(--amber-ink); font-weight: 700;
+}
+.insf-auto-go {
+  margin-left: auto; flex: none; align-self: center; white-space: nowrap;
+  font-size: 12px; font-weight: 700; color: var(--violet); text-decoration: none;
+}
+.insf-auto-go:hover { text-decoration: underline; }
+
+/* ---- 실시간 집계 바 (tally) ---- */
+.insf-tally { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.insf-ty {
+  flex: 1; min-width: 108px; background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 10px 14px; box-shadow: var(--sh-soft);
+}
+.insf-ty .l { font-size: 11px; color: var(--muted); font-weight: 700; }
+.insf-ty .n { font-size: 22px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.insf-ty.g .n { color: var(--ok); }
+.insf-ty.b .n { color: var(--red); }
+.insf-ty.n2 .n { color: var(--muted); }
+.insf-ty.w .n { color: var(--amber-ink); }
+
+/* ---- 섹션 카드 ---- */
+.insf-fset {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 0 18px 16px; margin-bottom: 14px; box-shadow: var(--sh-soft);
+}
+.insf-ch { display: flex; align-items: center; gap: 9px; padding: 15px 0 12px; }
+.insf-sq { width: 10px; height: 10px; border-radius: 3px; background: var(--violet); flex: none; }
+.insf-ch h3 { margin: 0; font-size: 13.5px; font-weight: 800; color: var(--ink); }
+.insf-ch .cnt { font-size: 11px; color: var(--muted); font-weight: 600; margin-left: 7px; }
+.insf-ch .r { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+.insf-ch .r b { color: var(--amber-ink); }
+
+/* ---- 기본정보 그리드 ---- */
+.insf-fgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 14px; }
+.insf-hint { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.8; }
+.insf-hint.hit { color: var(--amber-ink); }
+
+/* ---- 점검대상 칩 ---- */
+.insf-targets {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  padding-top: 13px; border-top: 1px solid var(--line-2);
+}
+.insf-tg {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px;
+  border-radius: 999px; border: 1px solid var(--line); font-size: 12.5px; font-weight: 700;
+  color: var(--ink-2); background: var(--card-2); cursor: pointer; font-family: inherit;
+}
+.insf-tg.on { background: var(--violet-soft); border-color: var(--violet); color: var(--violet-d); }
+.insf-tg.na { border-style: dashed; color: var(--muted); font-weight: 600; }
+.insf-tg .cnt2 { font-size: 11px; font-weight: 600; opacity: 0.75; }
+.insf-tg .man {
+  font-size: 10px; background: var(--amber-soft); color: var(--amber-ink);
+  padding: 1px 7px; border-radius: 6px; font-weight: 700;
+}
+.insf-tg .add { font-size: 11px; color: var(--violet); font-weight: 700; }
+
+/* ---- 파트별 점검표 테이블 ---- */
+.insf-chk { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.insf-chk th {
+  font-size: 11px; color: var(--muted); text-align: left; padding: 8px 10px;
+  border-bottom: 1px solid var(--line); background: var(--card-2); font-weight: 700;
+}
+.insf-chk th.c, .insf-chk td.c { text-align: center; }
+.insf-chk td { padding: 8px 10px; border-bottom: 1px solid var(--line-2); vertical-align: top; color: var(--ink); }
+.insf-chk tbody tr:hover td { background: var(--card-2); }
+.insf-chk input[type='radio'] { accent-color: var(--violet); width: 15px; height: 15px; cursor: pointer; margin-top: 2px; }
+.insf-no {
+  display: inline-block; font-weight: 700; color: var(--muted); font-size: 11px;
+  margin-right: 8px; font-variant-numeric: tabular-nums;
+}
+.insf-subq { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.55; }
+tr.insf-auto td { background: var(--amber-soft); }
+tr.insf-auto td.q { color: var(--ink-2); }
+tr.insf-auto:hover td { background: var(--amber-soft); }
+tr.insf-bad td { background: var(--red-soft); }
+tr.insf-bad:hover td { background: var(--red-soft); }
+.insf-autotag { font-size: 10px; color: var(--amber-ink); font-weight: 700; white-space: nowrap; display: block; margin-top: 3px; }
+.insf-memo { width: 34%; }
+.insf-memo input {
+  width: 100%; padding: 6px 10px; font-size: 12px; font-family: inherit;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink);
+}
+.insf-memo input:focus { outline: none; border-color: var(--violet); }
+.insf-memo input.carried { border-color: var(--violet); background: var(--violet-soft); font-weight: 700; color: var(--violet-d); }
+.insf-carrytag { font-size: 10px; color: var(--violet); font-weight: 700; display: block; margin-top: 4px; }
+.insf-sugg { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+.insf-sg {
+  font-size: 11px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--card); cursor: pointer; color: var(--ink-2); font-family: inherit;
+}
+.insf-sg.on { background: var(--violet-soft); border-color: var(--violet); color: var(--violet-d); font-weight: 700; }
+.insf-noitem { padding: 22px; text-align: center; font-size: 12px; color: var(--muted); }
+
+/* ---- 사진대지 ---- */
+.insf-pgroup {
+  display: flex; align-items: center; gap: 8px; margin: 6px 0 9px;
+  font-size: 12px; font-weight: 800; color: var(--violet-d);
+}
+.insf-pgroup .rule { font-size: 11px; color: var(--muted); font-weight: 600; }
+.insf-photos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+.insf-phitem { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px; background: var(--card-2); }
+.insf-phnum { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.insf-ph {
+  display: flex; align-items: center; justify-content: center; height: 110px;
+  border: 1.5px dashed var(--line); border-radius: 12px; color: var(--muted);
+  font-size: 12px; cursor: pointer; overflow: hidden; background: var(--card);
+}
+.insf-ph:hover { border-color: var(--violet); color: var(--violet); }
+.insf-ph img { width: 100%; height: 100%; object-fit: cover; }
+.insf-phname { font-size: 10.5px; color: var(--muted); margin-top: 5px; word-break: break-all; }
+.insf-phcap, .insf-etc {
+  width: 100%; margin-top: 6px; resize: vertical; font-family: inherit; font-size: 11.5px;
+  padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--card); color: var(--ink); box-sizing: border-box; line-height: 1.6;
+}
+.insf-phcap { min-height: 46px; }
+.insf-phcap:focus, .insf-etc:focus { outline: none; border-color: var(--violet); }
+.insf-etc { min-height: 92px; font-size: 12.5px; margin-top: 0; }
+.insf-addshot {
+  border: 1.5px dashed var(--line); border-radius: var(--r-sm); background: none;
+  color: var(--violet); font-size: 12px; font-weight: 700; cursor: pointer;
+  min-height: 120px; font-family: inherit;
+}
+.insf-addshot:hover { border-color: var(--violet); background: var(--violet-soft); }
+.insf-addshot:disabled { color: var(--muted); cursor: default; background: none; border-color: var(--line); }
+
+/* ---- 확인자 서명 ---- */
+.insf-sign { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.insf-signbox {
+  height: 66px; border: 1.5px dashed var(--line); border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 12px; cursor: pointer; background: var(--card-2);
+}
+.insf-signbox:hover { border-color: var(--violet); color: var(--violet); }
+.insf-signbox.signed {
+  border: 1.5px solid var(--ok); background: var(--ok-soft); color: var(--ok-ink);
+  font-weight: 700; font-size: 17px; font-style: italic;
+}
+
+/* ---- 제출 바 ---- */
+.insf-submitbar {
+  position: sticky; bottom: 12px; z-index: 5;
+  display: flex; gap: 14px; align-items: center;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 12px 16px; box-shadow: var(--sh); margin-bottom: 10px;
+}
+.insf-msg { font-size: 12px; color: var(--ink-2); line-height: 1.7; }
+.insf-msg b { color: var(--red-ink); }
+.insf-mailline { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+.insf-mailline .to { color: var(--violet); font-weight: 700; }
+.insf-sub-r { margin-left: auto; display: flex; gap: 8px; align-items: center; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.insf-fu { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+.insf-fu input { accent-color: var(--violet); }
+.insf-err { color: var(--red-ink); font-size: 12px; font-weight: 700; margin-top: 4px; }
+
+/* 파트별 제출 상태 */
+.insf-partstat { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+.insf-ps { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 700; }
+.insf-ps.idle { background: var(--line-2); color: var(--muted); }
+.insf-ps.run { background: var(--info-soft); color: var(--info-ink); }
+.insf-ps.done { background: var(--ok-soft); color: var(--ok-ink); }
+.insf-ps.err { background: var(--red-soft); color: var(--red-ink); }
+
+/* ---- 메일 문구 미리보기 ---- */
+.insf-mailbox {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 14px 16px; margin-bottom: 14px;
+}
+.insf-mailtext {
+  white-space: pre-wrap; font-size: 12px; background: var(--card-2);
+  border: 1px solid var(--line-2); border-radius: 10px; padding: 13px 15px;
+  color: var(--ink-2); line-height: 1.9; margin-top: 10px;
+}
+
+@media (max-width: 1200px) {
+  .insf-fgrid { grid-template-columns: 1fr 1fr; }
+  .insf-photos { grid-template-columns: repeat(2, 1fr); }
+}

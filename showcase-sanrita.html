@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>현장 조사 야장 — 이력관리 대장 · Field Survey Ledger</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ==========================================================================
+   FIELD SURVEY LEDGER — 현장 조사 야장
+   Reference: atelier san rita (sanrita.ca) — cartographic / expedition system
+   Real tokens pulled: forest-green #2d3329 (ink), adventure-yellow #e2ffcc,
+   terrain-grey #84907f, icy-blue #dde2e4 · F37 Stout→Archivo Black ·
+   Centra Mono→Spline Sans Mono · 0px corners · trail + waypoint motifs.
+   ========================================================================== */
+
+:root {
+  /* ---- san rita palette ---- */
+  --forest:  #2d3329;   /* ink */
+  --deep:    #161b13;   /* deepest */
+  --terrain: #84907f;   /* sage / muted */
+  --lime:    #e2ffcc;   /* adventure-yellow highlight */
+  --icy:     #dde2e4;   /* icy-blue */
+
+  --paper:   #e7e5dc;
+  --paper-2: #dedbd0;
+  --card:    #f1efe7;
+  --card-2:  #e4e1d7;
+
+  --ink:     #2d3329;
+  --ink-2:   #59604f;
+  --ink-3:   #84907f;
+
+  --rule:    rgba(45,51,41,.18);
+  --rule-2:  rgba(45,51,41,.09);
+  --rule-3:  rgba(45,51,41,.05);
+
+  /* functional, earthy */
+  --ok:      #4f7330;  --ok-soft:   rgba(79,115,48,.15);
+  --warn:    #ab7715;  --warn-soft: rgba(171,119,21,.15);
+  --late:    #b8472b;  --late-soft: rgba(184,71,43,.13);
+  --info:    #5c7c8a;  --info-soft: rgba(92,124,138,.15);
+  --signal:  #abd233;  /* brand hypergreen — active/live punch */
+
+  --font-disp: 'Archivo Black', 'Pretendard Variable', sans-serif;
+  --font-mono: 'Spline Sans Mono', ui-monospace, 'Roboto Mono', Menlo, monospace;
+  --font-sans: 'Pretendard Variable', system-ui, -apple-system, sans-serif;
+
+  --sidebar-w: 252px;
+  --maxw: 1420px;
+}
+
+[data-theme='dark'] {
+  --paper:   #1b201a;
+  --paper-2: #161b13;
+  --card:    #232a20;
+  --card-2:  #2d3329;
+  --ink:     #ecefe2;
+  --ink-2:   #b3bba8;
+  --ink-3:   #84907f;
+  --rule:    rgba(236,239,226,.18);
+  --rule-2:  rgba(236,239,226,.09);
+  --rule-3:  rgba(236,239,226,.05);
+  --ok:      #82ad52;  --ok-soft:   rgba(130,173,82,.16);
+  --warn:    #d6a13c;  --warn-soft: rgba(214,161,60,.16);
+  --late:    #e07853;  --late-soft: rgba(224,120,83,.16);
+  --info:    #8bb0bf;  --info-soft: rgba(139,176,191,.16);
+}
+
+* { box-sizing: border-box; margin: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-sans);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px; line-height: 1.5; letter-spacing: -.003em;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  transition: background .3s ease, color .3s ease;
+}
+a { color: inherit; text-decoration: none; }
+button, input { font-family: inherit; font-size: inherit; color: inherit; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+::selection { background: var(--forest); color: var(--lime); }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb { background: var(--rule); border: 4px solid var(--paper); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* cartographic micro-label */
+.coord { font-family: var(--font-mono); font-size: 9.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+
+/* page-edge vertical survey labels */
+.edge { position: fixed; top: 50%; z-index: 5; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .26em; text-transform: uppercase; color: var(--ink-3); pointer-events: none; }
+.edge.l { left: 8px; transform: translateY(-50%) rotate(180deg); writing-mode: vertical-rl; }
+.edge.r { right: 8px; transform: translateY(-50%); writing-mode: vertical-rl; }
+@media (max-width: 1080px){ .edge { display: none; } }
+
+/* ===================== DATUM STRIP ===================== */
+.datum { display: flex; align-items: center; gap: 0; background: var(--forest); color: var(--lime); border-bottom: 1px solid var(--deep); overflow: hidden; }
+.datum .d { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; padding: 8px 18px; border-right: 1px solid rgba(226,255,204,.16); white-space: nowrap; }
+.datum .d.grow { flex: 1; color: var(--terrain); border-right: 0; }
+.datum .d .v { color: #fff; }
+.datum .blink { width: 7px; height: 7px; background: var(--signal); border-radius: 50%; display: inline-block; margin-right: 7px; animation: blink 1.6s steps(2,end) infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+@media (max-width:760px){ .datum .hideS { display:none; } }
+
+/* ===================== TOPBAR ===================== */
+.topbar { display: flex; align-items: center; gap: 20px; height: 64px; padding: 0 28px; background: var(--paper); border-bottom: 1.5px solid var(--forest); position: sticky; top: 0; z-index: 50; }
+.brand { display: flex; align-items: center; gap: 13px; }
+.brand .mk { width: 36px; height: 36px; background: var(--forest); color: var(--lime); display: grid; place-items: center; }
+.brand .mk svg { width: 20px; height: 20px; }
+.brand .wm { font-family: var(--font-disp); font-size: 19px; letter-spacing: .01em; text-transform: uppercase; line-height: 1; }
+.brand .sub { font-family: var(--font-mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); display: block; margin-top: 3px; }
+.spacer { flex: 1; }
+.tenant { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); border: 1px solid var(--rule); padding: 6px 12px; display: inline-flex; align-items: center; gap: 8px; }
+.tenant .d { width: 6px; height: 6px; background: var(--signal); }
+.user { display: flex; align-items: center; gap: 10px; padding-left: 18px; border-left: 1px solid var(--rule); }
+.user .av { width: 34px; height: 34px; background: var(--forest); color: var(--lime); display: grid; place-items: center; font-weight: 800; font-size: 13px; }
+.user .nm { font-size: 13px; font-weight: 700; display: block; line-height: 1.2; }
+.user .rl { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); display: block; margin-top: 2px; }
+.tbtn { width: 38px; height: 38px; border: 1px solid var(--rule); background: var(--card); color: var(--ink-2); cursor: pointer; display: grid; place-items: center; transition: .15s; }
+.tbtn:hover { background: var(--forest); color: var(--lime); border-color: var(--forest); }
+.tbtn svg { width: 18px; height: 18px; }
+
+/* ===================== SHELL ===================== */
+.shell { display: grid; grid-template-columns: var(--sidebar-w) 1fr; align-items: start; }
+
+/* sidebar = field guide */
+.sidebar { position: sticky; top: 64px; height: calc(100vh - 64px); border-right: 1.5px solid var(--forest); padding: 22px 16px; overflow-y: auto; }
+.guide-h { font-family: var(--font-mono); font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); padding: 0 6px 14px; border-bottom: 1px solid var(--rule-2); margin-bottom: 12px; }
+.nav-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); padding: 0 8px; margin: 18px 0 8px; }
+.nav-item { display: flex; align-items: center; gap: 11px; padding: 8px 9px; font-size: 13px; font-weight: 500; color: var(--ink-2); cursor: pointer; position: relative; transition: .14s; }
+.nav-item .no { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); width: 18px; }
+.nav-item:hover { background: var(--card-2); color: var(--ink); }
+.nav-item .ct { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
+.nav-item.active { background: var(--forest); color: var(--lime); font-weight: 600; }
+.nav-item.active .no { color: var(--lime); opacity: .7; }
+.nav-item.active .ct { color: var(--lime); }
+.nav-item .ct.flag { color: var(--late); }
+.nav-item.active .ct.flag { color: #ff9d82; }
+
+.legend { margin-top: 20px; border: 1px solid var(--rule); padding: 13px; }
+.legend .lh { font-family: var(--font-mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 11px; }
+.legend .lr { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); padding: 4px 0; }
+.legend .lr .m { width: 12px; display: grid; place-items: center; }
+.wp { width: 9px; height: 9px; border-radius: 50%; }
+.wp.done { background: var(--ok); } .wp.prog { background: var(--warn); } .wp.late { background: var(--late); }
+.wp.todo { border: 1.5px solid var(--ink-3); }
+.legend .lr .en { margin-left: auto; color: var(--ink-3); font-size: 9.5px; letter-spacing: .08em; }
+.colophon { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rule-2); }
+.colophon p { font-family: var(--font-mono); font-size: 9.5px; line-height: 1.75; letter-spacing: .03em; color: var(--ink-3); }
+.colophon b { color: var(--ok); }
+
+/* main */
+.main { min-width: 0; }
+.main-inner { max-width: var(--maxw); margin: 0 auto; padding: 30px 38px 90px; }
+
+/* ===================== PAGE HEAD ===================== */
+.phead { display: flex; align-items: flex-end; justify-content: space-between; gap: 26px; flex-wrap: wrap; padding-bottom: 22px; border-bottom: 1.5px solid var(--forest); }
+.phead .kick { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.phead h1 { font-family: var(--font-disp); font-size: clamp(34px, 2rem + 2vw, 58px); letter-spacing: -.01em; line-height: .92; text-transform: uppercase; margin: 12px 0 0; }
+.phead h1 .kr { font-family: var(--font-sans); font-weight: 900; letter-spacing: -.03em; display: block; font-size: .62em; color: var(--ink-2); margin-top: 8px; text-transform: none; }
+.acts { display: flex; gap: 10px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 18px; font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; cursor: pointer; border: 1.5px solid var(--forest); background: transparent; color: var(--forest); transition: .15s; white-space: nowrap; }
+.btn svg { width: 15px; height: 15px; }
+.btn:hover { background: var(--forest); color: var(--lime); }
+.btn.solid { background: var(--forest); color: var(--lime); }
+.btn.solid:hover { background: var(--deep); }
+[data-theme='dark'] .btn { color: var(--ink); border-color: var(--ink); }
+[data-theme='dark'] .btn:hover, [data-theme='dark'] .btn.solid { background: var(--lime); color: var(--forest); border-color: var(--lime); }
+
+/* ===================== SECTION HEAD ===================== */
+.sect { display: flex; align-items: baseline; gap: 14px; margin: 44px 0 18px; }
+.sect .no { font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: .1em; color: var(--ink-3); }
+.sect h2 { font-family: var(--font-disp); font-size: 16px; letter-spacing: .01em; text-transform: uppercase; }
+.sect .kr { font-weight: 800; font-size: 14px; color: var(--ink-2); }
+.sect .line { flex: 1; height: 1px; background: var(--rule); align-self: center; }
+.sect .line::before { content:''; }
+
+/* ===================== HERO MAP PANEL ===================== */
+.overview { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; align-items: stretch; }
+.map-panel { position: relative; background: var(--forest); color: var(--lime); overflow: hidden; min-height: 320px; display: flex; flex-direction: column; }
+[data-theme='dark'] .map-panel { background: var(--deep); }
+.map-panel .contour { position: absolute; inset: 0; opacity: .1; pointer-events: none; }
+.map-panel .corner { position: absolute; width: 14px; height: 14px; border-color: rgba(226,255,204,.5); }
+.map-panel .corner.tl { top: 12px; left: 12px; border-top: 1.5px solid; border-left: 1.5px solid; }
+.map-panel .corner.tr { top: 12px; right: 12px; border-top: 1.5px solid; border-right: 1.5px solid; }
+.map-panel .corner.bl { bottom: 12px; left: 12px; border-bottom: 1.5px solid; border-left: 1.5px solid; }
+.map-panel .corner.br { bottom: 12px; right: 12px; border-bottom: 1.5px solid; border-right: 1.5px solid; }
+.mp-top { display: flex; justify-content: space-between; padding: 18px 22px 0; position: relative; z-index: 2; }
+.mp-top .lab { font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--terrain); }
+.mp-top .pace { font-family: var(--font-mono); font-size: 10.5px; color: var(--signal); }
+.mp-fig { padding: 8px 22px 0; position: relative; z-index: 2; }
+.mp-fig .big { font-family: var(--font-disp); font-size: clamp(56px, 6vw, 92px); line-height: .86; letter-spacing: -.01em; color: #fff; }
+.mp-fig .big .sl { color: var(--terrain); }
+.mp-fig .cap { font-family: var(--font-mono); font-size: 11px; letter-spacing: .04em; color: var(--lime); margin-top: 10px; }
+.mp-fig .cap b { color: #fff; }
+.trail { position: relative; z-index: 2; flex: 1; min-height: 140px; margin-top: 6px; }
+.trail svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.route-base { fill: none; stroke: rgba(226,255,204,.28); stroke-width: 1.5; stroke-dasharray: 2 5; }
+.route-done { fill: none; stroke: var(--lime); stroke-width: 2.5; stroke-linecap: round; filter: drop-shadow(0 0 5px rgba(226,255,204,.5)); }
+.wpn { stroke: var(--forest); stroke-width: 2; }
+.wpn.done { fill: var(--lime); }
+.wpn.prog { fill: var(--warn); }
+.wpn.late { fill: var(--late); }
+.wpn.todo { fill: var(--forest); stroke: rgba(226,255,204,.5); }
+.wpn.cur  { fill: #fff; }
+.mp-legend { display: flex; gap: 18px; padding: 0 22px 18px; position: relative; z-index: 2; }
+.mp-legend span { font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em; color: var(--terrain); display: inline-flex; align-items: center; gap: 7px; }
+.mp-legend i { width: 8px; height: 8px; border-radius: 50%; }
+
+/* stat readouts */
+.reads { display: grid; grid-template-rows: repeat(2,1fr); gap: 1px; background: var(--rule); border: 1.5px solid var(--forest); }
+.read { background: var(--card); padding: 16px 18px; display: grid; grid-template-columns: 1fr auto; align-items: center; transition: background .15s; }
+.read:hover { background: var(--card-2); }
+.read .l { font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.read .v { font-family: var(--font-disp); font-size: 40px; line-height: .9; letter-spacing: -.01em; }
+.read .v small { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--ink-3); letter-spacing: 0; }
+.read .s { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); margin-top: 6px; letter-spacing: .03em; }
+.read.flag .v { color: var(--late); } .read.flag .s { color: var(--late); }
+.read .rt { text-align: right; }
+
+/* ===================== CHECKPOINT BARS ===================== */
+.checks { border: 1.5px solid var(--forest); }
+.crow { display: grid; grid-template-columns: 30px 110px 1fr 56px; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--rule-2); }
+.crow:last-child { border-bottom: 0; }
+.crow .ci { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
+.crow .cn { font-weight: 700; font-size: 13.5px; }
+.crow .ct { height: 10px; background: var(--card-2); position: relative; overflow: hidden; border: 1px solid var(--rule-2); }
+.crow .cf { position: absolute; inset: 0 100% 0 0; background: var(--forest); transition: right 1.1s cubic-bezier(.22,.61,.36,1); }
+.crow .cf.lime { background: var(--ok); } .crow .cf.warn { background: var(--warn); }
+.crow .cp { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; text-align: right; }
+
+/* ===================== OFF-TRAIL + QUEUE ===================== */
+.split { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; align-items: start; }
+.offtrail { border: 1.5px solid var(--forest); }
+.ot { display: grid; grid-template-columns: 70px 1fr 130px; align-items: center; gap: 16px; padding: 15px 20px; border-bottom: 1px solid var(--rule-2); cursor: pointer; position: relative; transition: background .14s; }
+.ot:last-child { border-bottom: 0; }
+.ot:hover { background: var(--card-2); }
+.ot:hover::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background: var(--late); }
+.ot.warnx:hover::before { background: var(--warn); }
+.ot .dd { font-family: var(--font-disp); font-size: 23px; line-height: 1; }
+.ot .dd small { display: block; font-family: var(--font-mono); font-size: 8.5px; font-weight: 500; letter-spacing: .1em; color: var(--ink-3); margin-top: 3px; }
+.ot.crit .dd { color: var(--late); } .ot.warnx .dd { color: var(--warn); }
+.ot .sc { font-size: 14px; font-weight: 700; }
+.ot .wy { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); margin-top: 3px; letter-spacing: .02em; }
+.ot .mb { display: flex; align-items: center; gap: 9px; }
+.ot .mb .t { flex: 1; height: 6px; background: var(--card-2); border: 1px solid var(--rule-2); position: relative; overflow: hidden; }
+.ot .mb .f { position: absolute; inset: 0 100% 0 0; transition: right 1.1s cubic-bezier(.22,.61,.36,1); }
+.ot .mb .f.late { background: var(--late); } .ot .mb .f.warn { background: var(--warn); }
+.ot .mb .p { font-family: var(--font-mono); font-size: 11px; font-weight: 600; width: 30px; text-align: right; }
+
+.qpanel { border: 1.5px solid var(--forest); }
+.qh { display: flex; justify-content: space-between; align-items: center; padding: 15px 18px; background: var(--forest); color: var(--lime); }
+.qh .t { font-family: var(--font-disp); font-size: 12.5px; text-transform: uppercase; letter-spacing: .02em; }
+.qh .c { font-family: var(--font-mono); font-size: 10.5px; color: var(--lime); }
+.q { padding: 8px 0; }
+.qr { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--rule-2); }
+.qr:last-child { border: 0; }
+.qr .mk { width: 9px; height: 9px; border-radius: 50%; background: var(--info); flex-shrink: 0; }
+.qr .m { flex: 1; min-width: 0; }
+.qr .m .s { font-size: 12.5px; font-weight: 600; }
+.qr .m .d { font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-3); margin-top: 2px; letter-spacing: .03em; }
+.qr .tm { font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-3); }
+.qf { padding: 12px; }
+.qf .btn { width: 100%; justify-content: center; }
+
+/* ===================== STATION LOG ===================== */
+.lhead { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.ftabs { display: inline-flex; gap: 6px; }
+.ftab { background: transparent; border: 1.5px solid var(--rule); padding: 7px 14px; font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); cursor: pointer; transition: .14s; }
+.ftab:hover { border-color: var(--forest); }
+.ftab.active { background: var(--forest); color: var(--lime); border-color: var(--forest); }
+.ftab .n { opacity: .7; margin-left: 4px; }
+.search { position: relative; display: inline-flex; align-items: center; }
+.search svg { position: absolute; left: 12px; width: 15px; height: 15px; color: var(--ink-3); pointer-events: none; }
+.search input { height: 40px; padding: 0 14px 0 36px; width: 230px; border: 1.5px solid var(--rule); background: var(--card); color: var(--ink); outline: none; font-family: var(--font-mono); font-size: 12px; transition: .15s; }
+.search input::placeholder { color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; font-size: 11px; }
+.search input:focus { border-color: var(--forest); }
+
+.log { border: 1.5px solid var(--forest); background: var(--card); }
+table.tbl { width: 100%; border-collapse: collapse; }
+.tbl thead th { text-align: left; font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); padding: 13px 14px; border-bottom: 1.5px solid var(--forest); white-space: nowrap; }
+.tbl thead th.c { text-align: center; }
+.tbl tbody td { padding: 13px 14px; border-bottom: 1px solid var(--rule-2); vertical-align: middle; font-size: 13px; }
+.tbl tbody tr:last-child td { border-bottom: 0; }
+.tbl tbody tr { cursor: pointer; position: relative; transition: background .12s; }
+.tbl tbody tr:hover { background: var(--card-2); }
+.tbl tbody tr:hover td:first-child::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background: var(--signal); }
+.tbl .st { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); letter-spacing: .03em; }
+.tbl .sch { font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.tbl .sch .lv { font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: .05em; padding: 2px 6px; border: 1px solid var(--rule); color: var(--ink-2); }
+.tbl .ws b { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; }
+.tbl .ws span { display: block; font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-3); margin-top: 2px; letter-spacing: .03em; }
+.tbl .c { text-align: center; }
+tr.dgr td:first-child { box-shadow: inset 4px 0 0 var(--late); }
+
+.wm2 { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; letter-spacing: .02em; }
+.wm2::before { content:''; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.wm2.ok::before { background: var(--ok); }       .wm2.ok { color: var(--ok); }
+.wm2.doing::before { background: var(--warn); }    .wm2.doing { color: var(--warn); }
+.wm2.late::before { background: var(--late); }      .wm2.late { color: var(--late); }
+.wm2.todo::before { background: transparent; border: 1.5px solid var(--ink-3); } .wm2.todo { color: var(--ink-3); }
+.wm2.na::before { background: var(--ink-3); opacity: .35; } .wm2.na { color: var(--ink-3); opacity: .6; }
+
+.ep { display: flex; align-items: center; gap: 9px; min-width: 150px; }
+.ep .t { flex: 1; height: 7px; background: var(--card-2); border: 1px solid var(--rule-2); position: relative; overflow: hidden; }
+.ep .f { position: absolute; inset: 0 100% 0 0; background: var(--ok); transition: right 1.1s cubic-bezier(.22,.61,.36,1); }
+.ep .f.warn { background: var(--warn); } .ep .f.late { background: var(--late); }
+.ep .p { font-family: var(--font-mono); font-size: 12px; font-weight: 600; width: 34px; text-align: right; }
+
+.tg { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; padding: 3px 8px; border: 1px solid; }
+.tg.ok { color: var(--ok); border-color: var(--ok-soft); background: var(--ok-soft); }
+.tg.warn { color: var(--warn); border-color: var(--warn-soft); background: var(--warn-soft); }
+.tg.late { color: var(--late); border-color: var(--late-soft); background: var(--late-soft); }
+.tg.muted { color: var(--ink-3); border-color: var(--rule); }
+.go { font-family: var(--font-mono); opacity: 0; color: var(--ink-3); transition: .14s; }
+.tbl tbody tr:hover .go { opacity: 1; }
+
+/* reveal */
+.rv { opacity: 0; transform: translateY(12px); animation: rise .6s cubic-bezier(.22,.61,.36,1) forwards; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce){ .rv{ animation:none; opacity:1; transform:none; } * { transition: none !important; } }
+
+@media (max-width: 1140px){ .overview, .split { grid-template-columns: 1fr; } }
+@media (max-width: 920px){ .shell { grid-template-columns: 1fr; } .sidebar { display: none; } }
+@media (max-width: 600px){ .main-inner { padding: 22px 16px 70px; } .crow { grid-template-columns: 24px 90px 1fr 44px; gap: 10px; } }
+</style>
+</head>
+<body>
+
+<div class="edge l">현장 조사 야장 · SAFETY FIELD LEDGER · FY2025</div>
+<div class="edge r">POV — INSPECTOR J-07A · 62 STATIONS</div>
+
+<!-- ===================== DATUM STRIP ===================== -->
+<div class="datum">
+  <div class="d"><span class="blink"></span> 실시간 동기화</div>
+  <div class="d hideS">37°34′N 127°00′E</div>
+  <div class="d">DATUM · FY2025 / 2025.03–2026.02</div>
+  <div class="d hideS">SECTOR · 한국산업안전협회</div>
+  <div class="d grow"></div>
+  <div class="d">ROUTE 48/62 · <span class="v">77.4%</span></div>
+</div>
+
+<!-- ===================== TOPBAR ===================== -->
+<header class="topbar">
+  <div class="brand">
+    <div class="mk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+    <div><span class="wm">San Safe</span><span class="sub">한국산업안전협회 · 통합 플랫폼</span></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="tenant"><span class="d"></span> 한국산업안전협회</div>
+  <div class="user">
+    <div class="av">조</div>
+    <div><span class="nm">조사원 J-07A</span><span class="rl">Field Inspector</span></div>
+  </div>
+  <button class="tbtn" id="themeBtn" title="테마 전환" aria-label="테마 전환">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+  </button>
+</header>
+
+<!-- ===================== SHELL ===================== -->
+<div class="shell">
+
+  <!-- field guide sidebar -->
+  <nav class="sidebar">
+    <div class="guide-h">▲ 야장 · Field Guide</div>
+    <div class="nav-label">업무 / Routes</div>
+    <div class="nav-item active"><span class="no">01</span> 이력관리 대장</div>
+    <div class="nav-item"><span class="no">02</span> 종합관리(경영)</div>
+    <div class="nav-item"><span class="no">03</span> 안전점검 <span class="ct flag">5</span></div>
+    <div class="nav-item"><span class="no">04</span> 위험성평가</div>
+    <div class="nav-item"><span class="no">05</span> 근골격계</div>
+    <div class="nav-item"><span class="no">06</span> 교육 진도율</div>
+    <div class="nav-item"><span class="no">07</span> 이행점검</div>
+    <div class="nav-item"><span class="no">08</span> 세금계산서</div>
+
+    <div class="legend">
+      <div class="lh">▣ 범례 · Legend</div>
+      <div class="lr"><span class="m"><span class="wp done"></span></span> 완료 <span class="en">DONE</span></div>
+      <div class="lr"><span class="m"><span class="wp prog"></span></span> 진행 <span class="en">ACTIVE</span></div>
+      <div class="lr"><span class="m"><span class="wp late"></span></span> 지연 <span class="en">OVERDUE</span></div>
+      <div class="lr"><span class="m"><span class="wp todo"></span></span> 예정 <span class="en">PLANNED</span></div>
+    </div>
+
+    <div class="colophon">
+      <p>POV — 점검자 개인 시점<br>모든 수치는 <b>J-07A</b> 담당<br>62교 기준 자동 집계.<br>v3.0 · CARTOGRAPHIC</p>
+    </div>
+  </nav>
+
+  <!-- main -->
+  <main class="main">
+    <div class="main-inner">
+
+      <!-- page head -->
+      <div class="phead rv">
+        <div>
+          <div class="kick">이력관리 대장 — Records Ledger · ST.62</div>
+          <h1>Main Ledger<span class="kr">메인 대시보드</span></h1>
+        </div>
+        <div class="acts">
+          <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> 엑셀 업로드</button>
+          <button class="btn solid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> 학교 등록</button>
+        </div>
+      </div>
+
+      <!-- 01 OVERVIEW -->
+      <div class="sect rv"><span class="no">[ 01 ]</span><h2>Overview</h2><span class="kr">현황 요약</span><span class="line"></span></div>
+
+      <div class="overview">
+        <!-- map / trail hero -->
+        <section class="map-panel rv" style="animation-delay:.05s">
+          <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+          <svg class="contour" viewBox="0 0 600 360" preserveAspectRatio="none">
+            <g fill="none" stroke="#e2ffcc" stroke-width="1">
+              <path d="M-20,90 C120,40 200,140 340,90 S520,30 640,80"/>
+              <path d="M-20,140 C120,90 200,190 340,140 S520,80 640,130"/>
+              <path d="M-20,200 C140,150 220,250 360,200 S540,150 640,190"/>
+              <path d="M-20,260 C140,210 220,310 360,260 S540,210 640,250"/>
+              <path d="M-20,320 C140,270 220,360 360,315 S540,270 640,305"/>
+            </g>
+          </svg>
+          <div class="mp-top">
+            <span class="lab">이번 달 점검 진행 · Field Progress</span>
+            <span class="pace">▲ +17% MoM</span>
+          </div>
+          <div class="mp-fig">
+            <div class="big"><span id="hbig">0</span><span class="sl">/62</span></div>
+            <div class="cap">완료율 <b id="hpct">0.0</b>% · 잔여 14 STATIONS · 마감 D-9</div>
+          </div>
+          <div class="trail">
+            <svg id="trailSvg" viewBox="0 0 600 170" preserveAspectRatio="none">
+              <path id="routeBase" class="route-base" d="M16,130 C90,60 150,150 220,110 S330,40 400,90 S500,150 584,70"/>
+              <path id="routeDone" class="route-done" d="M16,130 C90,60 150,150 220,110 S330,40 400,90 S500,150 584,70"/>
+              <g id="nodes"></g>
+            </svg>
+          </div>
+          <div class="mp-legend">
+            <span><i style="background:var(--ok)"></i> 완료 48</span>
+            <span><i style="background:var(--warn)"></i> 진행 9</span>
+            <span><i style="background:var(--late)"></i> 지연 5</span>
+          </div>
+        </section>
+
+        <!-- readouts -->
+        <div class="reads rv" style="animation-delay:.1s">
+          <div class="read">
+            <div><div class="l">담당 학교 · Stations</div><div class="v"><span data-count="62">0</span><small> 교</small></div></div>
+            <div class="rt s">초 38<br>중 16 · 고 8</div>
+          </div>
+          <div class="read flag">
+            <div><div class="l">지연 · Overdue</div><div class="v"><span data-count="5">0</span><small> 교</small></div></div>
+            <div class="rt s">↑ 즉시<br>조치 필요</div>
+          </div>
+          <div class="read">
+            <div><div class="l">평균 교육 진도율</div><div class="v"><span data-count="78">0</span><small> %</small></div></div>
+            <div class="rt s">미수료<br>41 명</div>
+          </div>
+          <div class="read">
+            <div><div class="l">교육청 전송 대기</div><div class="v"><span data-count="9">0</span><small> 건</small></div></div>
+            <div class="rt s">서명완료<br>→ 봇 전송</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 02 CHECKPOINTS -->
+      <div class="sect rv"><span class="no">[ 02 ]</span><h2>Checkpoints</h2><span class="kr">5대 업무 진행률</span><span class="line"></span></div>
+      <section class="checks rv" style="animation-delay:.05s">
+        <div class="crow"><span class="ci">C1</span><span class="cn">안전점검</span><div class="ct"><div class="cf lime" data-w="88"></div></div><span class="cp">88%</span></div>
+        <div class="crow"><span class="ci">C2</span><span class="cn">위험성평가</span><div class="ct"><div class="cf lime" data-w="71"></div></div><span class="cp">71%</span></div>
+        <div class="crow"><span class="ci">C3</span><span class="cn">이행점검</span><div class="ct"><div class="cf warn" data-w="63"></div></div><span class="cp">63%</span></div>
+        <div class="crow"><span class="ci">C4</span><span class="cn">근골격계</span><div class="ct"><div class="cf warn" data-w="54"></div></div><span class="cp">54%</span></div>
+        <div class="crow"><span class="ci">C5</span><span class="cn">교육 이수</span><div class="ct"><div class="cf lime" data-w="78"></div></div><span class="cp">78%</span></div>
+      </section>
+
+      <!-- 03 OFF-TRAIL -->
+      <div class="sect rv"><span class="no">[ 03 ]</span><h2>Off-Trail</h2><span class="kr">우선 조치 · 마감 임박</span><span class="line"></span></div>
+      <div class="split">
+        <section class="offtrail rv" style="animation-delay:.05s">
+          <div class="ot crit"><div class="dd">D+5<small>OVERDUE</small></div><div><div class="sc">△△여자중학교</div><div class="wy">ST.05 · 안전점검 미완 · 진도 저조</div></div><div class="mb"><div class="t"><div class="f late" data-w="48"></div></div><span class="p">48%</span></div></div>
+          <div class="ot crit"><div class="dd">D+3<small>OVERDUE</small></div><div><div class="sc">△△중학교</div><div class="wy">ST.02 · 점검 마감 초과</div></div><div class="mb"><div class="t"><div class="f warn" data-w="64"></div></div><span class="p">64%</span></div></div>
+          <div class="ot crit"><div class="dd">D+1<small>OVERDUE</small></div><div><div class="sc">◇◇중학교</div><div class="wy">ST.08 · 위험성평가 미착수</div></div><div class="mb"><div class="t"><div class="f late" data-w="30"></div></div><span class="p">30%</span></div></div>
+          <div class="ot warnx"><div class="dd">D-2<small>IMMINENT</small></div><div><div class="sc">▽▽초등학교</div><div class="wy">ST.07 · 이행점검 대기</div></div><div class="mb"><div class="t"><div class="f warn" data-w="73"></div></div><span class="p">73%</span></div></div>
+          <div class="ot warnx"><div class="dd">D-4<small>IMMINENT</small></div><div><div class="sc">○○북초등학교</div><div class="wy">ST.11 · 근골격계 조사 대기</div></div><div class="mb"><div class="t"><div class="f warn" data-w="69"></div></div><span class="p">69%</span></div></div>
+        </section>
+
+        <section class="qpanel rv" style="animation-delay:.1s">
+          <div class="qh"><span class="t">교육청 전송 대기</span><span class="c">9 PENDING</span></div>
+          <div class="q">
+            <div class="qr"><span class="mk"></span><div class="m"><div class="s">○○초등학교 · 안전점검</div><div class="d">SIGNED → BOT QUEUE</div></div><span class="tm">방금</span></div>
+            <div class="qr"><span class="mk"></span><div class="m"><div class="s">□□고등학교 · 위험성평가</div><div class="d">SIGNED → BOT QUEUE</div></div><span class="tm">12분</span></div>
+            <div class="qr"><span class="mk"></span><div class="m"><div class="s">○○남초 · 이행점검</div><div class="d">SIGNED → BOT QUEUE</div></div><span class="tm">31분</span></div>
+            <div class="qr"><span class="mk"></span><div class="m"><div class="s">□□공고 · 근골격계</div><div class="d">SIGNED → BOT QUEUE</div></div><span class="tm">1시간</span></div>
+          </div>
+          <div class="qf"><button class="btn solid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg> 9건 일괄 전송</button></div>
+        </section>
+      </div>
+
+      <!-- 04 STATION LOG -->
+      <div class="sect rv"><span class="no">[ 04 ]</span><h2>Station Log</h2><span class="kr">담당 학교 대장</span><span class="line"></span></div>
+      <div class="lhead rv">
+        <div class="ftabs">
+          <button class="ftab active" data-filter="all">전체 <span class="n">09</span></button>
+          <button class="ftab" data-filter="danger">지연 <span class="n">03</span></button>
+          <button class="ftab" data-filter="ok">완료 <span class="n">03</span></button>
+        </div>
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="schSearch" placeholder="Search station" />
+        </div>
+      </div>
+      <div class="log rv" style="animation-delay:.05s">
+        <table class="tbl" id="ledger">
+          <thead>
+            <tr>
+              <th style="width:54px">ST#</th>
+              <th>학교명 / Station</th>
+              <th>현업종사자</th>
+              <th class="c">안전</th>
+              <th class="c">위험성</th>
+              <th class="c">근골격</th>
+              <th class="c">이행</th>
+              <th style="width:178px">교육 진도율</th>
+              <th>상태</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+/* ===================== DATA ===================== */
+const ROWS = [
+  { n:1, name:'○○초등학교',    lvl:'초', ws:'조3·시1·미1·통2·당1', sub:'급식 3 / 계 8', s:'ok',   r:'doing',m:'todo',c:'doing',pct:92, state:'ok',   tag:['muted','정상'] },
+  { n:2, name:'△△중학교',      lvl:'중', ws:'조5·시2·미2·통0·당1', sub:'급식 5 / 계 10',s:'late', r:'ok',   m:'todo',c:'todo', pct:64, state:'danger',tag:['late','마감 D+3'], dgr:true },
+  { n:3, name:'□□고등학교',    lvl:'고', ws:'조7·시2·미3·통0·당2', sub:'급식 7 / 계 14',s:'ok',   r:'ok',   m:'doing',c:'ok',  pct:88, state:'ok',   tag:['muted','사립'] },
+  { n:4, name:'○○남초등학교',  lvl:'초', ws:'조2·시1·미1·통1·당1', sub:'급식 2 / 계 6', s:'ok',   r:'todo', m:'na',  c:'todo', pct:81, state:'ok',   tag:['muted','통학차량 1'] },
+  { n:5, name:'△△여자중학교',  lvl:'중', ws:'조4·시1·미2·통0·당1', sub:'급식 4 / 계 8', s:'late', r:'doing',m:'todo',c:'todo', pct:48, state:'danger',tag:['late','진도 저조'], dgr:true },
+  { n:6, name:'□□공업고등학교',lvl:'고', ws:'조6·시3·미2·통0·당2', sub:'급식 6 / 계 13',s:'ok',   r:'ok',   m:'ok',  c:'doing',pct:95, state:'ok',   tag:['muted','위험설비 多'] },
+  { n:7, name:'▽▽초등학교',    lvl:'초', ws:'조3·시1·미1·통1·당1', sub:'급식 3 / 계 7', s:'doing',r:'ok',   m:'todo',c:'late', pct:73, state:'warn', tag:['warn','D-2 임박'] },
+  { n:8, name:'◇◇중학교',      lvl:'중', ws:'조4·시1·미1·통0·당1', sub:'급식 4 / 계 7', s:'late', r:'todo', m:'todo',c:'todo', pct:30, state:'danger',tag:['late','D+1 지연'], dgr:true },
+  { n:9, name:'☆☆고등학교',    lvl:'고', ws:'조5·시2·미2·통0·당2', sub:'급식 5 / 계 11',s:'ok',   r:'ok',   m:'ok',  c:'ok',   pct:100,state:'ok',   tag:['ok','전부 완료'] },
+];
+const SM = { ok:'완료', doing:'진행', late:'지연', todo:'예정', na:'—' };
+const smCell = k => `<td class="c"><span class="wm2 ${k}">${SM[k]}</span></td>`;
+
+function render(filter='all', q=''){
+  const tb = document.querySelector('#ledger tbody');
+  const rows = ROWS.filter(r=>{
+    const f = filter==='all' || (filter==='danger'&&r.state==='danger') || (filter==='ok'&&r.state==='ok');
+    const s = !q || r.name.toLowerCase().includes(q.toLowerCase());
+    return f && s;
+  });
+  tb.innerHTML = rows.map(r=>{
+    const tone = r.pct>=85?'':(r.pct>=60?'warn':'late');
+    return `<tr class="${r.dgr?'dgr':''}">
+      <td class="st">ST.${String(r.n).padStart(2,'0')}</td>
+      <td><div class="sch"><span class="lv">${r.lvl}</span>${r.name}</div></td>
+      <td><div class="ws"><b>${r.ws}</b><span>${r.sub}</span></div></td>
+      ${smCell(r.s)}${smCell(r.r)}${smCell(r.m)}${smCell(r.c)}
+      <td><div class="ep"><div class="t"><div class="f ${tone}" data-w="${r.pct}"></div></div><span class="p">${r.pct}%</span></div></td>
+      <td><span class="tg ${r.tag[0]}">${r.tag[1]}</span> <span class="go">→</span></td>
+    </tr>`;
+  }).join('');
+  requestAnimationFrame(()=>tb.querySelectorAll('.f').forEach(f=>f.style.right='0'));
+  requestAnimationFrame(()=>tb.querySelectorAll('.ep .f').forEach(f=>f.style.right=(100-(+f.dataset.w))+'%'));
+}
+
+/* ===================== TRAIL ===================== */
+function buildTrail(){
+  const base = document.getElementById('routeBase');
+  const done = document.getElementById('routeDone');
+  const g = document.getElementById('nodes');
+  const L = base.getTotalLength();
+  // animate completed portion to 77.4%
+  done.style.strokeDasharray = L;
+  done.style.strokeDashoffset = L;
+  done.getBoundingClientRect();
+  done.style.transition = 'stroke-dashoffset 1.6s cubic-bezier(.22,.61,.36,1)';
+  setTimeout(()=>{ done.style.strokeDashoffset = L*(1-0.774); }, 150);
+  // place 16 waypoint nodes
+  const N = 16;
+  // statuses roughly mirroring 48 done / 9 prog / 5 late across the route
+  const stat = ['done','done','done','late','done','done','prog','done','done','late','prog','done','cur','prog','late','todo'];
+  for(let i=0;i<N;i++){
+    const p = base.getPointAtLength(L*(i/(N-1)));
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',p.x); c.setAttribute('cy',p.y);
+    c.setAttribute('r', stat[i]==='cur'?6:4.5);
+    c.setAttribute('class','wpn '+stat[i]);
+    c.style.opacity='0'; c.style.transition='opacity .4s ease';
+    g.appendChild(c);
+    setTimeout(()=>{ c.style.opacity='1'; }, 200 + i*70);
+    if(stat[i]==='cur'){
+      const ring = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      ring.setAttribute('cx',p.x); ring.setAttribute('cy',p.y); ring.setAttribute('r',6);
+      ring.setAttribute('fill','none'); ring.setAttribute('stroke','#fff'); ring.setAttribute('stroke-width','1.5');
+      ring.style.transformOrigin=`${p.x}px ${p.y}px`;
+      ring.innerHTML='<animate attributeName="r" from="6" to="14" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.9" to="0" dur="1.8s" repeatCount="indefinite"/>';
+      g.appendChild(ring);
+    }
+  }
+}
+
+/* ===================== BOOT ===================== */
+document.addEventListener('DOMContentLoaded', ()=>{
+  render();
+  buildTrail();
+
+  document.querySelectorAll('[data-count]').forEach(el=>{
+    const tgt=+el.dataset.count, t0=performance.now(), dur=1100;
+    const step=t=>{ const p=Math.min((t-t0)/dur,1), e=1-Math.pow(1-p,3); el.textContent=Math.round(tgt*e); if(p<1)requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
+  const hb=document.getElementById('hbig'), hp=document.getElementById('hpct'), t0=performance.now();
+  const step=t=>{ const p=Math.min((t-t0)/1400,1), e=1-Math.pow(1-p,3); hb.textContent=Math.round(48*e); hp.textContent=(77.4*e).toFixed(1); if(p<1)requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+
+  setTimeout(()=>{
+    document.querySelectorAll('.crow .cf, .ot .f').forEach(b=>b.style.right=(100-(+b.dataset.w))+'%');
+  }, 220);
+
+  document.querySelectorAll('.ftab').forEach(tab=>tab.addEventListener('click',()=>{
+    document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active')); tab.classList.add('active');
+    render(tab.dataset.filter, document.getElementById('schSearch').value);
+  }));
+  document.getElementById('schSearch').addEventListener('input', e=>render(document.querySelector('.ftab.active').dataset.filter, e.target.value));
+
+  const moon='<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>';
+  const sun='<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  document.getElementById('themeBtn').addEventListener('click',()=>{
+    const root=document.documentElement, light=root.getAttribute('data-theme')==='light';
+    root.setAttribute('data-theme', light?'dark':'light');
+    document.getElementById('themeIcon').innerHTML = light?sun:moon;
+  });
+});
+</script>
+</body>
+</html>

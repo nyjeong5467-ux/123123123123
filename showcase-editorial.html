@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>이력관리 대장 — 안전관리 통합 플랫폼 · Editorial</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ==========================================================================
+   EDITORIAL SAFETY LEDGER  —  이력관리 대장
+   Paper + ink + acid-lime. Bricolage Grotesque / Pretendard / Geist Mono.
+   Hairline rules, numbered sections, financial-index table, no AI gloss.
+   ========================================================================== */
+
+:root {
+  /* ---- paper (light, default) ---- */
+  --paper:    #f2f1ea;
+  --paper-2:  #e9e7dc;
+  --card:     #fbfaf5;
+  --card-2:   #f5f4ed;
+  --ink:      #17170f;
+  --ink-2:    #46463a;
+  --ink-3:    #86857a;
+
+  --rule:     rgba(23,23,15,.14);
+  --rule-2:   rgba(23,23,15,.07);
+  --rule-bold:rgba(23,23,15,.30);
+
+  --lime:     #abd233;
+  --lime-2:   #9bc121;
+  --lime-deep:#566f0c;
+  --lime-soft:rgba(171,210,51,.22);
+
+  --red:      #cf3a28;  --red-soft: rgba(207,58,40,.10);
+  --amber:    #bd820f;  --amber-soft: rgba(189,130,15,.13);
+  --blue:     #2f6fd0;  --blue-soft: rgba(47,111,208,.10);
+  --green:    #2c8a57;  --green-soft: rgba(44,138,87,.12);
+
+  --font-disp: 'Bricolage Grotesque', 'Pretendard', sans-serif;
+  --font-sans: 'Pretendard', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'Roboto Mono', Menlo, monospace;
+
+  --r: 6px; --r-sm: 4px;
+  --sidebar-w: 240px;
+  --maxw: 1380px;
+}
+
+[data-theme='dark'] {
+  --paper:    #14140e;
+  --paper-2:  #0f0f0a;
+  --card:     #1c1c15;
+  --card-2:   #232319;
+  --ink:      #f3f2e8;
+  --ink-2:    #b6b5a6;
+  --ink-3:    #807f70;
+
+  --rule:     rgba(243,242,232,.15);
+  --rule-2:   rgba(243,242,232,.08);
+  --rule-bold:rgba(243,242,232,.32);
+
+  --lime:     #b6dd3e;
+  --lime-2:   #c7ea58;
+  --lime-deep:#cbe87a;
+  --lime-soft:rgba(182,221,62,.16);
+
+  --red:      #f06450;  --red-soft: rgba(240,100,80,.13);
+  --amber:    #e2a534;  --amber-soft: rgba(226,165,52,.14);
+  --blue:     #5e9bf0;  --blue-soft: rgba(94,155,240,.13);
+  --green:    #46b97e;  --green-soft: rgba(70,185,126,.14);
+}
+
+* { box-sizing: border-box; margin: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-sans);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px; line-height: 1.5; letter-spacing: -.003em;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  transition: background .3s ease, color .3s ease;
+}
+a { color: inherit; text-decoration: none; }
+button, input { font-family: inherit; font-size: inherit; color: inherit; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+::selection { background: var(--lime); color: var(--ink); }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb { background: var(--rule-bold); border-radius: 0; border: 4px solid var(--paper); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* tiny labels */
+.kicker { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); }
+
+/* ======================= TICKER ======================= */
+.ticker {
+  background: var(--ink); color: var(--paper); overflow: hidden;
+  border-bottom: 1.5px solid var(--ink); white-space: nowrap;
+}
+.ticker .track { display: inline-flex; align-items: center; animation: marquee 34s linear infinite; }
+.ticker:hover .track { animation-play-state: paused; }
+.ticker .item { display: inline-flex; align-items: center; gap: 9px; padding: 9px 26px; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .02em; }
+.ticker .sep { color: var(--lime); opacity: .8; }
+.ticker .lv { color: var(--lime); }
+.ticker .rd { color: #ff8a7a; }
+.ticker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 3px rgba(171,210,51,.25); }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* ======================= TOPBAR ======================= */
+.topbar {
+  display: flex; align-items: center; gap: 20px; padding: 0 30px; height: 62px;
+  background: var(--paper); border-bottom: 1px solid var(--rule);
+  position: sticky; top: 0; z-index: 50;
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand .mark {
+  width: 32px; height: 32px; background: var(--lime); color: var(--ink);
+  display: grid; place-items: center; border-radius: 5px;
+}
+.brand .mark svg { width: 19px; height: 19px; }
+.brand .org { font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); display: block; line-height: 1.3; }
+.brand .product { font-size: 15px; font-weight: 700; letter-spacing: -.02em; display: block; line-height: 1.25; }
+.topbar .spacer { flex: 1; }
+.tenant { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); padding: 6px 12px; border: 1px solid var(--rule); border-radius: 999px; }
+.tenant .d { width: 6px; height: 6px; border-radius: 50%; background: var(--lime); }
+.user { display: flex; align-items: center; gap: 10px; padding-left: 18px; border-left: 1px solid var(--rule); }
+.avatar { width: 34px; height: 34px; background: var(--ink); color: var(--paper); display: grid; place-items: center; font-weight: 700; font-size: 13px; border-radius: 5px; }
+.user .name { font-size: 13px; font-weight: 650; display: block; line-height: 1.25; }
+.user .role { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); display: block; line-height: 1.3; }
+.tbtn { width: 38px; height: 38px; border: 1px solid var(--rule); background: var(--card); color: var(--ink-2); cursor: pointer; display: grid; place-items: center; border-radius: var(--r-sm); transition: border-color .15s, color .15s, background .15s; }
+.tbtn:hover { border-color: var(--rule-bold); color: var(--ink); background: var(--card-2); }
+.tbtn svg { width: 18px; height: 18px; }
+
+/* ======================= SHELL ======================= */
+.shell { display: grid; grid-template-columns: var(--sidebar-w) 1fr; align-items: start; }
+
+/* ---- sidebar : editorial index nav ---- */
+.sidebar { position: sticky; top: 62px; height: calc(100vh - 62px); border-right: 1px solid var(--rule); padding: 24px 18px; overflow-y: auto; }
+.nav-label { font-family: var(--font-mono); font-size: 9.5px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); padding: 0 8px; margin: 20px 0 10px; }
+.nav-item { display: flex; align-items: center; gap: 12px; padding: 9px 10px; font-size: 13.5px; font-weight: 500; color: var(--ink-2); cursor: pointer; position: relative; border-radius: var(--r-sm); transition: background .14s, color .14s; }
+.nav-item .no { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); width: 18px; }
+.nav-item:hover { background: var(--card-2); color: var(--ink); }
+.nav-item .ct { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); }
+.nav-item.active { background: var(--lime-soft); color: var(--ink); font-weight: 650; }
+.nav-item.active .no { color: var(--lime-deep); }
+.nav-item.active::before { content: ''; position: absolute; left: -18px; top: 6px; bottom: 6px; width: 3px; background: var(--lime); }
+.nav-item.active .ct.warn { color: var(--red); font-weight: 600; }
+.nav-divider { height: 1px; background: var(--rule); margin: 18px 8px; }
+.colophon { margin-top: 24px; padding: 13px 10px; border-top: 1px solid var(--rule); }
+.colophon p { font-family: var(--font-mono); font-size: 10px; line-height: 1.7; color: var(--ink-3); letter-spacing: .01em; }
+.colophon b { color: var(--lime-deep); }
+
+/* ---- main ---- */
+.main { min-width: 0; }
+.main-inner { max-width: var(--maxw); margin: 0 auto; padding: 34px 40px 90px; }
+
+/* ======================= PAGE HEAD ======================= */
+.phead { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; flex-wrap: wrap; padding-bottom: 26px; border-bottom: 1.5px solid var(--ink); margin-bottom: 6px; }
+.phead h1 { font-family: var(--font-disp); font-size: clamp(30px, 2rem + 1.4vw, 46px); font-weight: 700; letter-spacing: -.035em; line-height: 1.02; margin-top: 12px; }
+.phead .meta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); margin-top: 14px; letter-spacing: .01em; }
+.phead .meta b { color: var(--ink-2); }
+.phead .acts { display: flex; gap: 10px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 17px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: var(--r-sm); border: 1px solid var(--rule-bold); background: var(--card); color: var(--ink); transition: background .15s, border-color .15s, transform .08s; white-space: nowrap; }
+.btn svg { width: 15px; height: 15px; }
+.btn:hover { background: var(--card-2); border-color: var(--ink-3); }
+.btn:active { transform: translateY(1px); }
+.btn.solid { background: var(--lime); border-color: var(--lime); color: var(--ink); }
+.btn.solid:hover { background: var(--lime-2); border-color: var(--lime-2); }
+
+/* ======================= SECTION HEADER ======================= */
+.sect { display: flex; align-items: baseline; gap: 14px; margin: 46px 0 20px; }
+.sect .no { font-family: var(--font-disp); font-size: 22px; font-weight: 700; color: var(--lime-deep); letter-spacing: -.02em; }
+.sect h2 { font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
+.sect .en { font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
+.sect .line { flex: 1; height: 1px; background: var(--rule); align-self: center; }
+
+/* ======================= PANELS ======================= */
+.panel { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r); }
+
+/* ---- 01 : hero + stats ---- */
+.overview { display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; }
+.hero { padding: 24px 26px 26px; display: flex; flex-direction: column; }
+.hero .top { display: flex; align-items: center; justify-content: space-between; }
+.hero .tag { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.hero .pace { font-family: var(--font-mono); font-size: 11px; color: var(--green); display: inline-flex; align-items: center; gap: 6px; }
+.hero .figure { display: flex; align-items: baseline; gap: 4px; margin: 14px 0 4px; }
+.hero .figure .big { font-family: var(--font-disp); font-size: clamp(60px, 5vw, 92px); font-weight: 700; letter-spacing: -.05em; line-height: .9; }
+.hero .figure .den { font-family: var(--font-disp); font-size: 30px; font-weight: 600; color: var(--ink-3); letter-spacing: -.03em; }
+.hero .cap { font-size: 13px; color: var(--ink-2); }
+.hero .cap b { font-family: var(--font-mono); color: var(--lime-deep); font-weight: 600; }
+/* segmented meter */
+.meter { display: flex; gap: 3px; height: 12px; margin-top: 20px; }
+.meter span { height: 100%; border-radius: 2px; width: 0; transition: width 1.1s cubic-bezier(.22,.61,.36,1); }
+.meter .s-done { background: var(--lime); }
+.meter .s-prog { background: var(--amber); }
+.meter .s-late { background: var(--red); }
+.legend { display: flex; gap: 20px; margin-top: 14px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--ink-2); }
+.legend i { width: 9px; height: 9px; border-radius: 2px; }
+.legend b { font-family: var(--font-mono); font-weight: 600; }
+
+/* stat cells */
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden; }
+.stat { background: var(--card); padding: 18px 20px; position: relative; transition: background .18s; }
+.stat:hover { background: var(--card-2); }
+.stat .no { position: absolute; top: 12px; right: 14px; font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
+.stat .lab { font-family: var(--font-mono); font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); }
+.stat .val { font-family: var(--font-disp); font-size: 38px; font-weight: 700; letter-spacing: -.04em; line-height: 1; margin-top: 12px; }
+.stat .val small { font-family: var(--font-sans); font-size: 14px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+.stat .sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); margin-top: 9px; }
+.stat.flag .val { color: var(--red); }
+.stat.flag .sub { color: var(--red); }
+
+/* ---- 5대 업무 bars ---- */
+.workbars { padding: 22px 26px; display: grid; gap: 15px; }
+.wbar { display: grid; grid-template-columns: 96px 1fr 50px; align-items: center; gap: 16px; }
+.wbar .nm { font-size: 13px; font-weight: 600; }
+.wbar .track { height: 8px; background: var(--card-2); border-radius: 2px; overflow: hidden; border: 1px solid var(--rule-2); }
+.wbar .fill { height: 100%; width: 0; background: var(--ink); transition: width 1.1s cubic-bezier(.22,.61,.36,1); }
+.wbar .fill.lime { background: var(--lime); }
+.wbar .fill.amber { background: var(--amber); }
+.wbar .pc { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; text-align: right; }
+
+/* ---- 02 : priority + queue ---- */
+.split { display: grid; grid-template-columns: 1.55fr 1fr; gap: 18px; align-items: start; }
+.prio-list { padding: 6px 0; }
+.prow { display: grid; grid-template-columns: 66px 1fr auto; align-items: center; gap: 18px; padding: 15px 22px; border-bottom: 1px solid var(--rule); cursor: pointer; position: relative; transition: background .14s; }
+.prow:last-child { border-bottom: 0; }
+.prow:hover { background: var(--card-2); }
+.prow:hover::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--lime); }
+.prow .dday { font-family: var(--font-disp); font-size: 22px; font-weight: 700; letter-spacing: -.03em; }
+.prow .dday small { display: block; font-family: var(--font-mono); font-size: 9px; font-weight: 500; letter-spacing: .08em; color: var(--ink-3); margin-top: 1px; }
+.prow.crit .dday { color: var(--red); } .prow.warn .dday { color: var(--amber); }
+.prow .sch { font-size: 14px; font-weight: 650; }
+.prow .why { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+.prow .mbar { width: 120px; display: flex; align-items: center; gap: 9px; }
+.prow .mbar .t { flex: 1; height: 6px; background: var(--card-2); border-radius: 2px; overflow: hidden; border: 1px solid var(--rule-2); }
+.prow .mbar .f { height: 100%; width: 0; transition: width 1.1s cubic-bezier(.22,.61,.36,1); }
+.prow .mbar .f.red { background: var(--red); } .prow .mbar .f.amber { background: var(--amber); }
+.prow .mbar .pc { font-family: var(--font-mono); font-size: 11px; font-weight: 600; width: 32px; text-align: right; }
+
+/* queue */
+.qhead { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--rule); }
+.qhead .t { font-size: 14px; font-weight: 700; }
+.qhead .ct { font-family: var(--font-mono); font-size: 11px; color: var(--lime-deep); background: var(--lime-soft); padding: 2px 9px; border-radius: 999px; }
+.queue { padding: 8px; }
+.qrow { display: flex; align-items: center; gap: 13px; padding: 11px 12px; border-bottom: 1px solid var(--rule-2); }
+.qrow:last-child { border: 0; }
+.qrow .mk { width: 4px; height: 30px; background: var(--blue); border-radius: 2px; flex-shrink: 0; }
+.qrow .qm { flex: 1; min-width: 0; }
+.qrow .qm .s { font-size: 12.5px; font-weight: 600; }
+.qrow .qm .d { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); margin-top: 2px; }
+.qrow .tm { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
+.qfoot { padding: 12px; }
+.qfoot .btn { width: 100%; justify-content: center; }
+
+/* ---- 03 : ledger ---- */
+.ledger-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.ftabs { display: inline-flex; gap: 22px; }
+.ftab { background: 0; border: 0; padding: 4px 0 9px; font-size: 13px; font-weight: 600; color: var(--ink-3); cursor: pointer; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
+.ftab:hover { color: var(--ink-2); }
+.ftab.active { color: var(--ink); border-color: var(--lime); }
+.ftab .n { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); margin-left: 5px; }
+.ftab.active .n { color: var(--lime-deep); }
+.search { position: relative; display: inline-flex; align-items: center; }
+.search svg { position: absolute; left: 12px; width: 15px; height: 15px; color: var(--ink-3); pointer-events: none; }
+.search input { height: 38px; padding: 0 14px 0 35px; width: 220px; border: 1px solid var(--rule-bold); background: var(--card); color: var(--ink); border-radius: var(--r-sm); outline: none; transition: border-color .15s, box-shadow .15s; }
+.search input::placeholder { color: var(--ink-3); }
+.search input:focus { border-color: var(--lime); box-shadow: 0 0 0 3px var(--lime-soft); }
+
+.ledger { width: 100%; border-collapse: collapse; }
+.ledger thead th { text-align: left; font-family: var(--font-mono); font-size: 9.5px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); padding: 0 14px 11px; border-bottom: 1.5px solid var(--ink); white-space: nowrap; }
+.ledger thead th.c { text-align: center; }
+.ledger tbody td { padding: 14px; border-bottom: 1px solid var(--rule); vertical-align: middle; font-size: 13px; }
+.ledger tbody tr { cursor: pointer; position: relative; transition: background .13s; }
+.ledger tbody tr:hover { background: var(--card-2); }
+.ledger tbody tr:hover td:first-child::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--lime); }
+.ledger .idx { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.ledger .school { font-weight: 650; display: flex; align-items: center; gap: 10px; }
+.ledger .lvl { font-family: var(--font-mono); font-size: 9.5px; font-weight: 600; padding: 2px 6px; border: 1px solid var(--rule); border-radius: 3px; color: var(--ink-2); }
+.ledger .ws b { font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
+.ledger .ws span { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); margin-top: 2px; }
+.ledger .c { text-align: center; }
+tr.dgr td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+
+/* compact status mark */
+.sm { font-family: var(--font-mono); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
+.sm::before { content: ''; width: 7px; height: 7px; border-radius: 50%; }
+.sm.ok::before { background: var(--green); }      .sm.ok { color: var(--green); }
+.sm.doing::before { background: var(--blue); }     .sm.doing { color: var(--blue); }
+.sm.late::before { background: var(--red); }        .sm.late { color: var(--red); }
+.sm.todo::before { background: var(--rule-bold); }  .sm.todo { color: var(--ink-3); }
+.sm.na::before { background: var(--ink-3); opacity: .4; } .sm.na { color: var(--ink-3); opacity: .6; }
+
+/* inline edu progress */
+.ep { display: flex; align-items: center; gap: 9px; min-width: 140px; }
+.ep .t { flex: 1; height: 6px; background: var(--card-2); border: 1px solid var(--rule-2); border-radius: 2px; overflow: hidden; }
+.ep .f { height: 100%; width: 0; background: var(--lime); transition: width 1.1s cubic-bezier(.22,.61,.36,1); }
+.ep .f.amber { background: var(--amber); } .ep .f.red { background: var(--red); }
+.ep .pc { font-family: var(--font-mono); font-size: 12px; font-weight: 600; width: 34px; text-align: right; }
+
+/* status tag (editorial, sharp) */
+.tag { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: 3px; border: 1px solid transparent; white-space: nowrap; }
+.tag.ok { color: var(--green); background: var(--green-soft); }
+.tag.warn { color: var(--amber); background: var(--amber-soft); }
+.tag.danger { color: var(--red); background: var(--red-soft); }
+.tag.muted { color: var(--ink-3); border-color: var(--rule); }
+.go { font-family: var(--font-mono); opacity: 0; color: var(--ink-3); transition: opacity .14s, transform .14s; }
+.ledger tbody tr:hover .go { opacity: 1; transform: translateX(2px); }
+
+/* reveal */
+.rv { opacity: 0; transform: translateY(12px); animation: rise .65s cubic-bezier(.22,.61,.36,1) forwards; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .rv { animation: none; opacity: 1; transform: none; }
+  .meter span, .wbar .fill, .ep .f, .prow .mbar .f, .ticker .track { transition: none; animation: none; }
+}
+
+/* responsive */
+@media (max-width: 1180px) {
+  .overview { grid-template-columns: 1fr; }
+  .split { grid-template-columns: 1fr; }
+}
+@media (max-width: 920px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .stats { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .main-inner { padding: 24px 18px 70px; }
+  .tenant, .user .role { display: none; }
+  .wbar { grid-template-columns: 80px 1fr 44px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== TICKER ===================== -->
+<div class="ticker">
+  <div class="track" id="ticker">
+    <span class="item"><span class="dot"></span> 실시간 동기화 · 방금</span>
+    <span class="item"><span class="sep">/</span> 담당 <b>62</b>교 (초38·중16·고8)</span>
+    <span class="item"><span class="sep">/</span> 이번 달 점검 완료 <span class="lv">48 / 62 · 77.4%</span></span>
+    <span class="item"><span class="sep">/</span> 지연 <span class="rd">5교 즉시 조치</span></span>
+    <span class="item"><span class="sep">/</span> 평균 교육 진도율 78%</span>
+    <span class="item"><span class="sep">/</span> 교육청 전송 대기 <span class="lv">9건</span></span>
+    <span class="item"><span class="sep">/</span> FY2025 · 2025.03–2026.02</span>
+  </div>
+</div>
+
+<!-- ===================== TOPBAR ===================== -->
+<header class="topbar">
+  <div class="brand">
+    <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+    <div><span class="org">Korea Industrial Safety Assoc.</span><span class="product">안전관리 통합 플랫폼</span></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="tenant"><span class="d"></span> 한국산업안전협회</div>
+  <div class="user">
+    <div class="avatar">조</div>
+    <div><span class="name">조사원 J-07A</span><span class="role">FIELD INSPECTOR · 62 SCHOOLS</span></div>
+  </div>
+  <button class="tbtn" id="themeBtn" title="테마 전환" aria-label="테마 전환">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+  </button>
+</header>
+
+<!-- ===================== SHELL ===================== -->
+<div class="shell">
+
+  <!-- sidebar -->
+  <nav class="sidebar">
+    <div class="nav-label">업무 / Operations</div>
+    <div class="nav-item active"><span class="no">01</span> 이력관리 대장</div>
+    <div class="nav-item"><span class="no">02</span> 종합관리(경영)</div>
+    <div class="nav-item"><span class="no">03</span> 안전점검 <span class="ct warn">5</span></div>
+    <div class="nav-item"><span class="no">04</span> 위험성평가</div>
+    <div class="nav-item"><span class="no">05</span> 근골격계</div>
+    <div class="nav-item"><span class="no">06</span> 교육 진도율</div>
+    <div class="nav-item"><span class="no">07</span> 이행점검</div>
+    <div class="nav-item"><span class="no">08</span> 세금계산서</div>
+    <div class="nav-divider"></div>
+    <div class="nav-label">시스템 / System</div>
+    <div class="nav-item"><span class="no">09</span> 세션코드 발급</div>
+    <div class="nav-item"><span class="no">10</span> 설정</div>
+    <div class="colophon">
+      <p><b>POV — 점검자 개인 시점</b><br>모든 수치는 조사원 J-07A<br>담당 62교 기준 자동 집계.<br>FY2025 · v2.0 EDITORIAL</p>
+    </div>
+  </nav>
+
+  <!-- main -->
+  <main class="main">
+    <div class="main-inner">
+
+      <!-- page head -->
+      <div class="phead rv">
+        <div>
+          <span class="kicker">이력관리 대장 — Records Ledger</span>
+          <h1>메인 대시보드</h1>
+          <div class="meta">담당 학교 현황 한눈 조회 · 5대 업무 상태·진도 <b>자동 계산</b> · 점검자 개인 시점</div>
+        </div>
+        <div class="acts">
+          <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> 엑셀 업로드</button>
+          <button class="btn solid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> 학교 등록</button>
+        </div>
+      </div>
+
+      <!-- ===== 01 현황 요약 ===== -->
+      <div class="sect rv"><span class="no">01</span><h2>현황 요약</h2><span class="en">Overview</span><span class="line"></span></div>
+
+      <div class="overview">
+        <!-- hero -->
+        <section class="panel hero rv" style="animation-delay:.05s">
+          <div class="top">
+            <span class="tag">이번 달 점검 진행</span>
+            <span class="pace">▲ 전월 대비 +17%</span>
+          </div>
+          <div class="figure">
+            <span class="big" id="heroBig">0</span>
+            <span class="den">/ 62</span>
+          </div>
+          <div class="cap">완료율 <b id="heroPct">0.0</b>% · 잔여 14교 · 마감 D-9</div>
+          <div class="meter">
+            <span class="s-done" data-w="77.4"></span>
+            <span class="s-prog" data-w="14.5"></span>
+            <span class="s-late" data-w="8.1"></span>
+          </div>
+          <div class="legend">
+            <span><i style="background:var(--lime)"></i> 완료 <b>48</b></span>
+            <span><i style="background:var(--amber)"></i> 진행 <b>9</b></span>
+            <span><i style="background:var(--red)"></i> 지연 <b>5</b></span>
+          </div>
+        </section>
+
+        <!-- stats -->
+        <div class="stats rv" style="animation-delay:.1s">
+          <div class="stat"><span class="no">A1</span><div class="lab">담당 학교</div><div class="val"><span data-count="62">0</span><small> 교</small></div><div class="sub">초 38 · 중 16 · 고 8</div></div>
+          <div class="stat flag"><span class="no">A2</span><div class="lab">지연 · 마감초과</div><div class="val"><span data-count="5">0</span><small> 교</small></div><div class="sub">↑ 즉시 조치 필요</div></div>
+          <div class="stat"><span class="no">A3</span><div class="lab">평균 교육 진도율</div><div class="val"><span data-count="78">0</span><small> %</small></div><div class="sub">미수료 41명</div></div>
+          <div class="stat"><span class="no">A4</span><div class="lab">교육청 전송 대기</div><div class="val"><span data-count="9">0</span><small> 건</small></div><div class="sub">서명완료 → 봇 전송</div></div>
+        </div>
+      </div>
+
+      <!-- 5대 업무 -->
+      <div class="sect rv"><span class="no">02</span><h2>5대 업무 진행률</h2><span class="en">By Task</span><span class="line"></span></div>
+      <section class="panel workbars rv" style="animation-delay:.05s">
+        <div class="wbar"><span class="nm">안전점검</span><div class="track"><div class="fill lime" data-w="88"></div></div><span class="pc">88%</span></div>
+        <div class="wbar"><span class="nm">위험성평가</span><div class="track"><div class="fill lime" data-w="71"></div></div><span class="pc">71%</span></div>
+        <div class="wbar"><span class="nm">이행점검</span><div class="track"><div class="fill amber" data-w="63"></div></div><span class="pc">63%</span></div>
+        <div class="wbar"><span class="nm">근골격계</span><div class="track"><div class="fill amber" data-w="54"></div></div><span class="pc">54%</span></div>
+        <div class="wbar"><span class="nm">교육 이수</span><div class="track"><div class="fill lime" data-w="78"></div></div><span class="pc">78%</span></div>
+      </section>
+
+      <!-- ===== 03 우선 조치 ===== -->
+      <div class="sect rv"><span class="no">03</span><h2>우선 조치 · 마감 임박</h2><span class="en">Action Required</span><span class="line"></span></div>
+      <div class="split">
+        <section class="panel prio-list rv" style="animation-delay:.05s">
+          <div class="prow crit">
+            <div class="dday">D+5<small>지연</small></div>
+            <div><div class="sch">△△여자중학교</div><div class="why">안전점검 미완 · 진도율 저조</div></div>
+            <div class="mbar"><div class="t"><div class="f red" data-w="48"></div></div><span class="pc">48%</span></div>
+          </div>
+          <div class="prow crit">
+            <div class="dday">D+3<small>지연</small></div>
+            <div><div class="sch">△△중학교</div><div class="why">점검 마감 초과</div></div>
+            <div class="mbar"><div class="t"><div class="f amber" data-w="64"></div></div><span class="pc">64%</span></div>
+          </div>
+          <div class="prow crit">
+            <div class="dday">D+1<small>지연</small></div>
+            <div><div class="sch">◇◇중학교</div><div class="why">위험성평가 미착수</div></div>
+            <div class="mbar"><div class="t"><div class="f red" data-w="30"></div></div><span class="pc">30%</span></div>
+          </div>
+          <div class="prow warn">
+            <div class="dday">D-2<small>임박</small></div>
+            <div><div class="sch">▽▽초등학교</div><div class="why">이행점검 대기</div></div>
+            <div class="mbar"><div class="t"><div class="f amber" data-w="73"></div></div><span class="pc">73%</span></div>
+          </div>
+          <div class="prow warn">
+            <div class="dday">D-4<small>임박</small></div>
+            <div><div class="sch">○○북초등학교</div><div class="why">근골격계 조사 대기</div></div>
+            <div class="mbar"><div class="t"><div class="f amber" data-w="69"></div></div><span class="pc">69%</span></div>
+          </div>
+        </section>
+
+        <!-- queue -->
+        <section class="panel rv" style="animation-delay:.1s">
+          <div class="qhead"><span class="t">교육청 전송 대기</span><span class="ct mono">9 PENDING</span></div>
+          <div class="queue">
+            <div class="qrow"><div class="mk"></div><div class="qm"><div class="s">○○초등학교 · 안전점검</div><div class="d">서명완료 → 봇 전송</div></div><div class="tm">방금</div></div>
+            <div class="qrow"><div class="mk"></div><div class="qm"><div class="s">□□고등학교 · 위험성평가</div><div class="d">서명완료 → 봇 전송</div></div><div class="tm">12분</div></div>
+            <div class="qrow"><div class="mk"></div><div class="qm"><div class="s">○○남초 · 이행점검</div><div class="d">서명완료 → 봇 전송</div></div><div class="tm">31분</div></div>
+            <div class="qrow"><div class="mk"></div><div class="qm"><div class="s">□□공고 · 근골격계</div><div class="d">서명완료 → 봇 전송</div></div><div class="tm">1시간</div></div>
+          </div>
+          <div class="qfoot"><button class="btn solid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg> 9건 일괄 전송</button></div>
+        </section>
+      </div>
+
+      <!-- ===== 04 담당 학교 대장 ===== -->
+      <div class="sect rv"><span class="no">04</span><h2>담당 학교 대장</h2><span class="en">School Ledger</span><span class="line"></span></div>
+      <div class="ledger-head rv">
+        <div class="ftabs">
+          <button class="ftab active" data-filter="all">전체 <span class="n">09</span></button>
+          <button class="ftab" data-filter="danger">지연 <span class="n">03</span></button>
+          <button class="ftab" data-filter="ok">완료 <span class="n">03</span></button>
+        </div>
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="schSearch" placeholder="학교·조사원 검색" />
+        </div>
+      </div>
+      <div class="panel rv" style="animation-delay:.05s; padding: 8px 14px 14px;">
+        <table class="ledger" id="ledger">
+          <thead>
+            <tr>
+              <th style="width:34px">#</th>
+              <th>학교명</th>
+              <th>현업종사자</th>
+              <th class="c">안전</th>
+              <th class="c">위험성</th>
+              <th class="c">근골격</th>
+              <th class="c">이행</th>
+              <th style="width:172px">교육 진도율</th>
+              <th>상태</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+/* ===================== DATA ===================== */
+const ROWS = [
+  { n:1, name:'○○초등학교',    lvl:'초', ws:'조3·시1·미1·통2·당1', sub:'급식 3 / 계 8', s:'ok',   r:'doing',m:'todo',c:'doing',pct:92, state:'ok',   tag:['muted','정상'] },
+  { n:2, name:'△△중학교',      lvl:'중', ws:'조5·시2·미2·통0·당1', sub:'급식 5 / 계 10',s:'late', r:'ok',   m:'todo',c:'todo', pct:64, state:'danger',tag:['danger','마감 D+3'], dgr:true },
+  { n:3, name:'□□고등학교',    lvl:'고', ws:'조7·시2·미3·통0·당2', sub:'급식 7 / 계 14',s:'ok',   r:'ok',   m:'doing',c:'ok',  pct:88, state:'ok',   tag:['muted','사립'] },
+  { n:4, name:'○○남초등학교',  lvl:'초', ws:'조2·시1·미1·통1·당1', sub:'급식 2 / 계 6', s:'ok',   r:'todo', m:'na',  c:'todo', pct:81, state:'ok',   tag:['muted','통학차량 1'] },
+  { n:5, name:'△△여자중학교',  lvl:'중', ws:'조4·시1·미2·통0·당1', sub:'급식 4 / 계 8', s:'late', r:'doing',m:'todo',c:'todo', pct:48, state:'danger',tag:['danger','진도 저조'], dgr:true },
+  { n:6, name:'□□공업고등학교',lvl:'고', ws:'조6·시3·미2·통0·당2', sub:'급식 6 / 계 13',s:'ok',   r:'ok',   m:'ok',  c:'doing',pct:95, state:'ok',   tag:['muted','위험설비 多'] },
+  { n:7, name:'▽▽초등학교',    lvl:'초', ws:'조3·시1·미1·통1·당1', sub:'급식 3 / 계 7', s:'doing',r:'ok',   m:'todo',c:'late', pct:73, state:'warn', tag:['warn','D-2 임박'] },
+  { n:8, name:'◇◇중학교',      lvl:'중', ws:'조4·시1·미1·통0·당1', sub:'급식 4 / 계 7', s:'late', r:'todo', m:'todo',c:'todo', pct:30, state:'danger',tag:['danger','D+1 지연'], dgr:true },
+  { n:9, name:'☆☆고등학교',    lvl:'고', ws:'조5·시2·미2·통0·당2', sub:'급식 5 / 계 11',s:'ok',   r:'ok',   m:'ok',  c:'ok',   pct:100,state:'ok',   tag:['ok','전부 완료'] },
+];
+const SM = { ok:'완료', doing:'진행', late:'지연', todo:'예정', na:'—' };
+
+function smCell(k){ return `<td class="c"><span class="sm ${k}">${SM[k]}</span></td>`; }
+
+function render(filter='all', q=''){
+  const tb = document.querySelector('#ledger tbody');
+  const rows = ROWS.filter(r=>{
+    const f = filter==='all' || (filter==='danger'&&r.state==='danger') || (filter==='ok'&&r.state==='ok');
+    const s = !q || r.name.toLowerCase().includes(q.toLowerCase());
+    return f && s;
+  });
+  tb.innerHTML = rows.map(r=>{
+    const tone = r.pct>=85?'':(r.pct>=60?'amber':'red');
+    return `<tr class="${r.dgr?'dgr':''}">
+      <td class="idx">${String(r.n).padStart(2,'0')}</td>
+      <td><div class="school"><span class="lvl">${r.lvl}</span>${r.name}</div></td>
+      <td><div class="ws"><b>${r.ws}</b><span>${r.sub}</span></div></td>
+      ${smCell(r.s)}${smCell(r.r)}${smCell(r.m)}${smCell(r.c)}
+      <td><div class="ep"><div class="t"><div class="f ${tone}" data-w="${r.pct}"></div></div><span class="pc">${r.pct}%</span></div></td>
+      <td><span class="tag ${r.tag[0]}">${r.tag[1]}</span> <span class="go">→</span></td>
+    </tr>`;
+  }).join('');
+  requestAnimationFrame(()=>tb.querySelectorAll('.f').forEach(f=>f.style.width=f.dataset.w+'%'));
+}
+
+/* ===================== BOOT ===================== */
+document.addEventListener('DOMContentLoaded', ()=>{
+  render();
+
+  // duplicate ticker for seamless loop
+  const tk = document.getElementById('ticker');
+  tk.innerHTML += tk.innerHTML;
+
+  // count-ups
+  document.querySelectorAll('[data-count]').forEach(el=>{
+    const target=+el.dataset.count, t0=performance.now(), dur=1100;
+    const step=t=>{ const p=Math.min((t-t0)/dur,1), e=1-Math.pow(1-p,3);
+      el.textContent=Math.round(target*e); if(p<1)requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
+
+  // hero figure + pct
+  const big=document.getElementById('heroBig'), pc=document.getElementById('heroPct');
+  const t0=performance.now(), dur=1400;
+  const step=t=>{ const p=Math.min((t-t0)/dur,1), e=1-Math.pow(1-p,3);
+    big.textContent=Math.round(48*e); pc.textContent=(77.4*e).toFixed(1);
+    if(p<1)requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+
+  // bars / meters
+  setTimeout(()=>{
+    document.querySelectorAll('.meter span, .workbars .fill, .prow .f').forEach(b=>b.style.width=b.dataset.w+'%');
+  }, 220);
+
+  // tabs + search
+  document.querySelectorAll('.ftab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      render(tab.dataset.filter, document.getElementById('schSearch').value);
+    });
+  });
+  document.getElementById('schSearch').addEventListener('input', e=>{
+    render(document.querySelector('.ftab.active').dataset.filter, e.target.value);
+  });
+
+  // theme toggle
+  const moon='<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>';
+  const sun='<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  document.getElementById('themeBtn').addEventListener('click', ()=>{
+    const root=document.documentElement, light=root.getAttribute('data-theme')==='light';
+    root.setAttribute('data-theme', light?'dark':'light');
+    document.getElementById('themeIcon').innerHTML = light?sun:moon;
+  });
+});
+</script>
+</body>
+</html>

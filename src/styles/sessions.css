@@ -1,0 +1,169 @@
+/* 세션코드 발급 전용 스타일. 접두사 sess- (선택은 체크박스 대신 토글 칩 — 디자인 시스템 보라 계열) */
+
+/* 섹션 라벨 */
+.sess-lab {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-2);
+  margin: 0 0 8px;
+}
+.sess-lab .hint {
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 6px;
+}
+.sess-sec {
+  margin-bottom: 22px;
+}
+
+/* 가로 정렬 행 */
+.sess-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sess-row + .sess-row {
+  margin-top: 10px;
+}
+.sess-row .sp {
+  flex: 1;
+}
+
+/* 프리셋/보조 버튼(작은 칩형) */
+.sess-preset {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.13s, color 0.13s, border-color 0.13s;
+}
+.sess-preset:hover {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.sess-preset.on {
+  background: var(--grad-violet);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: var(--sh-violet);
+}
+
+/* 선택 칩(업무/학교) */
+.sess-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 13px;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background 0.13s, color 0.13s, border-color 0.13s;
+  max-width: 100%;
+}
+.sess-chip:hover {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.sess-chip.on {
+  background: var(--violet-soft);
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.sess-chip .lv {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 5px;
+  flex: none;
+}
+.sess-chip.on .lv {
+  color: var(--violet);
+  border-color: var(--violet);
+}
+.sess-chip .nm {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 학교 검색 입력(아이콘 포함) */
+.sess-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.sess-search svg {
+  position: absolute;
+  left: 11px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.sess-search .input {
+  padding-left: 32px;
+  width: 220px;
+}
+
+/* 학교 칩 그리드(스크롤 박스) */
+.sess-schoolbox {
+  margin-top: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+  background: var(--bg);
+}
+.sess-schoolbox .empty {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 14px 4px;
+  text-align: center;
+}
+
+/* 선택 요약 */
+.sess-picked {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+  line-height: 1.8;
+}
+.sess-picked b {
+  color: var(--violet);
+}
+
+/* 발급 결과 */
+.sess-result {
+  text-align: center;
+}
+.sess-result .meta {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 600;
+  line-height: 1.9;
+}
+.sess-result .meta b {
+  color: var(--ink-2);
+}
+.sess-copy {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}

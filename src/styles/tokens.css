@@ -1,0 +1,84 @@
+/* 디자인 토큰 — 친근 스마트 대시보드(보라). 라이트 기본 + [data-theme="dark"]. */
+:root {
+  --violet: #7c5cfb;
+  --violet-d: #6a47e0;
+  --violet-soft: #eee9fe;
+  --grad-violet: linear-gradient(155deg, #8c6dfd, #6a47e0);
+  --grad-yellow: linear-gradient(150deg, #ffd45e, #fab728);
+  --grad-coral: linear-gradient(150deg, #fb9a6e, #f26b3c);
+  --grad-cyan: linear-gradient(150deg, #62d8f2, #33bbe0);
+  --grad-head: linear-gradient(115deg, #ffe6a2 0%, #fff2ce 60%, #fff7dd 100%);
+
+  --bg: #f4f4fa;
+  --card: #ffffff;
+  --card-2: #fafafe;
+  --ink: #23233b;
+  --ink-2: #5c5c77;
+  --muted: #9e9eb6;
+  --line: #ededf4;
+  --line-2: #f4f4f9;
+
+  --yellow: #fab728;
+  --coral: #f26b3c;
+  --cyan: #33bbe0;
+  --orange: #f2784b;
+  --ok: #2fb985;
+  --ok-soft: #e4f7f0;
+  --ok-ink: #22996c;
+  --red: #f2545b;
+  --red-soft: #fde7e8;
+  --red-ink: #d63a42;
+  --amber: #ea9a1c;
+  --amber-soft: #fcf0da;
+  --amber-ink: #bc7a12;
+  --info-soft: #e9f6fc;
+  --info-ink: #1e91be;
+  --head-ink: #d9772b;
+  --head-sub: #c9853f;
+
+  --sh: 0 14px 34px -16px rgba(35, 35, 70, 0.2);
+  --sh-soft: 0 8px 22px -14px rgba(35, 35, 70, 0.14);
+  --sh-pop: 0 24px 52px -20px rgba(35, 35, 70, 0.3);
+  --sh-violet: 0 18px 36px -16px rgba(106, 71, 224, 0.55);
+  --sh-yellow: 0 18px 36px -16px rgba(250, 183, 40, 0.55);
+  --sh-coral: 0 18px 36px -16px rgba(242, 107, 60, 0.5);
+  --sh-cyan: 0 18px 36px -16px rgba(51, 187, 224, 0.5);
+
+  --r: 22px;
+  --r-sm: 16px;
+  --r-lg: 28px;
+  --font: 'Plus Jakarta Sans', 'Pretendard Variable', 'Pretendard', system-ui, sans-serif;
+}
+
+[data-theme='dark'] {
+  --violet-soft: #2a2448;
+  --grad-head: linear-gradient(115deg, #322c24 0%, #262533 70%);
+  --head-ink: #fbd9a0;
+  --head-sub: #d9b98a;
+
+  --bg: #13131c;
+  --card: #1e1e2b;
+  --card-2: #262635;
+  --ink: #ececf6;
+  --ink-2: #a7a7c2;
+  --muted: #74748e;
+  --line: #2b2b3b;
+  --line-2: #222230;
+
+  --ok-soft: #16352a;
+  --ok-ink: #5fd9ac;
+  --red-soft: #3a2127;
+  --red-ink: #ff8088;
+  --amber-soft: #3a2e18;
+  --amber-ink: #f4b645;
+  --info-soft: #15303b;
+  --info-ink: #5fc6ec;
+
+  --sh: 0 18px 40px -18px rgba(0, 0, 0, 0.72);
+  --sh-soft: 0 12px 28px -16px rgba(0, 0, 0, 0.6);
+  --sh-pop: 0 28px 60px -22px rgba(0, 0, 0, 0.85);
+  --sh-violet: 0 18px 40px -18px rgba(80, 52, 180, 0.6);
+  --sh-yellow: 0 18px 40px -18px rgba(180, 130, 20, 0.45);
+  --sh-coral: 0 18px 40px -18px rgba(180, 70, 40, 0.45);
+  --sh-cyan: 0 18px 40px -18px rgba(30, 130, 160, 0.45);
+}

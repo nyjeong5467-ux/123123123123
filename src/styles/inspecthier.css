@@ -1,0 +1,10 @@
+/* 안전점검 — 학교 → 월별 이력 위계 뷰 전용 스타일. 접두사 inh- */
+
+/* 상태 분포 칩 묶음 (작성중·서명·제출) */
+.inh-dist {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}

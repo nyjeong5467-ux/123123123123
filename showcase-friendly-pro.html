@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>이력관리 대장 — 스마트 대시보드 · Pro</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+/* ==========================================================================
+   친근한 스마트 대시보드 PRO — 이력관리 대장
+   Ref: Scarlett's Home smart-home UI (업로드 이미지) → 완성도 강화판
+   + 데이터 대장 테이블 · 다크모드 · 인터랙티브 차트 · 알림 · 풀 폴리시
+   ========================================================================== */
+:root {
+  --violet:#7C5CFB; --violet-d:#6A47E0; --violet-soft:#EEE9FE;
+  --grad-violet: linear-gradient(155deg,#8C6DFD,#6A47E0);
+  --grad-yellow: linear-gradient(150deg,#FFD45E,#FAB728);
+  --grad-coral:  linear-gradient(150deg,#FB9A6E,#F26B3C);
+  --grad-cyan:   linear-gradient(150deg,#62D8F2,#33BBE0);
+  --grad-head:   linear-gradient(115deg,#FFE6A2 0%,#FFF2CE 60%,#FFF7DD 100%);
+
+  --bg:#F4F4FA; --card:#FFFFFF; --card-2:#FAFAFE;
+  --ink:#23233B; --ink-2:#5C5C77; --muted:#9E9EB6;
+  --line:#EDEDF4; --line-2:#F4F4F9;
+
+  --yellow:#FAB728; --coral:#F26B3C; --cyan:#33BBE0;
+  --ok:#2FB985; --ok-soft:#E4F7F0; --ok-ink:#22996C;
+  --red:#F2545B; --red-soft:#FDE7E8; --red-ink:#D63A42;
+  --amber:#EA9A1C; --amber-soft:#FCF0DA; --amber-ink:#BC7A12;
+  --info-soft:#E9F6FC; --info-ink:#1E91BE;
+  --orange:#F2784B; --head-ink:#D9772B; --head-sub:#C9853F;
+
+  --sh:       0 14px 34px -16px rgba(35,35,70,.20);
+  --sh-soft:  0 8px 22px -14px rgba(35,35,70,.14);
+  --sh-pop:   0 24px 52px -20px rgba(35,35,70,.30);
+  --sh-violet:0 18px 36px -16px rgba(106,71,224,.55);
+  --sh-yellow:0 18px 36px -16px rgba(250,183,40,.55);
+  --sh-coral: 0 18px 36px -16px rgba(242,107,60,.5);
+  --sh-cyan:  0 18px 36px -16px rgba(51,187,224,.5);
+
+  --r:22px; --r-sm:16px; --r-lg:28px;
+  --font: 'Plus Jakarta Sans','Pretendard Variable', system-ui, sans-serif;
+}
+[data-theme='dark']{
+  --violet-soft:#2A2448;
+  --grad-head: linear-gradient(115deg,#322C24 0%,#262533 70%);
+  --head-ink:#FBD9A0; --head-sub:#D9B98A;
+
+  --bg:#13131C; --card:#1E1E2B; --card-2:#262635;
+  --ink:#ECECF6; --ink-2:#A7A7C2; --muted:#74748E;
+  --line:#2B2B3B; --line-2:#222230;
+
+  --ok-soft:#16352A; --ok-ink:#5FD9AC;
+  --red-soft:#3A2127; --red-ink:#FF8088;
+  --amber-soft:#3A2E18; --amber-ink:#F4B645;
+  --info-soft:#15303B; --info-ink:#5FC6EC;
+
+  --sh:       0 18px 40px -18px rgba(0,0,0,.72);
+  --sh-soft:  0 12px 28px -16px rgba(0,0,0,.6);
+  --sh-pop:   0 28px 60px -22px rgba(0,0,0,.85);
+  --sh-violet:0 18px 40px -18px rgba(80,52,180,.6);
+  --sh-yellow:0 18px 40px -18px rgba(180,130,20,.45);
+  --sh-coral: 0 18px 40px -18px rgba(180,70,40,.45);
+  --sh-cyan:  0 18px 40px -18px rgba(30,130,160,.45);
+}
+* { box-sizing:border-box; margin:0; }
+html { scroll-behavior:smooth; }
+body {
+  font-family:var(--font); background:var(--bg); color:var(--ink);
+  font-size:14px; line-height:1.5; letter-spacing:-.01em;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  transition:background .35s ease, color .35s ease;
+}
+button,input,select{ font-family:inherit; color:inherit; }
+button{ cursor:pointer; }
+:focus-visible{ outline:2.5px solid var(--violet); outline-offset:2px; border-radius:6px; }
+::selection{ background:var(--violet); color:#fff; }
+::-webkit-scrollbar{ width:10px; height:10px; }
+::-webkit-scrollbar-thumb{ background:var(--line); border-radius:10px; border:3px solid var(--bg); }
+::-webkit-scrollbar-track{ background:transparent; }
+
+/* ===================== LAYOUT ===================== */
+.layout{ display:grid; grid-template-columns:96px 1fr 384px; grid-template-rows:auto auto auto; min-height:100vh; }
+.sidebar{ grid-row:1/4; }
+.topbar{ grid-column:2/4; grid-row:1; }
+.main{ grid-column:2; grid-row:2; }
+.right{ grid-column:3; grid-row:2; }
+.ledger-sec{ grid-column:2/4; grid-row:3; padding:8px 34px 46px; }
+
+/* ---- sidebar ---- */
+.sidebar{ background:var(--grad-violet); display:flex; flex-direction:column; align-items:center; padding:26px 0; border-radius:0 34px 34px 0; position:sticky; top:0; height:100vh; box-shadow:var(--sh-violet); z-index:30; }
+.logo{ width:46px; height:46px; border-radius:15px; background:rgba(255,255,255,.16); display:grid; place-items:center; color:#fff; margin-bottom:34px; }
+.logo svg{ width:24px; height:24px; }
+.sbnav{ display:flex; flex-direction:column; gap:6px; width:100%; align-items:flex-end; }
+.sbi{ width:62px; height:54px; display:grid; place-items:center; color:rgba(255,255,255,.78); cursor:pointer; border-radius:16px 0 0 16px; position:relative; transition:color .18s, background .18s; }
+.sbi svg{ width:23px; height:23px; }
+.sbi:not(.active):hover{ color:#fff; background:rgba(255,255,255,.12); }
+/* hover tooltip (non-active) */
+.sbi[data-label]:not(.active):hover::after{ content:attr(data-label); position:absolute; left:70px; top:50%; transform:translateY(-50%); background:var(--ink); color:var(--card); padding:7px 11px; border-radius:9px; white-space:nowrap; font-size:12px; font-weight:700; box-shadow:var(--sh); z-index:60; }
+.sbi[data-label]:not(.active):hover::before{ content:''; position:absolute; left:63px; top:50%; transform:translateY(-50%) rotate(45deg); width:9px; height:9px; background:var(--ink); z-index:60; }
+.sbi.active{ background:var(--bg); color:var(--violet); }
+.sbi.active::before, .sbi.active::after{ content:''; position:absolute; right:0; width:18px; height:18px; background:var(--bg); }
+.sbi.active::before{ top:-18px; -webkit-mask:radial-gradient(circle 18px at top left, transparent 98%, #000); mask:radial-gradient(circle 18px at top left, transparent 98%, #000); }
+.sbi.active::after{ bottom:-18px; -webkit-mask:radial-gradient(circle 18px at bottom left, transparent 98%, #000); mask:radial-gradient(circle 18px at bottom left, transparent 98%, #000); }
+.sb-sp{ flex:1; }
+
+/* ---- topbar ---- */
+.topbar{ display:flex; align-items:center; gap:20px; padding:26px 34px 8px; }
+.search{ position:relative; flex:1; max-width:640px; }
+.search svg{ position:absolute; left:20px; top:50%; transform:translateY(-50%); width:18px; height:18px; color:var(--muted); pointer-events:none; }
+.search input{ width:100%; height:52px; border:1px solid transparent; border-radius:999px; background:var(--card); box-shadow:var(--sh-soft); padding:0 22px 0 50px; font-size:14px; outline:none; transition:border-color .18s, box-shadow .18s; }
+.search input::placeholder{ color:var(--muted); }
+.search input:focus{ border-color:var(--violet); box-shadow:0 0 0 4px var(--violet-soft); }
+.topbar .sp{ flex:1; }
+.tact{ width:46px; height:46px; border-radius:14px; background:var(--card); box-shadow:var(--sh-soft); border:1px solid transparent; display:grid; place-items:center; color:var(--ink-2); position:relative; transition:transform .12s, color .15s; }
+.tact:hover{ transform:translateY(-2px); color:var(--violet); }
+.tact svg{ width:20px; height:20px; }
+.tact .dot{ position:absolute; top:11px; right:12px; width:9px; height:9px; border-radius:50%; background:var(--red); border:2px solid var(--card); }
+.prof{ display:flex; align-items:center; gap:11px; cursor:pointer; padding:5px; border-radius:30px; transition:background .15s; }
+.prof:hover{ background:var(--card); }
+.prof .av{ width:46px; height:46px; border-radius:50%; background:var(--grad-violet); display:grid; place-items:center; color:#fff; font-weight:800; box-shadow:var(--sh-soft); }
+.prof .nm{ font-weight:700; font-size:14.5px; }
+.prof svg{ width:16px; height:16px; color:var(--muted); }
+
+/* notif dropdown */
+.notif-wrap{ position:relative; }
+.notif{ position:absolute; right:0; top:56px; width:316px; background:var(--card); border-radius:20px; box-shadow:var(--sh-pop); padding:8px; z-index:80; transform-origin:top right; transition:opacity .16s, transform .16s; }
+.notif[hidden]{ display:none; }
+.notif .nh{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px 8px; }
+.notif .nh b{ font-size:14px; }
+.notif .nh span{ font-size:11px; font-weight:700; color:var(--violet); background:var(--violet-soft); padding:3px 9px; border-radius:999px; }
+.ni{ display:flex; gap:12px; padding:11px 12px; border-radius:14px; transition:background .14s; }
+.ni:hover{ background:var(--card-2); }
+.ni .d{ width:38px; height:38px; border-radius:11px; display:grid; place-items:center; flex-shrink:0; }
+.ni .d svg{ width:18px; height:18px; }
+.ni.r .d{ background:var(--red-soft); color:var(--red-ink); }
+.ni.a .d{ background:var(--amber-soft); color:var(--amber-ink); }
+.ni.v .d{ background:var(--violet-soft); color:var(--violet); }
+.ni .t{ font-size:12.5px; font-weight:600; }
+.ni .s{ font-size:11px; color:var(--muted); margin-top:2px; }
+
+/* ---- main / right ---- */
+.main{ padding:14px 18px 24px 34px; min-width:0; }
+.right{ padding:14px 34px 24px 18px; min-width:0; }
+
+.rv{ opacity:0; transform:translateY(14px); animation:rise .6s cubic-bezier(.22,.61,.36,1) forwards; }
+@keyframes rise{ to{ opacity:1; transform:none; } }
+@media (prefers-reduced-motion:reduce){ .rv{ animation:none; opacity:1; transform:none; } * { transition:none !important; } }
+
+/* ===================== GREETING ===================== */
+.hello{ position:relative; background:var(--grad-head); border-radius:var(--r-lg); padding:30px 34px; overflow:hidden; box-shadow:var(--sh-soft); }
+.hello h1{ font-size:30px; font-weight:800; color:var(--head-ink); letter-spacing:-.03em; }
+.hello p{ color:var(--head-sub); font-size:14px; margin-top:8px; max-width:430px; line-height:1.55; }
+.hello .info{ display:flex; gap:30px; margin-top:20px; flex-wrap:wrap; }
+.hello .info .it{ display:flex; align-items:center; gap:9px; color:var(--head-sub); font-size:13.5px; }
+.hello .info .it b{ color:var(--head-ink); font-weight:800; font-size:16px; }
+.hello .info .it svg{ width:20px; height:20px; color:#E0913B; }
+.hello .art{ position:absolute; right:18px; bottom:0; width:330px; height:200px; pointer-events:none; }
+@media (max-width:1560px){ .hello .art{ opacity:.92; } }
+
+/* ===================== CONTROL BAR ===================== */
+.bar{ display:flex; align-items:center; gap:14px; margin:26px 0 16px; flex-wrap:wrap; }
+.bar h2{ font-size:21px; font-weight:800; letter-spacing:-.03em; display:flex; align-items:center; gap:10px; }
+.bar h2 .live{ width:8px; height:8px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 4px var(--ok-soft); }
+.bar .sp{ flex:1; }
+.mini{ display:inline-flex; align-items:center; gap:7px; color:var(--ink-2); font-weight:600; font-size:13.5px; }
+.mini svg{ width:18px; height:18px; color:var(--ok); }
+.mini.t svg{ color:var(--red); }
+.mini b{ color:var(--ink); }
+.sel{ height:44px; border:1px solid var(--line); background:var(--card); box-shadow:var(--sh-soft); border-radius:14px; padding:0 16px; font-weight:600; color:var(--ink); display:inline-flex; align-items:center; gap:10px; font-size:13.5px; transition:border-color .15s; }
+.sel:hover{ border-color:var(--violet); }
+.sel svg{ width:16px; height:16px; color:var(--muted); }
+
+.devrow{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+.dev{ background:var(--card); border-radius:var(--r); padding:18px; box-shadow:var(--sh-soft); cursor:pointer; transition:transform .16s, box-shadow .16s; border:1px solid var(--line); }
+.dev:hover{ transform:translateY(-4px); box-shadow:var(--sh); }
+.dev .top{ display:flex; align-items:center; justify-content:space-between; }
+.dev .stt{ font-size:11px; font-weight:800; letter-spacing:.06em; color:var(--muted); }
+.dev .ic{ width:40px; height:40px; border-radius:13px; background:var(--violet-soft); color:var(--violet); display:grid; place-items:center; margin:16px 0 12px; transition:transform .16s; }
+.dev:hover .ic{ transform:scale(1.06) rotate(-4deg); }
+.dev .ic svg{ width:20px; height:20px; }
+.dev .nm{ font-weight:700; font-size:14.5px; color:var(--violet); }
+.dev .sub{ font-size:11.5px; color:var(--muted); margin-top:3px; font-weight:600; }
+.dev.on{ background:var(--grad-violet); box-shadow:var(--sh-violet); border-color:transparent; }
+.dev.on .stt{ color:rgba(255,255,255,.82); }
+.dev.on .ic{ background:rgba(255,255,255,.2); color:#fff; }
+.dev.on .nm{ color:#fff; } .dev.on .sub{ color:rgba(255,255,255,.85); }
+
+/* toggle */
+.tog{ width:42px; height:24px; border-radius:999px; background:var(--line); position:relative; cursor:pointer; transition:background .2s; flex-shrink:0; }
+.tog::after{ content:''; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,.25); transition:left .22s cubic-bezier(.5,1.6,.5,1); }
+.tog.on{ background:var(--violet); } .tog.on::after{ left:21px; }
+.dev.on .tog{ background:rgba(255,255,255,.4); } .dev.on .tog::after{ background:#fff; }
+
+/* ===================== GAUGE ===================== */
+.gauge-card{ background:var(--card); border-radius:var(--r-lg); padding:24px 30px 30px; margin-top:24px; box-shadow:var(--sh-soft); border:1px solid var(--line); }
+.gauge-card .gh{ display:flex; align-items:center; gap:12px; }
+.gauge-card .gh .ic{ width:36px; height:36px; border-radius:11px; background:var(--violet-soft); color:var(--violet); display:grid; place-items:center; }
+.gauge-card .gh .ic svg{ width:18px; height:18px; }
+.gauge-card .gh .t{ font-weight:800; font-size:16px; }
+.gauge-card .gh .sp{ flex:1; }
+.gauge-card .gh .lab{ font-size:12px; color:var(--muted); font-weight:600; margin-right:10px; }
+.gauge-wrap{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:18px; margin-top:14px; }
+.gstat{ text-align:center; }
+.gstat .v{ font-size:30px; font-weight:800; letter-spacing:-.03em; }
+.gstat .v.ok{ color:var(--ok-ink); } .gstat .v.red{ color:var(--red-ink); }
+.gstat .l{ font-size:12px; color:var(--muted); font-weight:700; margin-top:2px; }
+.gstat .chip{ display:inline-block; margin-top:8px; font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; }
+.gstat .chip.ok{ background:var(--ok-soft); color:var(--ok-ink); } .gstat .chip.red{ background:var(--red-soft); color:var(--red-ink); }
+.dial{ position:relative; width:290px; height:290px; justify-self:center; }
+.dial svg{ width:100%; height:100%; }
+.dial .center{ position:absolute; inset:0; display:grid; place-items:center; align-content:center; gap:1px; }
+.dial .center .big{ font-size:52px; font-weight:800; letter-spacing:-.04em; line-height:1; }
+.dial .center .u{ font-size:13px; color:var(--muted); font-weight:700; }
+.dial .center .frac{ font-size:13px; color:var(--violet); font-weight:800; margin-top:6px; background:var(--violet-soft); padding:3px 11px; border-radius:999px; }
+
+/* ===================== RIGHT COLUMN ===================== */
+.rhead{ display:flex; align-items:center; gap:12px; margin:6px 4px 14px; }
+.rhead h3{ font-size:17px; font-weight:800; letter-spacing:-.02em; }
+.rhead .sp{ flex:1; }
+.pill{ height:38px; border:1px solid var(--line); background:var(--card); box-shadow:var(--sh-soft); border-radius:12px; padding:0 13px; font-weight:700; font-size:12.5px; display:inline-flex; align-items:center; gap:8px; color:var(--ink-2); transition:border-color .15s; }
+.pill:hover{ border-color:var(--violet); }
+.pill svg{ width:15px; height:15px; color:var(--muted); }
+.arrow{ width:38px; height:38px; border-radius:12px; background:var(--card); box-shadow:var(--sh-soft); border:1px solid var(--line); display:grid; place-items:center; color:var(--ink-2); transition:transform .12s, color .15s; }
+.arrow:hover{ transform:translateX(2px); color:var(--violet); } .arrow svg{ width:17px; height:17px; }
+
+.mydev{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.mc{ border-radius:var(--r); padding:18px; color:#fff; cursor:pointer; transition:transform .16s; position:relative; overflow:hidden; }
+.mc::after{ content:''; position:absolute; right:-30px; top:-30px; width:100px; height:100px; border-radius:50%; background:rgba(255,255,255,.12); }
+.mc:hover{ transform:translateY(-4px); }
+.mc.v{ background:var(--grad-violet); box-shadow:var(--sh-violet); }
+.mc.y{ background:var(--grad-yellow); box-shadow:var(--sh-yellow); }
+.mc.c{ background:var(--grad-coral); box-shadow:var(--sh-coral); }
+.mc.b{ background:var(--grad-cyan); box-shadow:var(--sh-cyan); }
+.mc .mt{ display:flex; align-items:flex-start; justify-content:space-between; position:relative; z-index:1; }
+.mc .ic{ width:42px; height:42px; border-radius:13px; background:rgba(255,255,255,.24); display:grid; place-items:center; }
+.mc .ic svg{ width:21px; height:21px; }
+.mc .pc{ font-size:13px; font-weight:800; }
+.mc .nm{ font-weight:700; font-size:15px; margin-top:24px; position:relative; z-index:1; }
+.mc .sub{ font-size:11.5px; opacity:.88; margin-top:4px; font-weight:600; position:relative; z-index:1; }
+.mc .pbar{ height:6px; border-radius:999px; background:rgba(255,255,255,.32); margin-top:12px; overflow:hidden; position:relative; z-index:1; }
+.mc .pbar i{ display:block; height:100%; border-radius:999px; background:#fff; width:0; transition:width 1.1s cubic-bezier(.22,.61,.36,1); }
+
+.members{ background:var(--card); border-radius:var(--r); padding:20px 10px; box-shadow:var(--sh-soft); display:flex; justify-content:space-around; border:1px solid var(--line); }
+.mem{ text-align:center; width:62px; cursor:pointer; }
+.mem .av{ width:50px; height:50px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:800; font-size:16px; margin:0 auto 8px; box-shadow:var(--sh-soft); transition:transform .16s; }
+.mem:hover .av{ transform:translateY(-3px) scale(1.05); }
+.mem .nm{ font-size:12.5px; font-weight:700; white-space:nowrap; }
+.mem .rl{ font-size:10.5px; color:var(--muted); margin-top:1px; font-weight:600; }
+
+.chart-card{ background:var(--card); border-radius:var(--r); padding:20px 22px 14px; box-shadow:var(--sh-soft); border:1px solid var(--line); }
+.chart-card .ch{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.chart-card .ch .dot{ width:10px; height:10px; border-radius:50%; background:var(--orange); }
+.chart-card .ch .t{ font-weight:700; font-size:13.5px; }
+.chart-card .ch .sp{ flex:1; }
+.chart-card .ch .sv{ font-size:12.5px; font-weight:800; color:var(--orange); }
+.chart-box{ position:relative; cursor:crosshair; }
+.chart-box svg{ width:100%; height:auto; display:block; }
+.tip{ position:absolute; transform:translate(-50%,-130%); background:var(--ink); color:var(--card); font-size:11px; font-weight:800; padding:5px 9px; border-radius:8px; white-space:nowrap; pointer-events:none; transition:left .12s ease, top .12s ease; }
+.tip::after{ content:''; position:absolute; left:50%; bottom:-4px; transform:translateX(-50%) rotate(45deg); width:8px; height:8px; background:var(--ink); }
+.xlab{ display:flex; justify-content:space-between; padding:6px 4px 0; font-size:10.5px; color:var(--muted); font-weight:700; }
+
+/* ===================== LEDGER TABLE ===================== */
+.ledger{ background:var(--card); border-radius:var(--r-lg); box-shadow:var(--sh-soft); border:1px solid var(--line); overflow:hidden; }
+.lh{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:22px 26px; border-bottom:1px solid var(--line); }
+.lh h2{ font-size:19px; font-weight:800; letter-spacing:-.02em; display:flex; align-items:center; gap:9px; }
+.lh h2 svg{ width:20px; height:20px; color:var(--violet); }
+.lh .sp{ flex:1; }
+.tabs{ display:inline-flex; background:var(--bg); border-radius:13px; padding:4px; gap:3px; }
+.tab{ border:0; background:transparent; color:var(--ink-2); font-size:12.5px; font-weight:700; padding:7px 15px; border-radius:10px; transition:.15s; }
+.tab:hover{ color:var(--ink); }
+.tab.active{ background:var(--card); color:var(--violet); box-shadow:var(--sh-soft); }
+.tab .n{ opacity:.65; margin-left:4px; }
+.tab.active .n{ color:var(--violet); opacity:1; }
+.lsearch{ position:relative; }
+.lsearch svg{ position:absolute; left:13px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:var(--muted); }
+.lsearch input{ height:42px; width:210px; border:1px solid var(--line); border-radius:13px; background:var(--bg); padding:0 14px 0 36px; outline:none; font-size:12.5px; transition:border-color .15s, box-shadow .15s; }
+.lsearch input:focus{ border-color:var(--violet); box-shadow:0 0 0 3px var(--violet-soft); }
+
+.twrap{ overflow-x:auto; }
+table.tbl{ width:100%; border-collapse:collapse; }
+.tbl thead th{ text-align:left; font-size:11px; font-weight:700; letter-spacing:.02em; color:var(--muted); padding:14px 18px; white-space:nowrap; }
+.tbl thead th.c{ text-align:center; }
+.tbl tbody td{ padding:13px 18px; border-top:1px solid var(--line); vertical-align:middle; font-size:13.5px; }
+.tbl tbody tr{ transition:background .13s; cursor:pointer; }
+.tbl tbody tr:hover{ background:var(--card-2); }
+.tbl .stn{ display:flex; align-items:center; gap:12px; }
+.tbl .stn .ava{ width:38px; height:38px; border-radius:12px; display:grid; place-items:center; font-weight:800; font-size:13px; color:#fff; flex-shrink:0; }
+.tbl .stn .nm{ font-weight:700; }
+.tbl .stn .ins{ font-size:11px; color:var(--muted); font-weight:600; margin-top:1px; }
+.tbl .ws b{ font-weight:700; font-size:12.5px; }
+.tbl .ws span{ display:block; font-size:11px; color:var(--muted); margin-top:1px; font-weight:600; }
+.tbl .c{ text-align:center; }
+.pillx{ font-size:11px; font-weight:700; padding:4px 11px; border-radius:999px; white-space:nowrap; display:inline-block; }
+.pillx.ok{ background:var(--ok-soft); color:var(--ok-ink); }
+.pillx.doing{ background:var(--violet-soft); color:var(--violet); }
+.pillx.late{ background:var(--red-soft); color:var(--red-ink); }
+.pillx.todo{ background:var(--bg); color:var(--muted); }
+.pillx.na{ color:var(--muted); opacity:.55; }
+.pillx.warn{ background:var(--amber-soft); color:var(--amber-ink); }
+.ep{ display:flex; align-items:center; gap:10px; min-width:148px; }
+.ep .t{ flex:1; height:8px; background:var(--bg); border-radius:999px; overflow:hidden; }
+.ep .f{ height:100%; border-radius:999px; width:0; background:var(--grad-violet); transition:width 1s cubic-bezier(.22,.61,.36,1); }
+.ep .f.warn{ background:linear-gradient(90deg,#FFD45E,#FAB728); } .ep .f.late{ background:linear-gradient(90deg,#FB9A6E,#F2545B); }
+.ep .p{ font-size:12.5px; font-weight:800; width:36px; text-align:right; }
+.chev{ color:var(--muted); opacity:0; transition:opacity .14s, transform .14s; }
+.tbl tbody tr:hover .chev{ opacity:1; transform:translateX(2px); }
+.empty{ padding:50px; text-align:center; color:var(--muted); font-weight:600; }
+
+@media (max-width:1320px){
+  .layout{ grid-template-columns:96px 1fr; }
+  .topbar{ grid-column:2; } .main{ grid-column:2; } .right{ grid-column:2; grid-row:3; padding:0 34px 24px; } .ledger-sec{ grid-column:2; grid-row:4; }
+  .mydev{ grid-template-columns:repeat(4,1fr); }
+}
+@media (max-width:760px){
+  .layout{ grid-template-columns:1fr; }
+  .sidebar{ display:none; }
+  .topbar,.main,.right,.ledger-sec{ grid-column:1; }
+  .topbar{ grid-row:1; } .main{ grid-row:2; } .right{ grid-row:3; } .ledger-sec{ grid-row:4; }
+  .devrow{ grid-template-columns:1fr 1fr; } .mydev{ grid-template-columns:1fr 1fr; }
+  .gauge-wrap{ grid-template-columns:1fr; } .main,.right,.ledger-sec{ padding-left:18px; padding-right:18px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+    <nav class="sbnav">
+      <div class="sbi" data-label="홈"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V21H3z"/><path d="M9 21v-6h6v6"/></svg></div>
+      <div class="sbi active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></div>
+      <div class="sbi" data-label="안전점검"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.6.6 1 1.4 1 2.5h6c0-1.1.4-1.9 1-2.5A6 6 0 0 0 12 3z"/></svg></div>
+      <div class="sbi" data-label="위험성평가"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <div class="sbi" data-label="현장 위치"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <div class="sbi" data-label="조사팀"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13A4 4 0 0 1 16 11"/></svg></div>
+      <div class="sbi" data-label="통계"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg></div>
+    </nav>
+    <div class="sb-sp"></div>
+    <div class="sbi" data-label="로그아웃"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></div>
+  </aside>
+
+  <!-- ===================== TOPBAR ===================== -->
+  <header class="topbar">
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="globalSearch" placeholder="학교·조사원·업무 검색" />
+    </div>
+    <div class="sp"></div>
+    <button class="tact" id="themeBtn" title="테마 전환" aria-label="테마 전환">
+      <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+    <button class="tact" title="설정" aria-label="설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9z"/></svg></button>
+    <div class="notif-wrap">
+      <button class="tact" id="bellBtn" title="알림" aria-label="알림"><span class="dot"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></button>
+      <div class="notif" id="notif" hidden>
+        <div class="nh"><b>알림</b><span>새 알림 3</span></div>
+        <div class="ni r"><div class="d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div><div class="t">△△여자중학교 점검 마감 D+5 초과</div><div class="s">즉시 조치 필요 · 5분 전</div></div></div>
+        <div class="ni a"><div class="d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.5 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.5a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div><div><div class="t">▽▽초등학교 이행점검 D-2 임박</div><div class="s">마감 임박 · 1시간 전</div></div></div>
+        <div class="ni v"><div class="d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg></div><div><div class="t">교육청 전송 9건 대기 중</div><div class="s">서명완료 → 봇 전송 · 2시간 전</div></div></div>
+      </div>
+    </div>
+    <div class="prof"><div class="av">조</div><div class="nm">조사원 J-07A</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+  </header>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="main">
+    <section class="hello rv">
+      <h1>안녕하세요, 조사원님!</h1>
+      <p>오늘 처리할 점검이 3건 있어요. 마감 임박 2교는 우선 확인해 주세요 ☀️</p>
+      <div class="info">
+        <div class="it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg><b>77.4%</b>&nbsp;이번 달 점검 진행률</div>
+        <div class="it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>맑음 · 점검 활동 적합</div>
+      </div>
+      <svg class="art" viewBox="0 0 330 200" fill="none">
+        <circle cx="252" cy="46" r="26" fill="#FBC74A"/>
+        <g stroke="#FBC74A" stroke-width="2.5" stroke-linecap="round" opacity=".7"><path d="M252 8v10M289 46h10M226 20l6 6M278 20l-6 6"/></g>
+        <ellipse cx="80" cy="44" rx="30" ry="13" fill="#FFFFFF" opacity=".78"/>
+        <ellipse cx="105" cy="38" rx="22" ry="11" fill="#FFFFFF" opacity=".78"/>
+        <ellipse cx="180" cy="30" rx="26" ry="12" fill="#FFFFFF" opacity=".62"/>
+        <path d="M120 70q6-6 12 0" stroke="#C9772A" stroke-width="2" fill="none" opacity=".5"/>
+        <path d="M138 64q6-6 12 0" stroke="#C9772A" stroke-width="2" fill="none" opacity=".5"/>
+        <path d="M0 150 Q70 110 150 140 T330 130 V200 H0 Z" fill="#F4B65C"/>
+        <path d="M0 168 Q90 138 190 162 T330 156 V200 H0 Z" fill="#E89C3F"/>
+        <path d="M40 200 Q120 160 200 178 T330 172" stroke="#FFF2CE" stroke-width="3" stroke-dasharray="2 8" stroke-linecap="round" fill="none" opacity=".8"/>
+        <g stroke="#C9772A" stroke-width="3" stroke-linecap="round"><path d="M250 150v-26"/><path d="M285 150v-20"/></g>
+        <circle cx="250" cy="118" r="14" fill="#7FBF6A"/><circle cx="285" cy="124" r="11" fill="#8FC97A"/>
+        <rect x="40" y="118" width="44" height="40" rx="5" fill="#7C5CFB"/>
+        <path d="M38 120 62 100 86 120Z" fill="#6A47E0"/>
+        <rect x="55" y="138" width="14" height="20" rx="2" fill="#FFF2CE"/>
+        <path d="M62 100v-10" stroke="#6A47E0" stroke-width="3" stroke-linecap="round"/>
+        <path d="M62 92l9 4-9 4z" fill="#34C18A"/>
+      </svg>
+    </section>
+
+    <div class="bar rv" style="animation-delay:.05s">
+      <h2><span class="live"></span>담당 학교 현황</h2>
+      <div class="sp"></div>
+      <span class="mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>완료 <b data-count="48">0</b></span>
+      <span class="mini t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>지연 <b data-count="5">0</b></span>
+      <button class="sel">전체 지역 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+    </div>
+
+    <div class="devrow rv" style="animation-delay:.1s">
+      <div class="dev" data-dev>
+        <div class="top"><span class="stt">진행중</span><span class="tog on"></span></div>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+        <div class="nm">안전점검</div><div class="sub">54 / 62 교</div>
+      </div>
+      <div class="dev on" data-dev>
+        <div class="top"><span class="stt">진행중</span><span class="tog on"></span></div>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.5 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.5a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+        <div class="nm">위험성평가</div><div class="sub">44 / 62 교</div>
+      </div>
+      <div class="dev" data-dev>
+        <div class="top"><span class="stt">대기</span><span class="tog"></span></div>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        <div class="nm">근골격계</div><div class="sub">33 / 62 교</div>
+      </div>
+      <div class="dev" data-dev>
+        <div class="top"><span class="stt">진행중</span><span class="tog on"></span></div>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg></div>
+        <div class="nm">이행점검</div><div class="sub">39 / 62 교</div>
+      </div>
+    </div>
+
+    <section class="gauge-card rv" style="animation-delay:.15s">
+      <div class="gh">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></div>
+        <div class="t">이번 달 점검 진행률</div>
+        <div class="sp"></div>
+        <span class="lab">실시간</span><span class="tog on"></span>
+      </div>
+      <div class="gauge-wrap">
+        <div class="gstat"><div class="v ok"><span data-count="48">0</span></div><div class="l">완료 (교)</div><span class="chip ok">+17% MoM</span></div>
+        <div class="dial">
+          <svg viewBox="0 0 300 300">
+            <defs><linearGradient id="arc" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7C5CFB"/><stop offset="55%" stop-color="#C06AD8"/><stop offset="100%" stop-color="#F2784B"/></linearGradient></defs>
+            <g id="ticks"></g>
+            <circle id="track" cx="150" cy="150" r="112" fill="none" stroke-width="14" stroke-linecap="round"/>
+            <circle id="prog" cx="150" cy="150" r="112" fill="none" stroke="url(#arc)" stroke-width="14" stroke-linecap="round"/>
+            <circle id="knob" cx="150" cy="38" r="9" fill="#fff" stroke="#F2784B" stroke-width="3"/>
+          </svg>
+          <div class="center"><div class="big" id="gbig">0.0</div><div class="u">완료율 %</div><div class="frac">48 / 62 교</div></div>
+        </div>
+        <div class="gstat"><div class="v red"><span data-count="5">0</span></div><div class="l">지연 (교)</div><span class="chip red">즉시 조치</span></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== RIGHT ===================== -->
+  <aside class="right">
+    <div class="rhead rv"><h3>주요 업무</h3><div class="sp"></div><button class="pill">전체 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button><button class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button></div>
+    <div class="mydev rv" style="animation-delay:.05s">
+      <div class="mc v"><div class="mt"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><span class="pc"><span data-count="88">0</span>%</span></div><div class="nm">안전점검</div><div class="sub">54 / 62 교</div><div class="pbar"><i data-w="88"></i></div></div>
+      <div class="mc y"><div class="mt"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.5 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.5a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div><span class="pc"><span data-count="71">0</span>%</span></div><div class="nm">위험성평가</div><div class="sub">44 / 62 교</div><div class="pbar"><i data-w="71"></i></div></div>
+      <div class="mc c"><div class="mt"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><span class="pc"><span data-count="54">0</span>%</span></div><div class="nm">근골격계</div><div class="sub">33 / 62 교</div><div class="pbar"><i data-w="54"></i></div></div>
+      <div class="mc b"><div class="mt"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg></div><span class="pc"><span data-count="63">0</span>%</span></div><div class="nm">이행점검</div><div class="sub">39 / 62 교</div><div class="pbar"><i data-w="63"></i></div></div>
+    </div>
+
+    <div class="rhead rv" style="margin-top:26px"><h3>담당 조사팀</h3><div class="sp"></div><button class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button></div>
+    <div class="members rv" style="animation-delay:.05s">
+      <div class="mem"><div class="av" style="background:var(--grad-violet)">조</div><div class="nm">J-07A</div><div class="rl">Admin</div></div>
+      <div class="mem"><div class="av" style="background:var(--grad-coral)">박</div><div class="nm">박조사</div><div class="rl">팀원</div></div>
+      <div class="mem"><div class="av" style="background:var(--grad-yellow)">이</div><div class="nm">이조사</div><div class="rl">팀원</div></div>
+      <div class="mem"><div class="av" style="background:var(--grad-cyan)">최</div><div class="nm">최조사</div><div class="rl">팀원</div></div>
+      <div class="mem"><div class="av" style="background:linear-gradient(150deg,#9F7AEA,#7C5CFB)">정</div><div class="nm">정조사</div><div class="rl">팀원</div></div>
+    </div>
+
+    <div class="rhead rv" style="margin-top:26px"><h3>점검 처리 추이</h3><div class="sp"></div><button class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> 월간 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button></div>
+    <div class="chart-card rv" style="animation-delay:.05s">
+      <div class="ch"><span class="dot"></span><span class="t">월별 점검 처리량</span><span class="sp"></span><span class="sv" id="chSv">+73% 최고</span></div>
+      <div class="chart-box" id="chartBox"><svg id="chart" viewBox="0 0 560 220" preserveAspectRatio="none"></svg><div class="tip" id="tip" style="display:none"></div></div>
+      <div class="xlab"><span>1월</span><span>2월</span><span>3월</span><span>4월</span><span>5월</span><span>6월</span><span>7월</span><span>8월</span></div>
+    </div>
+  </aside>
+
+  <!-- ===================== LEDGER TABLE ===================== -->
+  <section class="ledger-sec">
+    <div class="ledger rv">
+      <div class="lh">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="2"/></svg>담당 학교 대장</h2>
+        <div class="sp"></div>
+        <div class="tabs">
+          <button class="tab active" data-filter="all">전체 <span class="n">09</span></button>
+          <button class="tab" data-filter="danger">지연 <span class="n">03</span></button>
+          <button class="tab" data-filter="ok">완료 <span class="n">03</span></button>
+        </div>
+        <div class="lsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input id="ledgerSearch" placeholder="학교 검색" /></div>
+      </div>
+      <div class="twrap">
+        <table class="tbl" id="ledgerTbl">
+          <thead><tr>
+            <th>학교 / 담당</th><th>현업종사자</th>
+            <th class="c">안전</th><th class="c">위험성</th><th class="c">근골격</th><th class="c">이행</th>
+            <th style="min-width:170px">교육 진도율</th><th>상태</th><th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ===================== DATA ===================== */
+const ROWS = [
+  { n:1, name:'○○초등학교', lvl:'초', clr:'var(--grad-violet)', ins:'J-07A 조사원', ws:'조3·시1·미1·통2·당1', sub:'급식 3 / 계 8', s:'ok',r:'doing',m:'todo',c:'doing',pct:92,state:'ok',tag:['ok','정상'] },
+  { n:2, name:'△△중학교', lvl:'중', clr:'var(--grad-coral)', ins:'J-07A 조사원', ws:'조5·시2·미2·통0·당1', sub:'급식 5 / 계 10', s:'late',r:'ok',m:'todo',c:'todo',pct:64,state:'danger',tag:['late','마감 D+3'], dgr:true },
+  { n:3, name:'□□고등학교', lvl:'고', clr:'var(--grad-cyan)', ins:'J-07A 조사원', ws:'조7·시2·미3·통0·당2', sub:'급식 7 / 계 14', s:'ok',r:'ok',m:'doing',c:'ok',pct:88,state:'ok',tag:['ok','정상'] },
+  { n:4, name:'○○남초등학교', lvl:'초', clr:'var(--grad-violet)', ins:'박조사 조사원', ws:'조2·시1·미1·통1·당1', sub:'급식 2 / 계 6', s:'ok',r:'todo',m:'na',c:'todo',pct:81,state:'ok',tag:['ok','정상'] },
+  { n:5, name:'△△여자중학교', lvl:'중', clr:'var(--grad-coral)', ins:'박조사 조사원', ws:'조4·시1·미2·통0·당1', sub:'급식 4 / 계 8', s:'late',r:'doing',m:'todo',c:'todo',pct:48,state:'danger',tag:['late','진도 저조'], dgr:true },
+  { n:6, name:'□□공업고등학교', lvl:'고', clr:'var(--grad-cyan)', ins:'이조사 조사원', ws:'조6·시3·미2·통0·당2', sub:'급식 6 / 계 13', s:'ok',r:'ok',m:'ok',c:'doing',pct:95,state:'ok',tag:['ok','정상'] },
+  { n:7, name:'▽▽초등학교', lvl:'초', clr:'var(--grad-violet)', ins:'이조사 조사원', ws:'조3·시1·미1·통1·당1', sub:'급식 3 / 계 7', s:'doing',r:'ok',m:'todo',c:'late',pct:73,state:'warn',tag:['warn','D-2 임박'] },
+  { n:8, name:'◇◇중학교', lvl:'중', clr:'var(--grad-coral)', ins:'최조사 조사원', ws:'조4·시1·미1·통0·당1', sub:'급식 4 / 계 7', s:'late',r:'todo',m:'todo',c:'todo',pct:30,state:'danger',tag:['late','D+1 지연'], dgr:true },
+  { n:9, name:'☆☆고등학교', lvl:'고', clr:'var(--grad-cyan)', ins:'정조사 조사원', ws:'조5·시2·미2·통0·당2', sub:'급식 5 / 계 11', s:'ok',r:'ok',m:'ok',c:'ok',pct:100,state:'ok',tag:['ok','전부 완료'] },
+];
+const SM={ ok:['ok','완료'], doing:['doing','진행'], late:['late','지연'], todo:['todo','예정'], na:['na','—'] };
+const cell=k=>{const[c,t]=SM[k];return `<td class="c"><span class="pillx ${c}">${t}</span></td>`;};
+
+function render(filter='all', q=''){
+  const tb=document.querySelector('#ledgerTbl tbody');
+  const rows=ROWS.filter(r=>{
+    const f=filter==='all'||(filter==='danger'&&r.state==='danger')||(filter==='ok'&&r.state==='ok');
+    const s=!q||r.name.toLowerCase().includes(q.toLowerCase())||r.ins.toLowerCase().includes(q.toLowerCase());
+    return f&&s;
+  });
+  if(!rows.length){ tb.innerHTML=`<tr><td colspan="9" class="empty">검색 결과가 없어요 🔍</td></tr>`; return; }
+  tb.innerHTML=rows.map(r=>{
+    const tone=r.pct>=85?'':(r.pct>=60?'warn':'late');
+    return `<tr>
+      <td><div class="stn"><div class="ava" style="background:${r.clr}">${r.lvl}</div><div><div class="nm">${r.name}</div><div class="ins">${r.ins}</div></div></div></td>
+      <td><div class="ws"><b>${r.ws}</b><span>${r.sub}</span></div></td>
+      ${cell(r.s)}${cell(r.r)}${cell(r.m)}${cell(r.c)}
+      <td><div class="ep"><div class="t"><div class="f ${tone}" data-w="${r.pct}"></div></div><span class="p">${r.pct}%</span></div></td>
+      <td><span class="pillx ${r.tag[0]}">${r.tag[1]}</span></td>
+      <td><svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></td>
+    </tr>`;
+  }).join('');
+  requestAnimationFrame(()=>tb.querySelectorAll('.ep .f').forEach(f=>f.style.width=f.dataset.w+'%'));
+}
+
+/* ===================== GAUGE ===================== */
+function buildGauge(){
+  const PCT=77.4,R=112,C=2*Math.PI*R,GAP=0.26,visible=1-GAP;
+  const track=document.getElementById('track'),prog=document.getElementById('prog'),knob=document.getElementById('knob');
+  track.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--line')||'#EEE');
+  const startDeg=90+(GAP*360)/2;
+  [track,prog].forEach(c=>c.setAttribute('transform',`rotate(${startDeg} 150 150)`));
+  track.style.strokeDasharray=`${C*visible} ${C}`; prog.style.strokeDasharray=`0 ${C}`;
+  const g=document.getElementById('ticks'); g.innerHTML=''; const N=60;
+  for(let i=0;i<N;i++){ const frac=i/(N-1); if(frac>visible)continue;
+    const ang=(startDeg+frac*visible*360)*Math.PI/180, on=frac<=visible*(PCT/100);
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',150+134*Math.cos(ang)); l.setAttribute('y1',150+134*Math.sin(ang));
+    l.setAttribute('x2',150+143*Math.cos(ang)); l.setAttribute('y2',150+143*Math.sin(ang));
+    l.setAttribute('stroke', on?'#C9A6E8':'#E3E3EE'); l.setAttribute('stroke-width','2'); l.setAttribute('stroke-linecap','round');
+    g.appendChild(l);
+  }
+  function setKnob(p){ const ang=(startDeg+visible*(p/100)*360)*Math.PI/180; knob.setAttribute('cx',150+R*Math.cos(ang)); knob.setAttribute('cy',150+R*Math.sin(ang)); }
+  setKnob(0);
+  const big=document.getElementById('gbig'),t0=performance.now(),dur=1500;
+  prog.style.transition='stroke-dasharray 1.5s cubic-bezier(.22,.61,.36,1)';
+  setTimeout(()=>prog.style.strokeDasharray=`${C*visible*(PCT/100)} ${C}`,120);
+  (function step(t){ const p=Math.min((t-t0)/dur,1),e=1-Math.pow(1-p,3); big.textContent=(PCT*e).toFixed(1); setKnob(PCT*e); if(p<1)requestAnimationFrame(step); })(t0);
+}
+
+/* ===================== CHART ===================== */
+function buildChart(){
+  const data=[28,42,38,55,48,52,73,61],W=560,H=220,pad=14,max=80,min=0;
+  const xs=i=>pad+i*((W-pad*2)/(data.length-1)), ys=v=>H-20-((v-min)/(max-min))*(H-46);
+  const pts=data.map((v,i)=>[xs(i),ys(v)]);
+  const smooth=p=>{let d=`M${p[0][0]},${p[0][1]}`;for(let i=0;i<p.length-1;i++){const a=p[i-1]||p[i],b=p[i],c=p[i+1],e=p[i+2]||c;d+=` C${b[0]+(c[0]-a[0])/6},${b[1]+(c[1]-a[1])/6} ${c[0]-(e[0]-b[0])/6},${c[1]-(e[1]-b[1])/6} ${c[0]},${c[1]}`;}return d;};
+  const line=smooth(pts), area=line+` L${pts.at(-1)[0]},${H-20} L${pts[0][0]},${H-20} Z`;
+  const peak=data.indexOf(Math.max(...data));
+  const svg=document.getElementById('chart');
+  svg.innerHTML=`<defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F2784B" stop-opacity=".34"/><stop offset="100%" stop-color="#F2784B" stop-opacity="0"/></linearGradient></defs>
+    ${[75,50,25].map(v=>`<line x1="${pad}" y1="${ys(v)}" x2="${W-pad}" y2="${ys(v)}" stroke="var(--line)" stroke-width="1"/>`).join('')}
+    <path d="${area}" fill="url(#fill)"/>
+    <path id="cl" d="${line}" fill="none" stroke="#F2784B" stroke-width="3" stroke-linecap="round"/>
+    <line id="guide" x1="0" y1="14" x2="0" y2="${H-20}" stroke="#F2784B" stroke-width="1.5" stroke-dasharray="4 4" opacity=".45" style="display:none"/>
+    <circle id="mk" r="7" fill="#fff" stroke="#F2784B" stroke-width="3.5"/>`;
+  const cl=document.getElementById('cl'),L=cl.getTotalLength();
+  cl.style.strokeDasharray=L; cl.style.strokeDashoffset=L; cl.getBoundingClientRect();
+  cl.style.transition='stroke-dashoffset 1.4s ease'; setTimeout(()=>cl.style.strokeDashoffset=0,150);
+  const box=document.getElementById('chartBox'),tip=document.getElementById('tip'),mk=document.getElementById('mk'),guide=document.getElementById('guide'),sv=document.getElementById('chSv');
+  function show(i){ const rb=box.getBoundingClientRect();
+    mk.setAttribute('cx',pts[i][0]); mk.setAttribute('cy',pts[i][1]);
+    guide.setAttribute('x1',pts[i][0]); guide.setAttribute('x2',pts[i][0]); guide.style.display='block';
+    tip.style.display='block'; tip.textContent=data[i]+'% · '+(i+1)+'월';
+    tip.style.left=(pts[i][0]/W*rb.width)+'px'; tip.style.top=(pts[i][1]/H*rb.height)+'px';
+    sv.textContent=data[i]+'% · '+(i+1)+'월';
+  }
+  setTimeout(()=>show(peak),1500);
+  box.addEventListener('mousemove',e=>{ const rb=box.getBoundingClientRect(); const x=(e.clientX-rb.left)/rb.width*W;
+    let i=0,best=1e9; pts.forEach((p,idx)=>{const d=Math.abs(p[0]-x); if(d<best){best=d;i=idx;}}); show(i); });
+  box.addEventListener('mouseleave',()=>show(peak));
+}
+
+/* ===================== COUNT-UP ===================== */
+function countUp(el){ const tgt=+el.dataset.count,t0=performance.now(),dur=1100;
+  (function s(t){const p=Math.min((t-t0)/dur,1),e=1-Math.pow(1-p,3); el.textContent=Math.round(tgt*e); if(p<1)requestAnimationFrame(s);})(t0); }
+
+/* ===================== BOOT ===================== */
+document.addEventListener('DOMContentLoaded',()=>{
+  // theme
+  const root=document.documentElement;
+  const saved=(()=>{try{return localStorage.getItem('sf-theme');}catch(e){return null;}})();
+  if(saved) root.setAttribute('data-theme',saved);
+  const moon='<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>';
+  const sun='<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  function syncIcon(){ document.getElementById('themeIcon').innerHTML = root.getAttribute('data-theme')==='dark'?sun:moon; }
+  syncIcon();
+  document.getElementById('themeBtn').addEventListener('click',()=>{
+    const dark=root.getAttribute('data-theme')==='dark'; root.setAttribute('data-theme',dark?'light':'dark');
+    try{localStorage.setItem('sf-theme',dark?'light':'dark');}catch(e){}
+    syncIcon(); buildGauge(); buildChart();
+  });
+
+  render(); buildGauge(); buildChart();
+  document.querySelectorAll('[data-count]').forEach(countUp);
+  setTimeout(()=>document.querySelectorAll('.pbar i').forEach(i=>i.style.width=i.dataset.w+'%'),200);
+
+  // toggles
+  document.querySelectorAll('.tog').forEach(t=>t.addEventListener('click',e=>{ e.stopPropagation(); t.classList.toggle('on'); const d=t.closest('.dev'); if(d)d.classList.toggle('on',t.classList.contains('on')); }));
+  document.querySelectorAll('[data-dev]').forEach(d=>d.addEventListener('click',()=>{ const t=d.querySelector('.tog'); t.classList.toggle('on'); d.classList.toggle('on',t.classList.contains('on')); }));
+
+  // ledger tabs + search
+  document.querySelectorAll('.tab').forEach(tab=>tab.addEventListener('click',()=>{ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); tab.classList.add('active'); render(tab.dataset.filter, document.getElementById('ledgerSearch').value); }));
+  document.getElementById('ledgerSearch').addEventListener('input',e=>render(document.querySelector('.tab.active').dataset.filter, e.target.value));
+  document.getElementById('globalSearch').addEventListener('input',e=>{ const v=e.target.value; const lt=document.getElementById('ledgerSearch'); lt.value=v; render(document.querySelector('.tab.active').dataset.filter, v); });
+
+  // bell dropdown
+  const bell=document.getElementById('bellBtn'), notif=document.getElementById('notif');
+  bell.addEventListener('click',e=>{ e.stopPropagation(); notif.hidden=!notif.hidden; });
+  document.addEventListener('click',e=>{ if(!notif.contains(e.target)&&e.target!==bell) notif.hidden=true; });
+});
+</script>
+</body>
+</html>

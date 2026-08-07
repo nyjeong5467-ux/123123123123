@@ -1,0 +1,1154 @@
+/* 근골격계 유해요인조사 보고서 작성 화면 — 프로토타입(v-musculo) 포팅. 접두사 mur- */
+
+/* ---------- 보고서 헤더 ---------- */
+.mur-rephead {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--sh-soft);
+  padding: 20px 24px;
+  margin-bottom: 14px;
+}
+.mur-rephead .mur-sy {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+.mur-reptop {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.mur-reptop h1 {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0;
+}
+.mur-repacts {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mur-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-2);
+}
+.mur-meta .k {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.mur-meta .v {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.mur-meta .v small {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* ---------- 목차 ---------- */
+.mur-toc {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.mur-toc a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 14px 7px 8px;
+  text-decoration: none;
+}
+.mur-toc a:hover {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.mur-toc .n {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--violet-soft);
+  color: var(--violet);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- 섹션 카드 ---------- */
+.mur-sec {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--sh-soft);
+  padding: 18px 22px 20px;
+  margin-bottom: 16px;
+}
+.mur-ch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.mur-ch .num {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--grad-violet);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.mur-ch h3 {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0;
+}
+.mur-ch .r {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mur-note {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin-top: 10px;
+}
+.mur-note b {
+  color: var(--ink-2);
+}
+.mur-noitem {
+  padding: 26px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: var(--card-2);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-sm);
+}
+.mur-facade {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--amber-ink);
+  background: var(--amber-soft);
+  border-radius: 999px;
+  padding: 2px 8px;
+  vertical-align: middle;
+}
+
+/* ---------- 1. 부담작업 체크리스트 (1~11호) ---------- */
+.mur-hochk {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.mur-ho {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 1080px;
+}
+.mur-ho th,
+.mur-ho td {
+  border-bottom: 1px solid var(--line-2);
+  border-right: 1px solid var(--line-2);
+  padding: 6px;
+  vertical-align: top;
+}
+.mur-ho thead th {
+  background: var(--card-2);
+  font-size: 10px;
+  color: var(--ink-2);
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: left;
+  width: 88px;
+}
+.mur-ho thead th.lead,
+.mur-ho td.pt {
+  position: sticky;
+  left: 0;
+  background: var(--card);
+  min-width: 110px;
+  z-index: 1;
+}
+.mur-ho thead th.lead {
+  background: var(--card-2);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink);
+  vertical-align: middle;
+}
+.mur-ho .hoho {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--violet);
+  margin-bottom: 3px;
+}
+.mur-ho td.pt {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+  vertical-align: middle;
+}
+.mur-ho td.pt em {
+  display: block;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.mur-ho tr.na td {
+  background: var(--card-2);
+}
+.mur-cellho {
+  width: 100%;
+  min-height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+}
+.mur-cellho:hover {
+  border-color: var(--violet);
+}
+.mur-cellho.on {
+  background: var(--red-soft);
+  border-color: transparent;
+  color: var(--red-ink);
+}
+.mur-cellho.lock {
+  cursor: default;
+  background: var(--card-2);
+  border-color: transparent;
+}
+.mur-hosum {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.mur-hs {
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 6px 13px;
+}
+.mur-hs.hit {
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+.mur-hs.miss {
+  background: var(--bg);
+  color: var(--muted);
+}
+.mur-addpart {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--card-2);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-sm);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mur-addpart input {
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 11px;
+  font-size: 12.5px;
+  background: var(--card);
+  color: var(--ink);
+}
+.mur-addpart input.jobs {
+  min-width: 280px;
+  flex: 1;
+}
+.mur-addpart .lb {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+/* ---------- 2. 작업조건 조사 ---------- */
+.mur-scale {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.mur-scale table {
+  border-collapse: collapse;
+  font-size: 11.5px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.mur-scale th {
+  background: var(--card-2);
+  padding: 7px 12px;
+  font-weight: 800;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--line-2);
+}
+.mur-scale td {
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--line-2);
+  color: var(--ink-2);
+}
+.mur-scale td.sc {
+  font-weight: 800;
+  color: var(--violet);
+  text-align: center;
+}
+.mur-wtab {
+  width: 100%;
+  border-collapse: collapse;
+}
+.mur-wtab th {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card-2);
+}
+.mur-wtab th.c,
+.mur-wtab td.c {
+  text-align: center;
+}
+.mur-wtab td {
+  font-size: 12.5px;
+  color: var(--ink);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-2);
+}
+.mur-wtab td.grp {
+  background: var(--violet-soft);
+  color: var(--violet);
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 8px 14px;
+}
+.mur-wtab select {
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 8px;
+  font-size: 12px;
+  background: var(--card);
+  color: var(--ink);
+  width: 100%;
+}
+.mur-score {
+  display: inline-flex;
+  min-width: 38px;
+  height: 28px;
+  border-radius: 9px;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+}
+.mur-score.lo {
+  background: var(--bg);
+  color: var(--ink-2);
+}
+.mur-score.mid {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+.mur-score.hi {
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+
+/* ---------- 3. 유해위험요인 사진 ---------- */
+.mur-modelrule {
+  font-size: 11.5px;
+  color: var(--ink-2);
+  background: var(--info-soft);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+.mur-modelrule b {
+  color: var(--info-ink);
+}
+.mur-riskgrp {
+  padding: 9px 14px;
+  background: var(--violet-soft);
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--violet);
+  margin: 12px 0 8px;
+}
+.mur-riskrow {
+  display: grid;
+  grid-template-columns: 130px 1.3fr 1fr;
+  gap: 14px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line-2);
+}
+.mur-riskrow .wn {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink);
+  padding-top: 4px;
+}
+.mur-shots {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mur-shot {
+  width: 118px;
+  height: 84px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  position: relative;
+  background: var(--card-2);
+}
+.mur-shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mur-shot .nm {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  font-size: 9.5px;
+  color: #fff;
+  background: rgba(20, 20, 40, 0.55);
+  padding: 2px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mur-shot .x {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(20, 20, 40, 0.55);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mur-shot.meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  color: var(--muted);
+  padding: 6px;
+  text-align: center;
+  word-break: break-all;
+}
+.mur-addshot {
+  width: 118px;
+  height: 84px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--line);
+  background: var(--card-2);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mur-addshot:hover {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.mur-cap {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 12px;
+  font-family: var(--font);
+  padding: 7px 10px;
+  resize: vertical;
+  min-height: 40px;
+}
+.mur-hazlab {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.mur-hazchips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.mur-hz {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.mur-hz.on {
+  background: var(--red-soft);
+  border-color: transparent;
+  color: var(--red-ink);
+  font-weight: 700;
+}
+
+/* ---------- 4. 증상조사표 ---------- */
+.mur-svbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.mur-sv {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  background: var(--card-2);
+}
+.mur-sv .l {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.mur-sv .n {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.mur-sv .n small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mur-sv.p .n {
+  color: var(--violet);
+}
+.mur-sv.o .n {
+  color: var(--amber-ink);
+}
+.mur-sv.d .n {
+  color: var(--red-ink);
+}
+.mur-svtools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.mur-svtools .sp {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.mur-roster {
+  width: 100%;
+  border-collapse: collapse;
+}
+.mur-roster th {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card-2);
+}
+.mur-roster td {
+  font-size: 12.5px;
+  color: var(--ink);
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line-2);
+}
+.mur-roster th.c,
+.mur-roster td.c {
+  text-align: center;
+}
+.mur-roster tr.row {
+  cursor: pointer;
+}
+.mur-roster tr.row:hover td {
+  background: var(--card-2);
+}
+.mur-roster tr.open td {
+  background: var(--violet-soft);
+}
+.mur-roster .who {
+  font-weight: 800;
+}
+.mur-via {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.mur-via.mob {
+  background: var(--info-soft);
+  color: var(--info-ink);
+}
+.mur-via.omr {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+.mur-via.non {
+  background: var(--bg);
+  color: var(--muted);
+}
+.mur-jd {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.mur-jd.ok {
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.mur-jd.mg {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+.mur-jd.pn {
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+.mur-jd.no {
+  background: var(--bg);
+  color: var(--muted);
+}
+.mur-detail td {
+  background: var(--card-2);
+  padding: 14px 16px;
+}
+.mur-bodygrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.mur-bp {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 9px 12px;
+  background: var(--card);
+}
+.mur-bp.mg {
+  border-color: var(--amber);
+  background: var(--amber-soft);
+}
+.mur-bp.pn {
+  border-color: var(--red);
+  background: var(--red-soft);
+}
+.mur-bp .t {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 3px;
+}
+.mur-bp .s {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.mur-omrbox {
+  background: var(--amber-soft);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 11.5px;
+  color: var(--amber-ink);
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+.mur-btnrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mur-btn-sm {
+  height: 30px;
+  padding: 0 11px;
+  font-size: 11.5px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.mur-btn-sm:hover {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.mur-btn-sm.pri {
+  background: var(--grad-violet);
+  border: 0;
+  color: #fff;
+}
+.mur-addperson {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--card-2);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-sm);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mur-addperson input,
+.mur-addperson select {
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  background: var(--card);
+  color: var(--ink);
+}
+
+/* ---------- 증상조사표 작성 모달 ---------- */
+.mur-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 20, 45, 0.45);
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 30px 16px;
+  overflow-y: auto;
+}
+.mur-sheet {
+  width: min(880px, 100%);
+  background: var(--card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-pop);
+  padding: 22px 26px 24px;
+  margin: auto 0;
+}
+.mur-sheettop {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.mur-sheettop h2 {
+  font-size: 16.5px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0;
+}
+.mur-sheettop .who2 {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 5px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mur-sheettop .r {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mur-x {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+.mur-ph {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+.mur-ph .rn {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--grad-violet);
+  color: #fff;
+  font-size: 11.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mur-colhint {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--bg);
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+.mur-part1 {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.mur-f2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 9px;
+}
+.mur-fld label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.mur-fld input,
+.mur-fld select {
+  width: 100%;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  background: var(--card);
+  color: var(--ink);
+}
+.mur-qrow {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 9px 0;
+  border-top: 1px solid var(--line-2);
+}
+.mur-qrow .qt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  line-height: 1.5;
+  display: flex;
+  gap: 7px;
+}
+.mur-qrow .qt b {
+  color: var(--violet);
+  flex: none;
+}
+.mur-opts {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.mur-op {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 11px 5px 6px;
+  cursor: pointer;
+}
+.mur-op .k {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mur-op.on {
+  background: var(--violet-soft);
+  border-color: var(--violet);
+  color: var(--violet);
+  font-weight: 800;
+}
+.mur-op.on .k {
+  background: var(--violet);
+  color: #fff;
+}
+.mur-op.low {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 2px var(--amber-soft);
+}
+.mur-gate {
+  border: 1px solid var(--violet);
+  background: var(--violet-soft);
+  border-radius: var(--r-sm);
+  padding: 13px 16px;
+  margin-bottom: 12px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mur-gate .t {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.6;
+  flex: 1;
+  min-width: 260px;
+}
+.mur-bodypick {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.mur-bpk {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 13px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+  cursor: pointer;
+  background: var(--card);
+}
+.mur-bpk.on {
+  border-color: var(--violet);
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+.mur-bsec {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.mur-bsec.mg {
+  border-color: var(--amber);
+}
+.mur-bsec.pn {
+  border-color: var(--red);
+}
+.mur-bh {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  background: var(--card-2);
+  border-bottom: 1px solid var(--line-2);
+}
+.mur-bh .bt {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.mur-bh .r {
+  margin-left: auto;
+}
+.mur-bb {
+  padding: 4px 14px 10px;
+}
+.mur-sheetfoot {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.mur-sheetfoot .msg {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+  flex: 1;
+}
+.mur-sheetfoot .r {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- 5. 엑셀 열 매핑 ---------- */
+.mur-xlmap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.mur-xlmap th {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card-2);
+}
+.mur-xlmap td {
+  font-size: 12px;
+  color: var(--ink-2);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-2);
+  line-height: 1.6;
+}
+.mur-xlmap td.col {
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+  color: var(--violet);
+  white-space: nowrap;
+}
+.mur-xlnote {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.8;
+  margin-top: 12px;
+  background: var(--card-2);
+  border-radius: var(--r-sm);
+  padding: 12px 16px;
+}
+.mur-xlnote b {
+  color: var(--ink-2);
+}
+
+/* ---------- 6. 개선계획서 ---------- */
+.mur-plan {
+  width: 100%;
+  border-collapse: collapse;
+}
+.mur-plan th {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card-2);
+}
+.mur-plan td {
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--line-2);
+  vertical-align: top;
+}
+.mur-plan input {
+  width: 100%;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 0 9px;
+  font-size: 12px;
+  background: transparent;
+  color: var(--ink);
+}
+.mur-plan input:hover {
+  border-color: var(--line);
+}
+.mur-plan input:focus {
+  border-color: var(--violet);
+  background: var(--card);
+  outline: none;
+}
+.mur-plan .src {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+/* ---------- 7. 제출 로그 ---------- */
+.mur-sublog {
+  margin-top: 12px;
+  background: var(--card-2);
+  border-radius: var(--r-sm);
+  padding: 12px 16px;
+  font-size: 11.5px;
+  line-height: 1.9;
+  color: var(--ink-2);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.mur-sublog .ok {
+  color: var(--ok-ink);
+}
+.mur-sublog .err {
+  color: var(--red-ink);
+}
+
+@media (max-width: 900px) {
+  .mur-riskrow {
+    grid-template-columns: 1fr;
+  }
+  .mur-qrow {
+    grid-template-columns: 1fr;
+  }
+}

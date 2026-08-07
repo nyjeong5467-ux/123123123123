@@ -1,0 +1,40 @@
+/* 안전·보건 교육 — 학교 목록 → 학교별 교육 상세 위계 뷰 전용 스타일. 접두사 edh- */
+
+.edh-schoolhead .edh-schoolmeta {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+/* 1단계 학교 목록 — 진도율 게이지 */
+.edh-gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  vertical-align: middle;
+}
+.edh-bar {
+  display: inline-block;
+  width: 96px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  overflow: hidden;
+}
+.edh-fill {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--violet);
+  transition: width 0.2s;
+}
+.edh-fill.done {
+  background: var(--ok);
+}
+.edh-pct {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+  min-width: 34px;
+}

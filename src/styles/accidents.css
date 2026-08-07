@@ -1,0 +1,333 @@
+/* 산업재해 페이지 전용 스타일 — 클래스 접두사 acc-. 토큰(tokens.css)만 참조, 전역 클래스 미정의. */
+
+/* ── 학교 셀: 실명 + 익명 표시명(공용 화면용) 보조 표기 ── */
+.acc-school {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.acc-masked {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ── 구분 칩 (사고성/질병성) ── */
+.acc-kind {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.acc-kind-accident {
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+.acc-kind-disease {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+
+/* ── 연동 상태 뱃지 (수시 위평 / 수시 근골) ── */
+.acc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: filter 0.12s;
+}
+.acc-link:hover {
+  filter: brightness(0.95);
+}
+.acc-link-risk {
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+.acc-link-mus {
+  background: var(--info-soft);
+  color: var(--info-ink);
+}
+
+/* ── 목록 내 소형 "생성" 버튼 ── */
+.acc-genbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border: 1px dashed var(--violet);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--violet);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: var(--font);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.acc-genbtn:hover {
+  background: var(--violet-soft);
+}
+.acc-genbtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ── 개요·첨부 셀 ── */
+.acc-sum {
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.acc-attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+/* ── 등록/연동 직후 안내 배너 ── */
+.acc-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 13px 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--violet);
+  border-radius: var(--r-sm);
+  box-shadow: var(--sh-soft);
+}
+.acc-banner.done {
+  border-left-color: var(--ok);
+}
+.acc-banner-txt {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+.acc-banner-txt b {
+  color: var(--ink);
+}
+.acc-banner-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--violet);
+  font-weight: 700;
+  text-decoration: none;
+}
+.acc-banner-go:hover {
+  text-decoration: underline;
+}
+.acc-banner-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.acc-banner-x:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* ── 등록 폼: 구분 라디오 카드 ── */
+.acc-radio {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.acc-radio-opt {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.acc-radio-opt.active {
+  border-color: var(--violet);
+  background: var(--violet-soft);
+}
+.acc-radio-opt input {
+  grid-row: 1 / 3;
+  accent-color: var(--violet);
+  margin: 0;
+}
+.acc-radio-opt b {
+  font-size: 13px;
+  color: var(--ink);
+}
+.acc-radio-opt small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ── 구분별 안내문구 ── */
+.acc-guide {
+  display: block;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.acc-guide-accident {
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+.acc-guide-disease {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+
+/* ── 파일 첨부 (파일명 메타만) ── */
+.acc-addrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.acc-addfile {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: var(--card-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.acc-addfile:hover {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.acc-addfile input {
+  display: none;
+}
+.acc-files {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.acc-filerow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  min-width: 0;
+}
+.acc-filename {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acc-file-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.acc-file-x:hover {
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+
+/* ── 상세 모달 ── */
+.acc-school-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--violet);
+  font-weight: 700;
+  text-decoration: none;
+}
+.acc-school-go:hover {
+  text-decoration: underline;
+}
+.acc-school-go + .acc-masked {
+  display: block;
+  margin-top: 3px;
+}
+.acc-detail-sec {
+  margin: 16px 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-2);
+  letter-spacing: 0.02em;
+}
+.acc-detail-body {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.acc-detail-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.acc-detail-gen {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+.acc-detail-gen .acc-guide {
+  margin-top: 0;
+}
