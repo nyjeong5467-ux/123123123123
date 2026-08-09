@@ -103,7 +103,8 @@ export function InspectionForm() {
 
   // 작성 상태
   const [enabled, setEnabled] = useState<Record<string, boolean>>({})
-  const [answers, setAnswers] = useState<Record<string, Ans | undefined>>({})
+  // null = 명시적 해제 — 자동 해당없음 값도 무시하고 "선택 없음"으로 표시 [048]
+  const [answers, setAnswers] = useState<Record<string, Ans | null | undefined>>({})
   const [remarks, setRemarks] = useState<Record<string, string | undefined>>({})
   const [photos, setPhotos] = useState<Record<string, Slot[]>>({})
   const [etc, setEtc] = useState('')
@@ -208,7 +209,9 @@ export function InspectionForm() {
   const activeDefs = PARTDEF.filter((d) => d.q && enabled[d.label])
 
   function effAnswer(label: string, no: number): Ans | undefined {
-    return answers[`${label}-${no}`] ?? (ex[label]?.[no] ? '해당없음' : undefined)
+    const v = answers[`${label}-${no}`]
+    if (v === null) return undefined // 명시적 해제 — 자동 해당없음도 무시 [048]
+    return v ?? (ex[label]?.[no] ? '해당없음' : undefined)
   }
   function carriedFor(code: string): string {
     const cv = CARRY_VALUE[code]
@@ -582,11 +585,13 @@ export function InspectionForm() {
                   const cv = why ? undefined : CARRY_VALUE[code]
                   const carried = cv ? prevVals[code] || cv.v : ''
                   const remark = effRemark(code)
-                  // 같은 버튼 재클릭 시 선택 해제 [047]
+                  // 같은 버튼 재클릭 시 선택 해제 [047] — 자동 해당없음 항목은 null(명시적 해제)로 빈 상태 유지 [048]
                   const toggle = (v: Ans) => setAnswers((p) => {
                     const next = { ...p }
-                    if (p[code] === v) delete next[code]
-                    else next[code] = v
+                    if (a === v) {
+                      if (why) next[code] = null // 자동값 있는 항목: 해제 상태를 명시적으로 기억
+                      else delete next[code]
+                    } else next[code] = v
                     return next
                   })
                   return (
