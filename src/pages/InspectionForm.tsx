@@ -22,7 +22,8 @@ const CARRY_VALUE: Record<string, { v: string; opts: string[] }> = {
 /* 파트 정의 — 백엔드 Part enum(catering/facility/cleaning/commute/night_duty) 매핑 */
 type PartApi = 'catering' | 'facility' | 'cleaning' | 'commute' | 'night_duty'
 type PartDef = { key: PartApi; label: string; name: string; q: string[] | null }
-const PARTDEF: PartDef[] = [
+// 실물 양식 보기(InspectionSheetView)에서도 표준 문항 전체를 그리는 데 사용 [056]
+export const PARTDEF: PartDef[] = [
   { key: 'catering', label: '급식', name: '급식종사자', q: Q_GS },
   { key: 'night_duty', label: '당직', name: '당직업무', q: null },
   { key: 'commute', label: '통학', name: '통학보조', q: Q_TH },
