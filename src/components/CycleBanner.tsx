@@ -55,24 +55,27 @@ export function CycleBanner({ inspUnvisited, workStats }: { inspUnvisited: numbe
   const curIdx = AY_MONTH_NO.indexOf(curMonth)
   const ay = curMonth >= 3 ? now.getFullYear() : now.getFullYear() - 1
 
-  // 업무 칩 — 4대 업무는 클릭 가능(완료율 도넛), 교육은 정보 표시만
+  // 업무 칩 — 4대 업무는 클릭 가능(완료율 도넛), 교육은 정보 표시만.
+  // 문구는 주황(주의)일 때만 이름 옆에 표시하고, 그 외에는 업무 이름만 (툴팁에 상세 유지)
   const chips = useMemo(() => {
-    const out: { key: WorkKey | null; name: string; label: string; cls: string }[] = [
+    const out: { key: WorkKey | null; name: string; label: string; cls: string; tip: string }[] = [
       {
         key: 'insp', name: '안전점검',
-        label: `매월 진행${inspUnvisited ? ` · 미방문 ${inspUnvisited}교` : ''}`,
+        label: inspUnvisited ? `미방문 ${inspUnvisited}교` : '',
         cls: inspUnvisited ? 'warn' : 'ok',
+        tip: `매월 진행${inspUnvisited ? ` · 이번 달 미방문 ${inspUnvisited}교` : ' · 이번 달 전 학교 완료'}`,
       },
     ]
     for (const row of doc.rows) {
       const key = ROW_TO_KEY[row.id] ?? null
       const bar = row.bars.find((b) => b.s <= curIdx && curIdx <= b.e)
-      const label = row.id === 'edu'
+      const cls = bar ? (TONE_CLS[row.tone] ?? 'muted') : 'muted'
+      const detail = row.id === 'edu'
         ? '수시 진행'
         : bar
           ? (bar.e === curIdx && bar.mark ? `${bar.label} → ${bar.mark}` : bar.label)
           : '이번 달 일정 없음'
-      out.push({ key, name: row.name, label, cls: bar ? (TONE_CLS[row.tone] ?? 'muted') : 'muted' })
+      out.push({ key, name: row.name, label: cls === 'warn' ? detail : '', cls, tip: detail })
     }
     return out
   }, [doc, curIdx, inspUnvisited])
@@ -90,13 +93,13 @@ export function CycleBanner({ inspUnvisited, workStats }: { inspUnvisited: numbe
             <button
               key={c.name}
               className={'shub-w ' + c.cls + (selWork === c.key ? ' on' : '')}
-              title={`${c.name} 완료율 도넛 보기`}
+              title={`${c.tip} — 클릭하면 완료율 표시`}
               onClick={() => setSelWork((s) => (s === c.key ? null : c.key))}
             >
-              <i />{c.name} · {c.label}
+              <i />{c.name}{c.label ? ` · ${c.label}` : ''}
             </button>
           ) : (
-            <span key={c.name} className={'shub-w ' + c.cls}><i />{c.name} · {c.label}</span>
+            <span key={c.name} className={'shub-w ' + c.cls} title={c.tip}><i />{c.name}{c.label ? ` · ${c.label}` : ''}</span>
           ),
         )}
         <span className="sp" />
