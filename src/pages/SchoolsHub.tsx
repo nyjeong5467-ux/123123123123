@@ -56,15 +56,16 @@ const WORKS: { key: keyof WorkBadges | 'edu'; label: string; path: string }[] = 
   { key: 'comp', label: '이행점검', path: '/compliance' },
 ]
 
+// 배지 색은 2색 이진 표시 — 완료(초록) / 미완료(회색). 세부 상태는 txt(툴팁)로만 제공
 function deriveBadges(insp: InspLite[], risk: StatusLite[], mus: MusLite[], compSheet: CompSheetLite | undefined, ym: string): WorkBadges {
   const inspDone = insp.some((r) => ((r.submitted_at || r.signed_at || '') + '').slice(0, 7) === ym)
   const riskDoing = risk.filter((r) => r.status !== 'completed').length
   const review = mus.reduce((a, m) => a + (m.needs_review || 0), 0)
   return {
-    insp: inspDone ? { txt: '이번 달 완료', cls: 'ok' } : { txt: '이번 달 미실시', cls: 'warn' },
-    risk: riskDoing > 0 ? { txt: `진행 ${riskDoing}건`, cls: 'doing' } : risk.length > 0 ? { txt: '완료', cls: 'ok' } : { txt: '미작성', cls: 'muted' },
-    mus: review > 0 ? { txt: `검수 ${review}건`, cls: 'bad' } : { txt: '특이사항 없음', cls: 'ok' },
-    comp: compSheet ? (compSheet.status === 'submitted' ? { txt: '제출 완료', cls: 'ok' } : { txt: '작성 중', cls: 'doing' }) : { txt: '미작성', cls: 'muted' },
+    insp: inspDone ? { txt: '이번 달 완료', cls: 'ok' } : { txt: '이번 달 미실시', cls: 'muted' },
+    risk: riskDoing > 0 ? { txt: `진행 ${riskDoing}건`, cls: 'muted' } : risk.length > 0 ? { txt: '완료', cls: 'ok' } : { txt: '미작성', cls: 'muted' },
+    mus: mus.length === 0 ? { txt: '미작성', cls: 'muted' } : review > 0 ? { txt: `검수 ${review}건 대기`, cls: 'muted' } : { txt: '완료 · 검수 대기 없음', cls: 'ok' },
+    comp: compSheet?.status === 'submitted' ? { txt: '제출 완료', cls: 'ok' } : { txt: compSheet ? '작성 중' : '미작성', cls: 'muted' },
   }
 }
 
@@ -212,7 +213,7 @@ export function SchoolsHub() {
   const inspUnvisited = useMemo(() => {
     if (Object.keys(badges).length === 0) return null
     const scoped = scope === 'mine' ? rows.filter((r) => r.school.assigned_inspector_id === myLogin) : rows
-    return scoped.filter((r) => badges[r.school.id]?.insp.cls === 'warn').length
+    return scoped.filter((r) => badges[r.school.id] && badges[r.school.id].insp.cls !== 'ok').length
   }, [rows, badges, scope, myLogin])
 
   // 배너 도넛용 — 담당 학교 기준 업무별 완료 수 (담당 배정 없으면 전체 학교 기준)
@@ -347,7 +348,7 @@ export function SchoolsHub() {
                           {WORKS.map((w) => {
                             const badge: Badge | undefined =
                               w.key === 'edu'
-                                ? (r.mismatch ? { txt: '인원 불일치', cls: 'warn' } : { txt: '인원 일치', cls: 'ok' })
+                                ? (!r.total ? { txt: '대장 미입력', cls: 'muted' } : r.mismatch ? { txt: '인원 불일치', cls: 'muted' } : { txt: '인원 일치', cls: 'ok' })
                                 : b?.[w.key]
                             return (
                               <button
