@@ -11,7 +11,7 @@ import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { BulkUploadModal } from '../components/BulkUploadModal'
-import { CycleBanner, type WorkKey, type WorkStats } from '../components/CycleBanner'
+import { CycleBanner, type WorkStats } from '../components/CycleBanner'
 import '../styles/schoolhub.css'
 
 type School = {
@@ -108,7 +108,6 @@ export function SchoolsHub() {
   const [scope, setScope] = useState<'mine' | 'all'>('all') // 담당 학교 / 전체 학교
   const [scopeInit, setScopeInit] = useState(false)
   const [badges, setBadges] = useState<Record<string, WorkBadges>>({})
-  const [todayPlans, setTodayPlans] = useState<{ school_id?: string; name: string }[]>([]) // 오늘 방문 계획 [039]
   const [nameQ, setNameQ] = useState('') // 학교명 입력값 (조회 전)
   const [regionQ, setRegionQ] = useState('') // 지역명 입력값 (조회 전)
   const [applied, setApplied] = useState({ name: '', region: '' }) // [조회]로 확정된 검색 조건
@@ -216,34 +215,6 @@ export function SchoolsHub() {
     return scoped.filter((r) => badges[r.school.id]?.insp.cls === 'warn').length
   }, [rows, badges, scope, myLogin])
 
-  // 오늘 방문 계획 로드 — 도넛 패널의 "오늘 방문 예정 중 미완료" 표시용 [039]
-  useEffect(() => {
-    let alive = true
-    const t = new Date()
-    const key = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
-    api<{ doc: Record<string, { id: string; name: string; school_id?: string }[]> }>('/ops/docs/visit-plans')
-      .then((r) => { if (alive) setTodayPlans(Array.isArray(r.doc?.[key]) ? r.doc[key] : []) })
-      .catch(() => { if (alive) setTodayPlans([]) })
-    return () => { alive = false }
-  }, [])
-
-  // 오늘 방문 예정 학교 중 업무별 미완료 목록 — 도넛 패널에서 바로 작성 진입용 [039]
-  const todayTodo = useMemo<Record<WorkKey, { id: string; name: string }[]> | null>(() => {
-    if (Object.keys(badges).length === 0) return null
-    const out: Record<WorkKey, { id: string; name: string }[]> = { insp: [], risk: [], mus: [], comp: [] }
-    for (const p of todayPlans) {
-      if (!p.school_id) continue
-      const b = badges[p.school_id]
-      if (!b) continue
-      const item = { id: p.school_id, name: p.name }
-      if (b.insp.cls !== 'ok') out.insp.push(item)
-      if (b.risk.cls !== 'ok') out.risk.push(item)
-      if (b.mus.cls !== 'ok') out.mus.push(item)
-      if (b.comp.cls !== 'ok') out.comp.push(item)
-    }
-    return out
-  }, [todayPlans, badges])
-
   // 배너 도넛용 — 담당 학교 기준 업무별 완료 수 (담당 배정 없으면 전체 학교 기준)
   const workStats = useMemo<WorkStats | null>(() => {
     if (Object.keys(badges).length === 0) return null
@@ -271,7 +242,7 @@ export function SchoolsHub() {
       </div>
 
       {/* ===== 이번 달 법정업무 축약 배너 (홈 연간 사이클 요약 — 읽기 전용) ===== */}
-      <CycleBanner inspUnvisited={inspUnvisited} workStats={workStats} todayTodo={todayTodo} todayPlanCount={todayPlans.length} />
+      <CycleBanner inspUnvisited={inspUnvisited} workStats={workStats} />
 
       {/* ===== 검색 · 학교급 필터 ===== */}
       <div className="shub-search">
