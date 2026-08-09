@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { InspectionSheetView, type SheetData } from '../components/InspectionSheetView'
 import '../styles/hier.css'
 import '../styles/inspecthier.css'
 
@@ -229,6 +230,9 @@ export function Inspection() {
 
   // 드릴다운 상세 모달 (기존 재사용)
   const [detail, setDetail] = useState<Inspection | null>(null)
+  const [sheetView, setSheetView] = useState<SheetData | null>(null) // 실물 양식 보기 [054]
+  const openSheet = (school: School, date: string, parts: Inspection[]) =>
+    setSheetView({ schoolName: school.name, manager: school.manager, date, parts })
 
   // 학교 목록 로드
   useEffect(() => {
@@ -448,12 +452,13 @@ export function Inspection() {
                     <th>담당자</th>
                     <th className="c">작성현황</th>
                     <th className="c">교육청 전송</th>
+                    <th className="c">작업</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {(loading || sumLoading) && <tr><td colSpan={6}><div className="tstate">불러오는 중…</div></td></tr>}
-                  {!loading && error && <tr><td colSpan={6}><div className="tstate">오류: {error}</div></td></tr>}
+                  {(loading || sumLoading) && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
+                  {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
                   {!loading && !sumLoading && !error && rq.view.map((r) => {
                     const st = STATUS[r.status] ?? { label: r.status, cls: 'na' }
                     const eo = EDUOFFICE[r.eduoffice] ?? { label: '—', cls: 'na' }
@@ -465,12 +470,21 @@ export function Inspection() {
                         <td className="inh-mgr">{r.school.manager || '—'}</td>
                         <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
                         <td className="c"><span className={'pillx ' + eo.cls}>{eo.label}</span></td>
+                        <td className="c">
+                          <button
+                            className="btn btn-ghost"
+                            style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                            onClick={(e) => { e.stopPropagation(); openSheet(r.school, r.date, r.parts) }}
+                          >
+                            보기
+                          </button>
+                        </td>
                         <td className="c"><span className="chev"><ChevronRight size={15} /></span></td>
                       </tr>
                     )
                   })}
                   {!loading && !sumLoading && !error && rq.view.length === 0 && (
-                    <tr><td colSpan={6}><div className="tstate">{reportRows.length === 0 ? '작성된 점검표가 없습니다. 학교 탭의 [안전점검] 바로가기에서 작성하세요.' : '조건에 맞는 점검표가 없습니다.'}</div></td></tr>
+                    <tr><td colSpan={7}><div className="tstate">{reportRows.length === 0 ? '작성된 점검표가 없습니다. 학교 탭의 [안전점검] 바로가기에서 작성하세요.' : '조건에 맞는 점검표가 없습니다.'}</div></td></tr>
                   )}
                 </tbody>
               </table>
@@ -538,7 +552,7 @@ export function Inspection() {
                               <button
                                 className="btn btn-ghost"
                                 style={{ height: 30, padding: '0 12px', fontSize: 12 }}
-                                onClick={() => setDetail(sheet.parts[0])}
+                                onClick={() => openSheet(sel, sheet.date, sheet.parts)}
                               >
                                 보기
                               </button>
@@ -618,6 +632,8 @@ export function Inspection() {
           )}
         </Modal>
       )}
+
+      {sheetView && <InspectionSheetView sheet={sheetView} onClose={() => setSheetView(null)} />}
     </div>
   )
 }

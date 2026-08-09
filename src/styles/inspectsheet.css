@@ -1,0 +1,109 @@
+/* 종사자 안전·보건 점검표 — 실물 양식 보기 (inss- 접두사) [054]
+   화면: 전체 오버레이 + A4 폭 종이. 인쇄: 오버레이만 출력(@media print). */
+
+.inss-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(24, 22, 40, 0.55);
+  overflow: auto;
+  padding: 24px 0 60px;
+}
+.inss-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 940px;
+  margin: 0 auto 14px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line, #e5e5ee);
+  border-radius: 12px;
+  padding: 10px 16px;
+}
+.inss-bar b { font-size: 13.5px; color: var(--ink, #1c1b28); }
+.inss-bar .sp { flex: 1; }
+
+.inss-page {
+  max-width: 940px;
+  margin: 0 auto;
+  background: #fff;
+  color: #1c1b28;
+  border-radius: 6px;
+  padding: 42px 46px 56px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+/* 제목 + 결재란 */
+.inss-head { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 22px; }
+.inss-head h1 { flex: 1; margin: 18px 0 0; font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
+.inss-approve { border-collapse: collapse; }
+.inss-approve td { border: 1px solid #c9c9d4; font-size: 11.5px; }
+.inss-approve .lab { width: 30px; text-align: center; font-weight: 700; padding: 6px; }
+.inss-approve .t { width: 120px; text-align: center; padding: 5px 8px; background: #f6f6fa; font-weight: 700; }
+.inss-approve .sign { height: 52px; text-align: center; font-weight: 700; font-size: 13px; }
+
+/* 섹션 제목 */
+.inss-sec {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 800;
+  margin: 20px 0 10px;
+}
+.inss-sec i { width: 8px; height: 8px; border-radius: 50%; background: #6c5ce7; }
+
+/* 기본정보 그리드 */
+.inss-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 24px; }
+.inss-info label { display: flex; flex-direction: column; gap: 5px; }
+.inss-info span { font-size: 11.5px; font-weight: 700; color: #444; }
+.inss-info .v {
+  min-height: 34px;
+  border: 1px solid #d4d4de;
+  border-radius: 8px;
+  padding: 7px 11px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 점검대상 체크 */
+.inss-targets { display: flex; gap: 34px; flex-wrap: wrap; padding: 2px 0 4px; }
+.inss-targets .tg { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.inss-targets .bx {
+  width: 16px; height: 16px; border: 1.5px solid #b9b9c6; border-radius: 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-style: normal; color: #fff;
+}
+.inss-targets .bx.on { background: #3f3d8f; border-color: #3f3d8f; }
+
+/* 공정별 점검표 */
+.inss-part { margin-top: 6px; }
+.inss-tbl { width: 100%; border-collapse: collapse; }
+.inss-tbl th, .inss-tbl td { border: 1px solid #d9d9e2; font-size: 12px; }
+.inss-tbl th { background: #f6f6fa; font-weight: 700; padding: 8px 10px; }
+.inss-tbl th.q { text-align: center; }
+.inss-tbl td.q { padding: 9px 12px; line-height: 1.55; width: 44%; }
+.inss-tbl .c { width: 8.5%; text-align: center; font-size: 14px; }
+.inss-tbl th.r { width: 31%; }
+.inss-tbl td.r { padding: 6px 8px; }
+.inss-tbl .memo {
+  min-height: 30px;
+  border: 1px solid #dcdce6;
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* 인쇄 — 오버레이(양식)만 출력 */
+@media print {
+  body * { visibility: hidden !important; }
+  .inss-overlay, .inss-overlay * { visibility: visible !important; }
+  .inss-overlay { position: absolute; inset: auto; padding: 0; background: #fff; overflow: visible; }
+  .inss-bar { display: none !important; }
+  .inss-page { max-width: none; box-shadow: none; border-radius: 0; padding: 0; }
+  .inss-part, .inss-tbl tr { break-inside: avoid; }
+  @page { size: A4 portrait; margin: 14mm 12mm; }
+}
