@@ -332,19 +332,10 @@ export function SchoolDetail() {
         <h2>{s.name}</h2>
         <span className={'pillx ' + (s.is_private ? 'doing' : 'ok')}>{s.is_private ? '사립' : '국공립'}</span>
         <div className="sp" />
-        <Link to={`/inspection/new?school=${id}`} className="btn btn-primary" style={{ textDecoration: 'none' }}>안전점검 작성</Link>
-        <Link to={`/musculo/report?school=${id}`} className="btn btn-ghost" style={{ textDecoration: 'none' }}>근골 보고서</Link>
         <button className="btn btn-ghost" onClick={() => setWorkers(true)}>종사자 편집</button>
         <button className="btn btn-ghost" onClick={() => setEdit(true)}>수정</button>
         <button className="btn btn-ghost" onClick={handleDelete}>삭제</button>
-        <Link to="/" className="pill"><ChevronLeft size={15} /> 대장으로</Link>
-      </div>
-
-      <div className="kpis">
-        <div className="kpi"><div className="l">현업종사자</div><div className="v">{data.worker_total}<small> 명</small></div><div className="d">5대 파트 합계</div></div>
-        <div className="kpi"><div className="l">교육생 수</div><div className="v">{data.education_count ?? '—'}<small> 명</small></div><div className="d">교육 모듈 연동</div></div>
-        <div className={'kpi ' + (data.headcount_mismatch ? 'warn' : '')}><div className="l">인원 대조</div><div className="v">{data.headcount_mismatch ? '불일치' : '일치'}</div><div className="d">종사자수 vs 교육생수</div></div>
-        <div className={'kpi ' + (data.accidents.length ? 'red' : '')}><div className="l">산재 현황</div><div className="v">{data.accidents.length}<small> 건</small></div><div className="d">수시 위험성평가 대상</div></div>
+        <Link to="/schools" className="pill"><ChevronLeft size={15} /> 학교 목록으로</Link>
       </div>
 
       <div className="ledger" style={{ marginBottom: 24 }}>
