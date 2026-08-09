@@ -102,7 +102,25 @@
 .hm-block.editing > .hm-today {
   outline: 1.5px dashed color-mix(in srgb, var(--violet) 55%, transparent);
   outline-offset: 2px;
+  pointer-events: none; /* 편집 중엔 카드 내부 클릭 대신 드래그 */
+  user-select: none;
 }
+/* 아이폰 홈 편집처럼 살짝 흔들리는 효과 + 끌기 커서 */
+@keyframes hm-wiggle {
+  0% { transform: rotate(-0.2deg); }
+  50% { transform: rotate(0.2deg); }
+  100% { transform: rotate(-0.2deg); }
+}
+.hm-block.editing {
+  cursor: grab;
+  animation: hm-wiggle 0.4s ease-in-out infinite;
+}
+.hm-block.editing:active { cursor: grabbing; }
+.hm-block.dragging {
+  opacity: 0.4;
+  animation: none;
+}
+.hm-block-ctl .grip { color: var(--muted); flex: none; }
 .hm-block-ctl {
   display: flex;
   align-items: center;
