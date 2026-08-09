@@ -299,6 +299,11 @@ export function SchoolsHub() {
           <h2><Building2 size={18} /> 학교 목록</h2>
           <span className="pillx doing">{q.total}교</span>
           <div className="sp" />
+          {scope === 'mine' && (
+            <span className="shub-legend" title="세부 상태(진행 건수·검수 대기 등)는 배지에 마우스를 올리면 표시됩니다">
+              업무 바로가기: <i className="d-ok" /> 완료 <i className="d-mut" /> 미완료
+            </span>
+          )}
           <div className="shub-toggle" role="group" aria-label="담당/전체 전환">
             <button className={scope === 'mine' ? 'on' : ''} onClick={() => setScope('mine')} title="내가 담당하는 학교만 보기">담당 학교</button>
             <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')} title="등록된 전체 학교 보기">전체 학교</button>
