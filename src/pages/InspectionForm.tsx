@@ -81,6 +81,15 @@ type PrevInsp = { id?: string; part: string; status?: string; items: PrevItem[] 
 const RES_INV: Record<string, Ans> = { good: '양호', poor: '미흡', na: '해당없음', ok: '양호', fix: '미흡' }
 type Ans = '양호' | '미흡' | '해당없음'
 type Slot = { name: string; dataUrl: string; caption: string }
+// 점검표 부가정보 — 기본정보·점검대상·기타의견·사진대지·확인자 (양식 보기용, /ops/docs/inspection-extras) [057]
+export type InspExtra = {
+  ids: string[] // 이 점검표에 포함된 공정별 점검 ID (보기 화면 매칭 키)
+  info: { org: string; dept: string; role: string; writer: string; writeDate: string; inspectDate: string; place: string; accType: string }
+  targets: string[] // 점검대상 체크(공정 key — 당직 등 점검표 없는 공정 포함)
+  etc: string
+  photos: Record<string, Slot[]>
+  signer: string
+}
 type PartStatus = { st: 'idle' | 'run' | 'done' | 'err'; note: string }
 
 const RES_API: Record<Ans, string> = { 양호: 'good', 미흡: 'poor', 해당없음: 'na' }
@@ -345,6 +354,32 @@ export function InspectionForm() {
     setStatuses((p) => ({ ...p, [label]: { st, note } }))
   }
 
+  /* [057] 부가정보 저장 — 기본정보·점검대상·기타의견·사진대지·확인자를 점검표 단위로 함께 보존 (양식 보기용) */
+  async function saveExtras(ids: string[]) {
+    if (ids.length === 0) return
+    try {
+      const cur = await api<{ doc: Record<string, InspExtra[]> }>('/ops/docs/inspection-extras').catch(() => ({ doc: {} as Record<string, InspExtra[]> }))
+      const doc = cur.doc && typeof cur.doc === 'object' ? cur.doc : {}
+      const list = Array.isArray(doc[sid]) ? doc[sid] : []
+      const entry: InspExtra = {
+        ids,
+        info: {
+          org: '(주)한국산업안전협회', dept: '(주)한국산업안전협회', role: '대표', writer: '(주)한국산업안전협회',
+          writeDate: today, inspectDate, place, accType,
+        },
+        targets: PARTDEF.filter((d) => enabled[d.label]).map((d) => d.key),
+        etc,
+        photos,
+        signer: signed ? signerName.trim() : '',
+      }
+      const idx = list.findIndex((e) => Array.isArray(e.ids) && e.ids.some((id) => ids.includes(id)))
+      if (idx >= 0) list[idx] = entry
+      else list.push(entry)
+      doc[sid] = list
+      await api('/ops/docs/inspection-extras', { method: 'PUT', body: JSON.stringify({ doc }) })
+    } catch { /* 부가정보 저장 실패는 본 저장을 막지 않음 */ }
+  }
+
   /* [047] 임시저장 — 서명·제출 없이 지금까지의 입력을 '작성중' 점검으로 저장 (점검 현황 → 이어서 작성으로 재개) */
   async function saveDraft() {
     if (!ledger || busy) return
@@ -352,6 +387,7 @@ export function InspectionForm() {
     setBusy(true)
     setSubmitErr('')
     setDraftNote('')
+    const usedIds: string[] = []
     try {
       for (const d of activeDefs) {
         const q = d.q!
@@ -365,6 +401,7 @@ export function InspectionForm() {
             body: JSON.stringify({ school_id: sid, part: d.key, is_private_school: ledger.school.is_private, items }),
           })
         if (!existingId) setDraftIds((p) => ({ ...p, [d.label]: created.id }))
+        usedIds.push(created.id)
         let done = 0
         for (let i = 0; i < items.length; i++) {
           const code = items[i].code
@@ -379,6 +416,7 @@ export function InspectionForm() {
         }
         setStatus(d.label, 'done', `임시저장 ${done}건 (작성중)`)
       }
+      await saveExtras(usedIds) // 기타의견·사진대지 등 부가정보 함께 저장 [057]
       setDraftNote('임시저장 완료 — 안전점검 탭의 점검 현황에서 [이어서 작성]으로 다시 열 수 있습니다.')
     } catch (e) {
       setSubmitErr(e instanceof Error ? e.message : '임시저장에 실패했습니다.')
@@ -394,6 +432,7 @@ export function InspectionForm() {
     setSubmitErr('')
     setDraftNote('')
     let okAll = true
+    const usedIds: string[] = []
     for (const d of activeDefs) {
       const q = d.q!
       const exl = ex[d.label] || {}
@@ -443,12 +482,14 @@ export function InspectionForm() {
           body: JSON.stringify({ signer: signerName.trim(), image_ref: '' }),
         })
         const sub = await api<{ status: string; eduoffice: string | null }>(`/inspections/${created.id}/submit`, { method: 'POST' })
+        usedIds.push(created.id)
         setStatus(d.label, 'done', sub.eduoffice === 'pending' ? '제출 완료 · 교육청 전송 대기' : '제출 완료')
       } catch (e) {
         okAll = false
         setStatus(d.label, 'err', e instanceof Error ? e.message : '제출 실패')
       }
     }
+    await saveExtras(usedIds) // 기타의견·사진대지·확인자 등 부가정보 함께 저장 [057]
     setBusy(false)
     if (okAll) {
       setDoneAll(true)

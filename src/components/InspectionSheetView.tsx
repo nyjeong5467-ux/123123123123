@@ -3,7 +3,7 @@
 // [인쇄 / PDF 저장]으로 브라우저 인쇄 → PDF 생성 가능. 조회 전용(수정은 이어서 작성에서).
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
-import { PARTDEF } from '../pages/InspectionForm'
+import { PARTDEF, type InspExtra } from '../pages/InspectionForm'
 import '../styles/inspectsheet.css'
 
 export type SheetItem = { code: string; label: string; result?: string | null; remark?: string | null }
@@ -17,6 +17,7 @@ export type SheetData = {
   manager?: string
   date: string // 점검일 ('' = 작성중)
   parts: SheetPart[]
+  extra?: InspExtra // 부가정보 — 기본정보·점검대상·기타의견·사진대지·확인자 [057]
 }
 
 const PART_NAME: Record<string, string> = {
@@ -34,6 +35,11 @@ export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onCl
     .find(Boolean) || ''
   const included = new Set(sheet.parts.map((p) => p.part))
   const ordered = PART_ORDER.filter((k) => included.has(k)).map((k) => sheet.parts.find((p) => p.part === k)!)
+  const extra = sheet.extra
+  const info = extra?.info
+  // 점검대상 체크 — 부가정보(당직 등 점검표 없는 공정 포함)가 있으면 그것을, 없으면 저장된 공정 기준
+  const targets = extra?.targets?.length ? new Set(extra.targets) : included
+  const finalSigner = extra?.signer || signer
 
   // document.body 포탈 — 앱 레이아웃(오버플로·포지셔닝) 영향 없이 인쇄 시 양식만 출력되게 [054]
   return createPortal(
@@ -56,7 +62,7 @@ export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onCl
                 <td className="t">담당자</td>
               </tr>
               <tr>
-                <td className="sign">{signer}</td>
+                <td className="sign">{finalSigner}</td>
               </tr>
             </tbody>
           </table>
@@ -66,14 +72,14 @@ export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onCl
         <div className="inss-sec"><i />기본정보</div>
         <div className="inss-info">
           <label><span>학교(기관)명</span><div className="v">{sheet.schoolName}</div></label>
-          <label><span>소속명</span><div className="v" /></label>
-          <label><span>부서명</span><div className="v" /></label>
-          <label><span>직책</span><div className="v" /></label>
-          <label><span>작성자</span><div className="v">{signer || sheet.manager || ''}</div></label>
-          <label><span>작성일</span><div className="v">{signedAt || sheet.date}</div></label>
-          <label><span>점검일</span><div className="v">{sheet.date}</div></label>
-          <label><span>점검장소</span><div className="v" /></label>
-          <label><span>재해형태</span><div className="v" /></label>
+          <label><span>소속명</span><div className="v">{info?.org || ''}</div></label>
+          <label><span>부서명</span><div className="v">{info?.dept || ''}</div></label>
+          <label><span>직책</span><div className="v">{info?.role || ''}</div></label>
+          <label><span>작성자</span><div className="v">{info?.writer || finalSigner || sheet.manager || ''}</div></label>
+          <label><span>작성일</span><div className="v">{info?.writeDate || signedAt || sheet.date}</div></label>
+          <label><span>점검일</span><div className="v">{info?.inspectDate || sheet.date}</div></label>
+          <label><span>점검장소</span><div className="v">{info?.place || ''}</div></label>
+          <label><span>재해형태</span><div className="v">{info?.accType || ''}</div></label>
         </div>
 
         {/* 점검대상 */}
@@ -81,7 +87,7 @@ export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onCl
         <div className="inss-targets">
           {PART_ORDER.map((k) => (
             <span key={k} className="tg">
-              <i className={'bx' + (included.has(k) ? ' on' : '')}>{included.has(k) ? '✓' : ''}</i>
+              <i className={'bx' + (targets.has(k) ? ' on' : '')}>{targets.has(k) ? '✓' : ''}</i>
               {PART_NAME[k]}
             </span>
           ))}
@@ -140,6 +146,45 @@ export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onCl
             </div>
           )
         })}
+
+        {/* 기타 의견 [057] */}
+        <div className="inss-sec"><i />기타 의견</div>
+        <div className="inss-etc">{extra?.etc || ''}</div>
+
+        {/* 사진대지 [057] */}
+        <div className="inss-sec"><i />사진대지</div>
+        {(() => {
+          const groups = ordered
+            .map((p) => {
+              const def = PARTDEF.find((d) => d.key === p.part)
+              const slots = (def && extra?.photos?.[def.label]) || []
+              return { key: p.part, name: PART_NAME[p.part] || p.part, slots: slots.filter((s) => s.name || s.dataUrl || s.caption) }
+            })
+            .filter((g) => g.slots.length > 0)
+          if (groups.length === 0) return <div className="inss-empty">등록된 사진이 없습니다.</div>
+          return groups.map((g) => (
+            <div key={g.key} className="inss-photogrp">
+              <div className="t">{g.name}</div>
+              <div className="inss-photos">
+                {g.slots.map((s, i) => (
+                  <figure key={i} className="inss-photo">
+                    {s.dataUrl ? <img src={s.dataUrl} alt={s.caption || s.name} /> : <div className="ph">{s.name || '사진'}</div>}
+                    <figcaption>{s.caption || s.name || ''}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            </div>
+          ))
+        })()}
+
+        {/* 확인자 [057] */}
+        <div className="inss-sec"><i />확인자</div>
+        <div className="inss-signer">
+          <span className="lab">확인자(담당자)</span>
+          <span className="nm">{finalSigner || ''}</span>
+          <span className="st">{finalSigner ? '(서명)' : '(미서명)'}</span>
+          {signedAt && <span className="dt">서명일 {signedAt}</span>}
+        </div>
       </div>
     </div>,
     document.body,

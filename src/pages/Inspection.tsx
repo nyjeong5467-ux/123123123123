@@ -8,6 +8,7 @@ import { Modal } from '../components/Modal'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { InspectionSheetView, type SheetData } from '../components/InspectionSheetView'
+import type { InspExtra } from './InspectionForm'
 import '../styles/hier.css'
 import '../styles/inspecthier.css'
 
@@ -231,8 +232,16 @@ export function Inspection() {
   // 드릴다운 상세 모달 (기존 재사용)
   const [detail, setDetail] = useState<Inspection | null>(null)
   const [sheetView, setSheetView] = useState<SheetData | null>(null) // 실물 양식 보기 [054]
-  const openSheet = (school: School, date: string, parts: Inspection[]) =>
-    setSheetView({ schoolName: school.name, manager: school.manager, date, parts })
+  // 부가정보(기타의견·사진대지·확인자 등)를 함께 불러와 양식에 표시 [057]
+  async function openSheet(school: School, date: string, parts: Inspection[]) {
+    let extra: InspExtra | undefined
+    try {
+      const r = await api<{ doc: Record<string, InspExtra[]> }>('/ops/docs/inspection-extras')
+      const ids = new Set(parts.map((p) => p.id))
+      extra = (r.doc?.[school.id] ?? []).find((e) => Array.isArray(e.ids) && e.ids.some((id) => ids.has(id)))
+    } catch { /* 부가정보 없으면 기본 표시 */ }
+    setSheetView({ schoolName: school.name, manager: school.manager, date, parts, extra })
+  }
 
   // 학교 목록 로드
   useEffect(() => {
@@ -474,7 +483,7 @@ export function Inspection() {
                           <button
                             className="btn btn-ghost"
                             style={{ height: 30, padding: '0 12px', fontSize: 12 }}
-                            onClick={(e) => { e.stopPropagation(); openSheet(r.school, r.date, r.parts) }}
+                            onClick={(e) => { e.stopPropagation(); void openSheet(r.school, r.date, r.parts) }}
                           >
                             보기
                           </button>
@@ -556,7 +565,7 @@ export function Inspection() {
                               <button
                                 className="btn btn-ghost"
                                 style={{ height: 30, padding: '0 12px', fontSize: 12 }}
-                                onClick={() => openSheet(sel, sheet.date, sheet.parts)}
+                                onClick={() => { void openSheet(sel, sheet.date, sheet.parts) }}
                               >
                                 보기
                               </button>
