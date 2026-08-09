@@ -4,7 +4,7 @@
 // 행 클릭 → /schools/{id} 상세. 라우팅 배선은 리드 담당.
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Building2, X } from 'lucide-react'
+import { BookOpen, Building2, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
@@ -110,6 +110,7 @@ export function SchoolsHub() {
   const [nameQ, setNameQ] = useState('') // 학교명 입력값 (조회 전)
   const [regionQ, setRegionQ] = useState('') // 지역명 입력값 (조회 전)
   const [applied, setApplied] = useState({ name: '', region: '' }) // [조회]로 확정된 검색 조건
+  const [levelQ, setLevelQ] = useState('') // 학교급 선택값 (조회 전 — [조회] 클릭 시 반영)
 
   useEffect(() => {
     let alive = true
@@ -191,14 +192,14 @@ export function SchoolsHub() {
     sortAccessors: HUB_SORTS,
   })
 
-  // 조회 실행 — 입력값을 검색 조건으로 확정하고 1페이지로
+  // 조회 실행 — 입력값·학교급 선택을 검색 조건으로 확정하고 1페이지로
   const doSearch = () => {
     setApplied({ name: nameQ.trim(), region: regionQ.trim() })
+    q.setFilter('level', levelQ)
     q.setPage(1)
   }
 
   const colSpan = scope === 'mine' ? 8 : 7 // 업무 바로가기 컬럼은 담당 학교에서만
-  const activeLevel = q.filterValues.level ?? ''
 
   return (
     <div className="page rv">
@@ -219,7 +220,6 @@ export function SchoolsHub() {
               value={nameQ}
               onChange={(e) => setNameQ(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') doSearch() }}
-              placeholder="예: 한빛초등학교"
             />
             {nameQ && (
               <button
@@ -239,7 +239,6 @@ export function SchoolsHub() {
               value={regionQ}
               onChange={(e) => setRegionQ(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') doSearch() }}
-              placeholder="예: 순천시, 강남구"
             />
             {regionQ && (
               <button
@@ -253,9 +252,9 @@ export function SchoolsHub() {
           </div>
         </div>
         <div className="shub-seg" role="group" aria-label="학교급 선택">
-          <button className={activeLevel === '' ? 'on' : ''} onClick={() => q.setFilter('level', '')}>전체</button>
+          <button className={levelQ === '' ? 'on' : ''} onClick={() => setLevelQ('')}>전체</button>
           {LEVELS.map((l) => (
-            <button key={l} className={activeLevel === l ? 'on' : ''} onClick={() => q.setFilter('level', l)}>{l}</button>
+            <button key={l} className={levelQ === l ? 'on' : ''} onClick={() => setLevelQ(l)}>{l}</button>
           ))}
         </div>
         <button className="btn btn-primary shub-go" onClick={doSearch}>조회</button>
@@ -267,7 +266,7 @@ export function SchoolsHub() {
           <span className="pillx doing">{q.total}교</span>
           <div className="sp" />
           <div className="shub-toggle" role="group" aria-label="담당/전체 전환">
-            <button className={scope === 'mine' ? 'on' : ''} onClick={() => setScope('mine')} title="내가 담당하는 학교만 보기">담당 학교{mineCount > 0 && ` ${mineCount}`}</button>
+            <button className={scope === 'mine' ? 'on' : ''} onClick={() => setScope('mine')} title="내가 담당하는 학교만 보기">담당 학교</button>
             <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')} title="등록된 전체 학교 보기">전체 학교</button>
           </div>
           <ExportButton q={q} columns={HUB_EXPORT} filename="학교목록" />
@@ -283,7 +282,7 @@ export function SchoolsHub() {
                 <SortableTh q={q} col="principal">학교(기관)장</SortableTh>
                 <SortableTh q={q} col="manager">담당자</SortableTh>
                 <SortableTh q={q} col="workers" className="c">종사자수</SortableTh>
-                <th className="c">인원대조</th>
+                <th className="c">대장</th>
                 {scope === 'mine' && <th>업무 바로가기</th>}
               </tr>
             </thead>
@@ -309,7 +308,15 @@ export function SchoolsHub() {
                     <td>{r.school.principal || '—'}</td>
                     <td>{r.school.manager || '—'}</td>
                     <td className="c">{r.total != null ? <b>{r.total}명</b> : <span className="muted">—</span>}</td>
-                    <td className="c">{r.mismatch ? <span className="pillx warn">불일치</span> : <span className="pillx ok">일치</span>}</td>
+                    <td className="c">
+                      <button
+                        className="shub-ledger"
+                        title={`${r.school.name} 대장 보기`}
+                        onClick={(e) => { e.stopPropagation(); nav(`/schools/${r.school.id}`) }}
+                      >
+                        <BookOpen size={12} /> 대장
+                      </button>
+                    </td>
                     {scope === 'mine' && (
                       <td>
                         <div className="shub-works-cell">
