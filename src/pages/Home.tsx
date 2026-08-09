@@ -245,11 +245,11 @@ export function Home() {
   }, [user])
   const greeting = useMemo(() => {
     const h = today.getHours()
-    if (h >= 5 && h < 11) return { main: '좋은 아침입니다.', sub: '오늘도 안전한 하루 보내세요.' }
-    if (h >= 11 && h < 14) return { main: '점심 시간이네요.', sub: '식사는 하셨나요? 오후 일정도 확인해 보세요.' }
-    if (h >= 14 && h < 18) return { main: '활기찬 오후입니다.', sub: '남은 방문 일정을 확인해 보세요.' }
-    if (h >= 18 && h < 22) return { main: '좋은 저녁입니다.', sub: '오늘 하루 수고 많으셨습니다.' }
-    return { main: '늦은 시간까지 수고가 많으시네요.', sub: '무리하지 마시고 내일 일정을 미리 확인해 두세요.' }
+    if (h >= 5 && h < 11) return { main: '좋은 아침이에요!', sub: '오늘도 우리 학교들의 안전, 힘차게 지키러 가볼까요?' }
+    if (h >= 11 && h < 14) return { main: '맛있는 점심 드셨나요?', sub: '든든하게 충전했으니, 오후 방문길도 안전 운전이에요!' }
+    if (h >= 14 && h < 18) return { main: '활기찬 오후예요!', sub: '잠깐 스트레칭 한 번 하고, 남은 점검도 안전하게 마무리해요.' }
+    if (h >= 18 && h < 22) return { main: '오늘도 정말 수고 많으셨어요!', sub: '덕분에 학교가 한 뼘 더 안전해진 하루였어요. 편안한 저녁 보내세요.' }
+    return { main: '늦은 시간까지 애쓰시네요!', sub: '안전은 충분한 휴식에서 시작돼요. 오늘은 푹 쉬어요.' }
   }, [today])
   const layoutKey = `home-layout-${user?.login ?? 'anon'}`
   const [layout, setLayout] = useState<HomeBlock[]>(HOME_LAYOUT_DEFAULT)
@@ -855,7 +855,7 @@ export function Home() {
       {/* ===== 인사말 + 홈 편집 바 [033] ===== */}
       <div className="hm-custombar">
         <div className="hm-greet">
-          <h1>{displayName ? `${displayName}님, 안녕하세요. ` : '안녕하세요. '}{greeting.main}</h1>
+          <h1>{displayName ? `${displayName}님, ` : ''}{greeting.main}</h1>
           <p>{greeting.sub}</p>
         </div>
         <span className="sp" />
