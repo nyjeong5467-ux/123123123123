@@ -205,27 +205,35 @@ const mailInbox = Array.from({ length: 25 }, (_, i) => ({
 }))
 
 // 서버 저장 문서(org_docs) · 설정류
-// visit-plans: 오늘 날짜에 방문 계획 3건을 미리 심어 "오늘의 할 일"이 채워져 보이게 함
-// (s01·s05는 이미 오늘 방문 실적이 있어 완료로, s02·s03·s09는 예정으로 표시됨)
+// visit-plans: (26-07)월 점검계획표(담당자 김소현)의 주간 패턴을 이번 주 월요일 기준
+// 3주에 배치해 홈 캘린더·오늘의 할 일·이번 주 방문 예정에 실제 담당 학교가 표시되게 함.
+// 계획표의 사무실/순천/연차/제헌절 칸(학교 아님)은 제외. [027] 담당 학교 48교와 동일 목록.
+const PLAN_WEEKS = [
+  // 1주차 (계획표 7/6~7/10): 월~금
+  [['r037', 'r048', 'r041'], ['r025', 'r026', 'r027', 'r028'], ['r051', 'r075', 'r063'], ['r053', 'r076', 'r029', 'r065'], ['r068', 'r067', 'r740', 'r040']],
+  // 2주차 (7/13~7/17 — 금요일 제헌절 휴무)
+  [['r073', 'r077', 'r058', 'r046'], ['r165', 'r164', 'r194', 'r195'], ['r093', 'r057', 'r066'], ['r190', 'r187', 'r189', 'r191'], []],
+  // 3주차 (7/20~7/24)
+  [['r094', 'r102', 'r104', 'r103'], ['r739', 'r035', 'r033'], ['r089'], ['r188', 'r192', 'r193', 'r769'], ['r039', 'r145', 'r143']],
+]
+const planSeed = {}
+{
+  const t = new Date()
+  const monday = new Date(t)
+  monday.setDate(t.getDate() - ((t.getDay() + 6) % 7)) // 이번 주 월요일 (일요일이면 지난 월요일)
+  let pid = 0
+  const nameById = (id) => schools.find((s) => s.id === id)?.name || id
+  PLAN_WEEKS.forEach((week, w) =>
+    week.forEach((day, d) => {
+      if (day.length === 0) return
+      const dt = new Date(monday)
+      dt.setDate(monday.getDate() + w * 7 + d)
+      planSeed[ymd(dt)] = day.map((id) => ({ id: 'kp' + ++pid, name: nameById(id), school_id: id }))
+    }),
+  )
+}
 const docs = {
-  'visit-plans': {
-    [daysAgo(0)]: [
-      { id: 'pl1', name: '한빛초등학교', school_id: 's01' },
-      { id: 'pl2', name: '푸른중학교', school_id: 's02' },
-      { id: 'pl3', name: '세종고등학교', school_id: 's03' },
-      { id: 'pl4', name: '늘봄여자중학교', school_id: 's09' },
-    ],
-    // 이번 주 방문 예정(홈 우측 카드)용 — 내일 이후 계획
-    [daysAgo(-1)]: [
-      { id: 'pl5', name: '해솔중학교', school_id: 's06' },
-      { id: 'pl6', name: '가온초등학교', school_id: 's08' },
-    ],
-    [daysAgo(-2)]: [{ id: 'pl7', name: '미래공업고등학교', school_id: 's07' }],
-    [daysAgo(-4)]: [
-      { id: 'pl8', name: '동산초등학교', school_id: 's05' },
-      { id: 'pl9', name: '바다초등학교', school_id: 's12' },
-    ],
-  },
+  'visit-plans': planSeed,
 }
 const store = {
   mail: { address: 'hq@safety.or.kr', provider: 'naver', host: 'imap.naver.com', port: 993, has_password: true },
