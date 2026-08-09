@@ -11,6 +11,7 @@ import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { BulkUploadModal } from '../components/BulkUploadModal'
+import { CycleBanner } from '../components/CycleBanner'
 import '../styles/schoolhub.css'
 
 type School = {
@@ -201,6 +202,13 @@ export function SchoolsHub() {
 
   const colSpan = scope === 'mine' ? 8 : 7 // 업무 바로가기 컬럼은 담당 학교에서만
 
+  // 축약 배너용 — 현재 스코프의 안전점검 미방문(이번 달 미실시) 수. 배지 로드 전엔 null
+  const inspUnvisited = useMemo(() => {
+    if (Object.keys(badges).length === 0) return null
+    const scoped = scope === 'mine' ? rows.filter((r) => r.school.assigned_inspector_id === myLogin) : rows
+    return scoped.filter((r) => badges[r.school.id]?.insp.cls === 'warn').length
+  }, [rows, badges, scope, myLogin])
+
   return (
     <div className="page rv">
       <div className="breadcrumb"><Link to="/">홈</Link> / <b>학교</b></div>
@@ -210,6 +218,9 @@ export function SchoolsHub() {
         <button className="btn btn-ghost" onClick={() => setModal('bulk')}>엑셀 일괄 업로드</button>
         <button className="btn btn-primary" onClick={() => setModal('create')}>＋ 학교 등록</button>
       </div>
+
+      {/* ===== 이번 달 법정업무 축약 배너 (홈 연간 사이클 요약 — 읽기 전용) ===== */}
+      <CycleBanner inspUnvisited={inspUnvisited} />
 
       {/* ===== 검색 · 학교급 필터 ===== */}
       <div className="shub-search">
