@@ -11,7 +11,7 @@ import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { BulkUploadModal } from '../components/BulkUploadModal'
-import { CycleBanner } from '../components/CycleBanner'
+import { CycleBanner, type WorkStats } from '../components/CycleBanner'
 import '../styles/schoolhub.css'
 
 type School = {
@@ -153,8 +153,11 @@ export function SchoolsHub() {
   }, [loading, mineCount, scopeInit])
 
   // 5대 업무 상태 배지 — 학교별 3개 API + 이행점검 조사지 문서 1회 병렬 조회 (실패 시 해당 배지만 생략)
+  // 집계 대상은 담당 학교로 한정 (업무 바로가기 컬럼·배너 도넛 모두 담당 기준 — 전체 783교 조회는 과부하)
   useEffect(() => {
     if (rows.length === 0) { setBadges({}); return }
+    const mine = rows.filter((r) => r.school.assigned_inspector_id === (user?.login ?? ''))
+    const target = mine.length > 0 ? mine : rows
     let alive = true
     const now = new Date()
     const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -162,7 +165,7 @@ export function SchoolsHub() {
     ;(async () => {
       const compDoc = await api<{ doc: CompDoc }>('/ops/docs/compliance-sheets').catch(() => ({ doc: {} as CompDoc }))
       const pairs = await Promise.all(
-        rows.map(async (r) => {
+        target.map(async (r) => {
           const id = r.school.id
           const [insp, risk, mus] = await Promise.all([
             api<InspLite[]>(`/inspections?school_id=${id}`).catch(() => [] as InspLite[]),
@@ -175,7 +178,8 @@ export function SchoolsHub() {
       if (alive) setBadges(Object.fromEntries(pairs))
     })()
     return () => { alive = false }
-  }, [rows])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, user?.login])
 
   // 학교명·지역명 검색 — [조회] 버튼(또는 Enter)으로 확정된 조건 기준, 둘 다 입력 시 AND
   const searchedRows = useMemo(() => {
@@ -211,6 +215,22 @@ export function SchoolsHub() {
     return scoped.filter((r) => badges[r.school.id]?.insp.cls === 'warn').length
   }, [rows, badges, scope, myLogin])
 
+  // 배너 도넛용 — 담당 학교 기준 업무별 완료 수 (담당 배정 없으면 전체 학교 기준)
+  const workStats = useMemo<WorkStats | null>(() => {
+    if (Object.keys(badges).length === 0) return null
+    const mineRows = rows.filter((r) => r.school.assigned_inspector_id === myLogin)
+    const base = mineRows.length > 0 ? mineRows : rows
+    const count = (f: (id: string) => boolean) => base.filter((r) => f(r.school.id)).length
+    return {
+      total: base.length,
+      scopeLabel: mineRows.length > 0 ? '담당 학교' : '전체 학교',
+      insp: count((id) => badges[id]?.insp.cls === 'ok'),
+      risk: count((id) => badges[id]?.risk.cls === 'ok'),
+      mus: count((id) => badges[id]?.mus.cls === 'ok'),
+      comp: count((id) => badges[id]?.comp.cls === 'ok'),
+    }
+  }, [rows, badges, myLogin])
+
   return (
     <div className="page rv">
       <div className="breadcrumb"><Link to="/">홈</Link> / <b>학교</b></div>
@@ -222,7 +242,7 @@ export function SchoolsHub() {
       </div>
 
       {/* ===== 이번 달 법정업무 축약 배너 (홈 연간 사이클 요약 — 읽기 전용) ===== */}
-      <CycleBanner inspUnvisited={inspUnvisited} />
+      <CycleBanner inspUnvisited={inspUnvisited} workStats={workStats} />
 
       {/* ===== 검색 · 학교급 필터 ===== */}
       <div className="shub-search">
