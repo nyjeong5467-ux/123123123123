@@ -517,6 +517,8 @@ export function Inspection() {
                 <thead>
                   <tr>
                     <th>점검일</th>
+                    <th>학교</th>
+                    <th>담당자</th>
                     <th className="c">작성현황</th>
                     <th className="c">교육청 전송</th>
                     <th className="c">작업</th>
@@ -524,10 +526,10 @@ export function Inspection() {
                 </thead>
                 <tbody>
                   {sumLoading && selItems.length === 0 && (
-                    <tr><td colSpan={4}><div className="tstate">불러오는 중…</div></td></tr>
+                    <tr><td colSpan={6}><div className="tstate">불러오는 중…</div></td></tr>
                   )}
                   {!sumLoading && selItems.length === 0 && (
-                    <tr><td colSpan={4}><div className="tstate">등록된 안전점검이 없습니다. 우측 상단 '점검표 작성'으로 추가하세요.</div></td></tr>
+                    <tr><td colSpan={6}><div className="tstate">등록된 안전점검이 없습니다. 우측 상단 '점검표 작성'으로 추가하세요.</div></td></tr>
                   )}
                   {groupToSheets(sel, selItems)
                     .sort((a, b) => (b.date || '9999').localeCompare(a.date || '9999'))
@@ -537,6 +539,8 @@ export function Inspection() {
                       return (
                         <tr key={sel.id + '|' + sheet.date} title={`포함 공정: ${[...new Set(sheet.parts.map((p) => PART_LABEL[p.part] || p.part))].join(' · ')}`}>
                           <td>{sheet.date || '—'}</td>
+                          <td><b>{sel.name}</b></td>
+                          <td>{sel.manager || '—'}</td>
                           <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
                           <td className="c"><span className={'pillx ' + eo.cls}>{eo.label}</span></td>
                           <td className="c">
