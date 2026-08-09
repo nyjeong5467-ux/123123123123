@@ -116,6 +116,8 @@ export function InspectionForm() {
 
   // 제출 상태
   const [busy, setBusy] = useState(false)
+  const [draftIds, setDraftIds] = useState<Record<string, string>>({}) // 임시저장으로 생성된 파트별 점검 ID [047]
+  const [draftNote, setDraftNote] = useState('')
   const [submitErr, setSubmitErr] = useState('')
   const [statuses, setStatuses] = useState<Record<string, PartStatus>>({})
   const [doneAll, setDoneAll] = useState(false)
@@ -212,9 +214,9 @@ export function InspectionForm() {
     const cv = CARRY_VALUE[code]
     return cv ? prevVals[code] || cv.v : ''
   }
+  // [047] 지난 점검값을 미리 채우지 않음 — 추천 버튼으로 직접 선택(재클릭 시 해제)
   function effRemark(code: string): string {
-    const r = remarks[code]
-    return r !== undefined ? r : carriedFor(code)
+    return remarks[code] ?? ''
   }
 
   /* 집계(tally) */
@@ -314,12 +316,54 @@ export function InspectionForm() {
     setStatuses((p) => ({ ...p, [label]: { st, note } }))
   }
 
+  /* [047] 임시저장 — 서명·제출 없이 지금까지의 입력을 '작성중' 점검으로 저장 (점검 현황 → 이어서 작성으로 재개) */
+  async function saveDraft() {
+    if (!ledger || busy) return
+    if (!activeDefs.length) { setSubmitErr('점검대상 파트가 없습니다. 점검대상을 선택하세요.'); return }
+    setBusy(true)
+    setSubmitErr('')
+    setDraftNote('')
+    try {
+      for (const d of activeDefs) {
+        const q = d.q!
+        const exl = ex[d.label] || {}
+        const items = q.map((question, i) => ({ code: `${d.label}-${i + 1}`, label: question.split('||')[0] }))
+        const existingId = resumeId && d.key === partParam ? resumeId : draftIds[d.label]
+        const created = existingId
+          ? { id: existingId }
+          : await api<{ id: string }>('/inspections', {
+            method: 'POST',
+            body: JSON.stringify({ school_id: sid, part: d.key, is_private_school: ledger.school.is_private, items }),
+          })
+        if (!existingId) setDraftIds((p) => ({ ...p, [d.label]: created.id }))
+        let done = 0
+        for (let i = 0; i < items.length; i++) {
+          const code = items[i].code
+          const a = effAnswer(d.label, i + 1)
+          if (!a) continue
+          const remark = exl[i + 1] && answers[code] === undefined ? `자동 해당없음 — ${exl[i + 1]}` : effRemark(code)
+          await api(`/inspections/${created.id}/items/${encodeURIComponent(code)}`, {
+            method: 'PUT',
+            body: JSON.stringify({ result: RES_API[a], remark }),
+          })
+          done++
+        }
+        setStatus(d.label, 'done', `임시저장 ${done}건 (작성중)`)
+      }
+      setDraftNote('임시저장 완료 — 안전점검 탭의 점검 현황에서 [이어서 작성]으로 다시 열 수 있습니다.')
+    } catch (e) {
+      setSubmitErr(e instanceof Error ? e.message : '임시저장에 실패했습니다.')
+    }
+    setBusy(false)
+  }
+
   async function submitAll() {
     if (!ledger || busy) return
     if (!activeDefs.length) { setSubmitErr('점검대상 파트가 없습니다. 점검대상을 선택하세요.'); return }
     if (!signerName.trim() || !signed) { setSubmitErr('확인자(담당자) 성명을 입력하고 서명해 주세요.'); return }
     setBusy(true)
     setSubmitErr('')
+    setDraftNote('')
     let okAll = true
     for (const d of activeDefs) {
       const q = d.q!
@@ -327,9 +371,10 @@ export function InspectionForm() {
       try {
         setStatus(d.label, 'run', '점검 생성')
         const items = q.map((question, i) => ({ code: `${d.label}-${i + 1}`, label: question.split('||')[0] }))
-        // 이어서 작성이면 기존 점검(작성중)에 이어서 기록, 아니면 새로 생성
-        const created = resumeId && d.key === partParam
-          ? { id: resumeId }
+        // 이어서 작성/임시저장분이 있으면 그 점검에 이어서 기록, 아니면 새로 생성
+        const existingId = resumeId && d.key === partParam ? resumeId : draftIds[d.label]
+        const created = existingId
+          ? { id: existingId }
           : await api<{ id: string }>('/inspections', {
             method: 'POST',
             body: JSON.stringify({
@@ -339,6 +384,7 @@ export function InspectionForm() {
               items,
             }),
           })
+        if (!existingId) setDraftIds((p) => ({ ...p, [d.label]: created.id }))
         let done = 0
         for (let i = 0; i < items.length; i++) {
           const code = items[i].code
@@ -399,6 +445,7 @@ export function InspectionForm() {
         </div>
         <div className="sp" />
         <Link className="btn btn-ghost" to="/inspection">목록</Link>
+        <button className="btn btn-ghost" disabled={busy || !ledger} onClick={() => { void saveDraft() }}>임시저장</button>
         <button className="btn btn-primary" disabled={busy || !ledger} onClick={submitAll}>
           {busy ? '저장 중…' : '저장'}
         </button>
@@ -535,7 +582,13 @@ export function InspectionForm() {
                   const cv = why ? undefined : CARRY_VALUE[code]
                   const carried = cv ? prevVals[code] || cv.v : ''
                   const remark = effRemark(code)
-                  const set = (v: Ans) => setAnswers((p) => ({ ...p, [code]: v }))
+                  // 같은 버튼 재클릭 시 선택 해제 [047]
+                  const toggle = (v: Ans) => setAnswers((p) => {
+                    const next = { ...p }
+                    if (p[code] === v) delete next[code]
+                    else next[code] = v
+                    return next
+                  })
                   return (
                     <tr key={code} className={(isAuto ? 'insf-auto' : '') + (a === '미흡' ? ' insf-bad' : '')} >
                       <td className="q">
@@ -543,18 +596,19 @@ export function InspectionForm() {
                         {sub && <span className="insf-subq">{sub}</span>}
                         {isAuto && <span className="insf-autotag">자동 해당없음 · {why}</span>}
                       </td>
-                      <td className="c"><input type="radio" name={code} checked={a === '양호'} onChange={() => set('양호')} /></td>
-                      <td className="c"><input type="radio" name={code} checked={a === '미흡'} onChange={() => set('미흡')} /></td>
-                      <td className="c"><input type="radio" name={code} checked={a === '해당없음'} onChange={() => set('해당없음')} /></td>
+                      <td className="c"><input type="radio" name={code} checked={a === '양호'} onChange={() => {}} onClick={() => toggle('양호')} /></td>
+                      <td className="c"><input type="radio" name={code} checked={a === '미흡'} onChange={() => {}} onClick={() => toggle('미흡')} /></td>
+                      <td className="c"><input type="radio" name={code} checked={a === '해당없음'} onChange={() => {}} onClick={() => toggle('해당없음')} /></td>
                       <td className="insf-memo">
                         {cv ? (
                           <>
-                            <input className="carried" value={remark} onChange={(e) => setRemarks((p) => ({ ...p, [code]: e.target.value }))} />
+                            <input className="carried" value={remark} placeholder="추천에서 선택하거나 직접 입력"
+                              onChange={(e) => setRemarks((p) => ({ ...p, [code]: e.target.value }))} />
                             <span className="insf-carrytag">지난 점검값 {carried}{prevVals[code] ? ' (기록)' : ' (기본)'}</span>
                             <div className="insf-sugg">
                               {cv.opts.map((o) => (
                                 <button key={o} type="button" className={'insf-sg' + (o === remark ? ' on' : '')}
-                                  onClick={() => setRemarks((p) => ({ ...p, [code]: o }))}>{o}</button>
+                                  onClick={() => setRemarks((p) => ({ ...p, [code]: p[code] === o ? '' : o }))}>{o}</button>
                               ))}
                             </div>
                           </>
@@ -675,6 +729,9 @@ export function InspectionForm() {
           <div className="insf-mailline">
             PDF 수신 <span className="to">{schoolMail || '학교 이메일 미등록'}</span> · 결재선 {mailSteps.join(' → ')}
           </div>
+          {draftNote && !submitErr && (
+            <div className="insf-msg" style={{ color: 'var(--ok-ink)', fontWeight: 700, marginTop: 4 }}>{draftNote}</div>
+          )}
           {(submitErr || doneAll) && (
             <div className={doneAll && !submitErr ? 'insf-msg' : 'insf-err'} style={doneAll && !submitErr ? { color: 'var(--ok-ink)', fontWeight: 700, marginTop: 4 } : undefined}>
               {submitErr || '전 파트 제출 완료 — 아래 메일 문구를 복사해 학교로 송부하세요.'}
@@ -695,6 +752,7 @@ export function InspectionForm() {
           </label>
           <button className="btn" onClick={() => setShowMail((v) => !v)}>✉ 메일 문구</button>
           <button className="btn" disabled title="PDF 변환은 제출 후 백엔드에서 생성됩니다">▤ PDF 변환</button>
+          <button className="btn" disabled={busy || !ledger} onClick={() => { void saveDraft() }}>임시저장</button>
           <button className="btn btn-primary" disabled={busy || !ledger} onClick={submitAll}>
             {busy ? '전송 중…' : '저장 후 SHM 전송'}
           </button>
