@@ -561,34 +561,8 @@ export function Home() {
         </div>
       </div>
 
-      {/* ===== 1-2. 연간 법정업무 운영 공지 (전체 폭 — 오늘의 할 일 아래로 이동) ===== */}
-      <div className="hm-mt">
-        <CycleHero
-          ay={AY}
-          monthLabels={AY_MONTHS.map((m) => m.label)}
-          monthEn={MONTH_EN}
-          curAyIdx={curAyIdx}
-          inspSegs={inspSegs}
-          inspNum={
-            <div className="hm-gnum">
-              <div className="n">
-                {totalSchools ? curVisited : '—'}
-                {totalSchools > 0 && <small> / {totalSchools}교</small>}
-              </div>
-              <div className={'s' + (unvisited > 0 ? ' bad' : totalSchools ? ' ok' : '')}>
-                {totalSchools === 0
-                  ? '학교 등록 대기'
-                  : unvisited > 0
-                    ? `${CUR_MONTH}월 · 미방문 ${unvisited}교`
-                    : `${CUR_MONTH}월 · 전 학교 완료`}
-              </div>
-            </div>
-          }
-          nowlineLeft={nowlineLeft}
-          doc={cycleDoc}
-          onSave={saveCycleDoc}
-        />
-      </div>
+      {/* ===== (제거됨 0809) 연간 법정업무 운영 공지 간트 — 학교 탭 축약 배너(CycleBanner)로 대체.
+           cycleDoc 로드·기한 알림 연동은 유지. 복원 시 수정이력 [030] 참고 ===== */}
 
       {/* ===== 3. 캘린더 + 오늘 방문 + 기한 알림 ===== */}
       <div className="hm-plan hm-mt">

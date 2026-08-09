@@ -3,7 +3,6 @@
 // 요약: 접힌 상태는 이번 달에 걸친 업무 칩 한 줄, 펼치면 12개월 미니 간트.
 // 일정 편집은 홈에서만 (여기서는 조회 전용 — "홈에서 편집" 링크 제공).
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { CalendarRange, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../lib/api'
 import { AY_MONTH_NO, CYCLE_DOC_DEFAULT, migrateCycleDoc, type CycleDoc } from './CycleHero'
@@ -90,7 +89,7 @@ export function CycleBanner({ inspUnvisited }: { inspUnvisited: number | null })
             </div>
           ))}
           <div className="shub-cycle-foot">
-            {ay}학년도 ({ay}.03 ~ {ay + 1}.02) · <Link to="/">홈에서 자세히 보기·일정 편집 →</Link>
+            {ay}학년도 ({ay}.03 ~ {ay + 1}.02) · 안전점검은 매월 반복, 나머지 업무는 착수월·제출월 기준
           </div>
         </div>
       )}
