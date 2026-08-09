@@ -608,9 +608,9 @@ export function InspectionForm() {
                       <td className="insf-memo">
                         {cv ? (
                           <>
-                            <input className="carried" value={remark} placeholder="추천에서 선택하거나 직접 입력"
+                            <input value={remark} placeholder="보완계획"
                               onChange={(e) => setRemarks((p) => ({ ...p, [code]: e.target.value }))} />
-                            <span className="insf-carrytag">지난 점검값 {carried}{prevVals[code] ? ' (기록)' : ' (기본)'}</span>
+                            <span className="insf-carrytag" title={`지난 점검값 ${carried}${prevVals[code] ? ' (기록)' : ' (기본)'}`}>추천</span>
                             <div className="insf-sugg">
                               {cv.opts.map((o) => (
                                 <button key={o} type="button" className={'insf-sg' + (o === remark ? ' on' : '')}
