@@ -3,7 +3,6 @@
 // 요약: 업무 칩(안전점검·위험성평가·근골격계·이행점검)을 누르면 담당 학교 완료율 도넛 표시,
 // [연간 일정]을 누르면 12개월 미니 간트. 일정 데이터는 홈과 동일 문서(조회 전용).
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { CalendarRange, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../lib/api'
 import { AY_MONTH_NO, CYCLE_DOC_DEFAULT, migrateCycleDoc, type CycleDoc } from './CycleHero'
@@ -13,11 +12,11 @@ const TONE_CLS: Record<string, string> = { rf: 'doing', mg: 'warn', cd: 'muted',
 // 완료율 집계 대상 업무 (학교 목록 배지와 동일 기준)
 export type WorkKey = 'insp' | 'risk' | 'mus' | 'comp'
 export type WorkStats = { total: number; scopeLabel: string } & Record<WorkKey, number>
-const WORK_META: Record<WorkKey, { label: string; desc: string; path: string }> = {
-  insp: { label: '안전점검', desc: '이번 달 점검 완료 기준', path: '/inspection' },
-  risk: { label: '위험성평가', desc: '정기 위험성평가 완료 기준', path: '/risk' },
-  mus: { label: '근골격계', desc: '증상조사표 검수 대기 없음 기준', path: '/musculo' },
-  comp: { label: '이행점검', desc: '당기(반기) 조사지 제출 완료 기준', path: '/compliance' },
+const WORK_META: Record<WorkKey, { label: string; desc: string }> = {
+  insp: { label: '안전점검', desc: '이번 달 점검 완료 기준' },
+  risk: { label: '위험성평가', desc: '정기 위험성평가 완료 기준' },
+  mus: { label: '근골격계', desc: '증상조사표 검수 대기 없음 기준' },
+  comp: { label: '이행점검', desc: '당기(반기) 조사지 제출 완료 기준' },
 }
 const ROW_TO_KEY: Record<string, WorkKey | undefined> = { risk: 'risk', musculo: 'mus', compliance: 'comp' }
 
@@ -38,15 +37,7 @@ function Donut({ pct }: { pct: number }) {
   )
 }
 
-export function CycleBanner({
-  inspUnvisited, workStats, todayTodo, todayPlanCount,
-}: {
-  inspUnvisited: number | null
-  workStats: WorkStats | null
-  todayTodo: Record<WorkKey, { id: string; name: string }[]> | null
-  todayPlanCount: number
-}) {
-  const nav = useNavigate()
+export function CycleBanner({ inspUnvisited, workStats }: { inspUnvisited: number | null; workStats: WorkStats | null }) {
   const [doc, setDoc] = useState<CycleDoc>(CYCLE_DOC_DEFAULT)
   const [open, setOpen] = useState(false)
   const [selWork, setSelWork] = useState<WorkKey | null>(null)
@@ -114,7 +105,7 @@ export function CycleBanner({
         </button>
       </div>
 
-      {sel && selWork && (
+      {sel && (
         <div className="shub-cycle-donut">
           {workStats ? (
             <>
@@ -123,28 +114,6 @@ export function CycleBanner({
                 <b>{sel.label} 완료율</b>
                 <span className="n">{workStats.scopeLabel} {done} / {workStats.total}교 완료</span>
                 <span className="d">{sel.desc} · 학교 목록의 업무 바로가기 배지와 동일 집계</span>
-              </div>
-              {/* 오늘 방문 예정 학교 중 이 업무 미완료 — 클릭하면 바로 해당 업무로 [039] */}
-              <div className="shub-cycle-today">
-                <b>오늘 {sel.label} 할 학교</b>
-                {todayPlanCount === 0 ? (
-                  <span className="none">오늘 방문 계획이 없습니다. (계획은 홈 캘린더에서 관리)</span>
-                ) : !todayTodo || todayTodo[selWork].length === 0 ? (
-                  <span className="none">오늘 방문 예정 {todayPlanCount}교는 모두 {sel.label} 완료 상태예요.</span>
-                ) : (
-                  <div className="chips">
-                    {todayTodo[selWork].map((s) => (
-                      <button
-                        key={s.id}
-                        className="shub-w doing"
-                        title={`${s.name} ${sel.label} 바로가기`}
-                        onClick={() => nav(`${sel.path}?school=${s.id}`)}
-                      >
-                        <i />{s.name} →
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             </>
           ) : (
