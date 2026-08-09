@@ -3,8 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
-import { SchoolFormModal } from '../components/SchoolFormModal'
-import { WorkersEditor } from '../components/WorkersEditor'
 import { MsdsFormModal } from '../components/MsdsFormModal'
 import { AccidentFormModal } from '../components/AccidentFormModal'
 import { HistoryFormModal } from '../components/HistoryFormModal'
@@ -13,6 +11,23 @@ import '../styles/schoolhub.css'
 const PART_LABEL: Record<string, string> = {
   catering: '급식', facility: '시설', cleaning: '미화', commute: '통학', night_duty: '당직',
 }
+const WPART_ORDER = ['catering', 'facility', 'cleaning', 'commute', 'night_duty']
+const SCHOOL_LEVELS = ['유', '초', '중', '고', '기타']
+// 학교 기본 정보 (전체 필드 — GET /schools 목록에서 조회, 인라인 편집용) [037]
+type FullSchool = {
+  id: string
+  name: string
+  email?: string
+  address?: string
+  is_private?: boolean
+  education_count?: number | null
+  school_level?: string
+  principal?: string
+  supervisor?: string
+  manager?: string
+  inspection_agency?: string
+}
+type WRow = { part: string; count: number; contact: string; is_nutrition_teacher: boolean }
 
 type ApprovalStep = { title: string; name: string }
 const PRESET_DEFAULT: ApprovalStep[] = [{ title: '담당자', name: '' }, { title: '행정실장', name: '' }, { title: '교장', name: '' }]
@@ -83,9 +98,13 @@ export function SchoolDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
-  const [edit, setEdit] = useState(false)
   const [pageEdit, setPageEdit] = useState(false) // [036] 페이지 전체 편집 모드 — 편집 ↔ 수정 완료
-  const [workers, setWorkers] = useState(false)
+  // [037] 인라인 편집 — 학교 정보·종사자 드래프트 (수정 완료 시 일괄 저장)
+  const [info, setInfo] = useState<FullSchool | null>(null)
+  const [infoDraft, setInfoDraft] = useState<FullSchool | null>(null)
+  const [wDraft, setWDraft] = useState<WRow[]>([])
+  const [saveBusy, setSaveBusy] = useState(false)
+  const [saveErr, setSaveErr] = useState('')
   const [msdsModal, setMsdsModal] = useState(false)
   const [accidentModal, setAccidentModal] = useState(false)
   const [historyModal, setHistoryModal] = useState(false)
@@ -120,6 +139,15 @@ export function SchoolDetail() {
       .catch((e) => { if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) } })
     return () => { alive = false }
   }, [id, reveal, reload])
+
+  // 학교 기본 정보 전체 필드 — 목록 API에서 조회 (대장에는 일부 필드만 있음)
+  useEffect(() => {
+    let alive = true
+    api<FullSchool[]>('/schools')
+      .then((list) => { if (alive) setInfo(Array.isArray(list) ? list.find((x) => x.id === id) ?? null : null) })
+      .catch(() => { if (alive) setInfo(null) })
+    return () => { alive = false }
+  }, [id, reload])
 
   useEffect(() => {
     let alive = true
@@ -311,6 +339,62 @@ export function SchoolDetail() {
     }
   }
 
+  // [037] 편집 진입 — 학교 정보·종사자를 드래프트로 복사해 인라인 편집 시작
+  function enterEdit() {
+    if (!data) return
+    const base: FullSchool = info ?? {
+      id: data.school.id, name: data.school.name, address: data.school.address,
+      is_private: data.school.is_private, education_count: data.school.education_count,
+    }
+    setInfoDraft({ ...base })
+    setWDraft(WPART_ORDER.map((p) => {
+      const f = data.workers.find((w) => w.part === p)
+      return { part: p, count: f?.count ?? 0, contact: f?.contact ?? '', is_nutrition_teacher: f?.is_nutrition_teacher ?? false }
+    }))
+    setSaveErr('')
+    setPageEdit(true)
+  }
+  const patchW = (part: string, p: Partial<WRow>) =>
+    setWDraft((rs) => rs.map((r) => (r.part === part ? { ...r, ...p } : r)))
+
+  // [037] 수정 완료 — 학교 정보 + 종사자 일괄 저장 후 보기 모드 복귀
+  async function finishEdit() {
+    if (!infoDraft) { setPageEdit(false); return }
+    if (!infoDraft.name?.trim()) { setSaveErr('학교명을 입력하세요.'); return }
+    setSaveBusy(true)
+    setSaveErr('')
+    try {
+      await api(`/schools/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: infoDraft.name.trim(),
+          email: infoDraft.email ?? '',
+          address: infoDraft.address ?? '',
+          is_private: !!infoDraft.is_private,
+          education_count: infoDraft.education_count ?? null,
+          school_level: infoDraft.school_level ?? '',
+          principal: infoDraft.principal ?? '',
+          supervisor: infoDraft.supervisor ?? '',
+          manager: infoDraft.manager ?? '',
+          inspection_agency: infoDraft.inspection_agency ?? '',
+        }),
+      })
+      await api(`/schools/${id}/workers`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          workers: wDraft
+            .filter((r) => Number(r.count) > 0)
+            .map((r) => ({ part: r.part, count: Number(r.count), contact: r.contact, is_nutrition_teacher: r.is_nutrition_teacher })),
+        }),
+      })
+      setReload((r) => r + 1)
+      setPageEdit(false)
+    } catch (e) {
+      setSaveErr(e instanceof Error ? e.message : '저장에 실패했습니다.')
+    }
+    setSaveBusy(false)
+  }
+
   async function handleDelete() {
     const name = data?.school.name ?? '이 학교'
     if (!window.confirm(`'${name}'을(를) 삭제할까요? 되돌릴 수 없습니다.`)) return
@@ -335,14 +419,61 @@ export function SchoolDetail() {
         <div className="sp" />
         {pageEdit ? (
           <>
-            <button className="btn btn-ghost" onClick={() => setEdit(true)}>학교 정보 수정</button>
-            <button className="btn btn-ghost" onClick={handleDelete}>학교 삭제</button>
-            <button className="btn btn-primary" onClick={() => setPageEdit(false)}>수정 완료</button>
+            {saveErr && <span style={{ color: 'var(--red, #e5484d)', fontSize: 12.5, fontWeight: 700 }}>{saveErr}</span>}
+            <button className="btn btn-ghost" onClick={handleDelete} disabled={saveBusy}>학교 삭제</button>
+            <button className="btn btn-primary" onClick={() => { void finishEdit() }} disabled={saveBusy}>{saveBusy ? '저장 중…' : '수정 완료'}</button>
           </>
         ) : (
-          <button className="btn btn-primary" onClick={() => setPageEdit(true)}>편집</button>
+          <button className="btn btn-primary" onClick={enterEdit}>편집</button>
         )}
         <Link to="/schools" className="pill"><ChevronLeft size={15} /> 학교 목록으로</Link>
+      </div>
+
+      {/* ===== 학교 정보 — 보기: 요약 그리드 · 편집: 인라인 입력 [037] ===== */}
+      <div className="ledger" style={{ marginBottom: 24 }}>
+        <div className="lh">
+          <h2>학교 정보</h2>
+          <div className="sp" />
+          {pageEdit && <span className="muted" style={{ fontSize: 12 }}>입력 후 우측 상단 [수정 완료]를 누르면 저장됩니다</span>}
+        </div>
+        <div className="card-body">
+          {pageEdit && infoDraft ? (
+            <div className="shub-infogrid">
+              <label className="field"><span>학교(기관)명 *</span><input className="input" value={infoDraft.name} onChange={(e) => setInfoDraft({ ...infoDraft, name: e.target.value })} /></label>
+              <label className="field"><span>학교급</span>
+                <select className="input" value={infoDraft.school_level ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, school_level: e.target.value })}>
+                  <option value="">선택 안 함</option>
+                  {SCHOOL_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </label>
+              <label className="field"><span>설립 구분</span>
+                <select className="input" value={infoDraft.is_private ? 'y' : 'n'} onChange={(e) => setInfoDraft({ ...infoDraft, is_private: e.target.value === 'y' })}>
+                  <option value="n">국공립</option>
+                  <option value="y">사립</option>
+                </select>
+              </label>
+              <label className="field"><span>학교(기관)장</span><input className="input" value={infoDraft.principal ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, principal: e.target.value })} /></label>
+              <label className="field"><span>관리감독자</span><input className="input" value={infoDraft.supervisor ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, supervisor: e.target.value })} /></label>
+              <label className="field"><span>담당자</span><input className="input" value={infoDraft.manager ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, manager: e.target.value })} /></label>
+              <label className="field"><span>안전점검기관</span><input className="input" value={infoDraft.inspection_agency ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, inspection_agency: e.target.value })} /></label>
+              <label className="field"><span>교육생 수</span><input className="input" type="number" min={0} value={infoDraft.education_count ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, education_count: e.target.value === '' ? null : Number(e.target.value) })} /></label>
+              <label className="field"><span>이메일</span><input className="input" value={infoDraft.email ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, email: e.target.value })} /></label>
+              <label className="field shub-info-wide"><span>주소</span><input className="input" value={infoDraft.address ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, address: e.target.value })} /></label>
+            </div>
+          ) : (
+            <div className="shub-infogrid view">
+              <div className="kv"><b>학교급</b><span>{info?.school_level || '—'}</span></div>
+              <div className="kv"><b>설립 구분</b><span>{(info?.is_private ?? s.is_private) ? '사립' : '국공립'}</span></div>
+              <div className="kv"><b>학교(기관)장</b><span>{info?.principal || '—'}</span></div>
+              <div className="kv"><b>관리감독자</b><span>{info?.supervisor || '—'}</span></div>
+              <div className="kv"><b>담당자</b><span>{info?.manager || '—'}</span></div>
+              <div className="kv"><b>안전점검기관</b><span>{info?.inspection_agency || '—'}</span></div>
+              <div className="kv"><b>교육생 수</b><span>{(info?.education_count ?? s.education_count) != null ? `${info?.education_count ?? s.education_count}명` : '—'}</span></div>
+              <div className="kv"><b>이메일</b><span>{info?.email || '—'}</span></div>
+              <div className="kv"><b>주소</b><span>{info?.address || s.address || '—'}</span></div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="ledger" style={{ marginBottom: 24 }}>
@@ -352,21 +483,42 @@ export function SchoolDetail() {
           <label className="row" style={{ gap: 8, fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)', cursor: 'pointer' }}>
             <input type="checkbox" checked={reveal} onChange={(e) => setReveal(e.target.checked)} /> 영양교사 정보 표시
           </label>
-          {pageEdit && <button className="btn btn-ghost" onClick={() => setWorkers(true)}>종사자 편집</button>}
         </div>
         <div className="twrap">
           <table className="tbl">
-            <thead><tr><th>파트</th><th className="c">인원</th><th>연락처</th><th>구분</th></tr></thead>
+            <thead><tr><th>파트</th><th className="c">인원</th><th>연락처</th><th className="c">{pageEdit ? '영양교사' : '구분'}</th></tr></thead>
             <tbody>
-              {data.workers.map((w) => (
-                <tr key={w.id}>
-                  <td><b>{PART_LABEL[w.part] || w.part}</b></td>
-                  <td className="c">{w.count}</td>
-                  <td>{w.contact || '—'}</td>
-                  <td>{w.is_nutrition_teacher ? <span className="pillx warn">영양교사</span> : <span className="muted">—</span>}</td>
-                </tr>
-              ))}
-              {data.workers.length === 0 && <tr><td colSpan={4}><div className="tstate">등록된 종사자가 없습니다.</div></td></tr>}
+              {pageEdit
+                ? wDraft.map((r) => (
+                  <tr key={r.part}>
+                    <td><b>{PART_LABEL[r.part] || r.part}</b></td>
+                    <td className="c">
+                      <input className="input" type="number" min={0} value={r.count} style={{ width: 80 }} disabled={saveBusy}
+                        onChange={(e) => patchW(r.part, { count: Number(e.target.value) })} />
+                    </td>
+                    <td>
+                      <input className="input" type="text" value={r.contact} placeholder="연락처" disabled={saveBusy}
+                        onChange={(e) => patchW(r.part, { contact: e.target.value })} style={{ maxWidth: 260 }} />
+                    </td>
+                    <td className="c">
+                      <input type="checkbox" checked={r.is_nutrition_teacher} disabled={saveBusy}
+                        onChange={(e) => patchW(r.part, { is_nutrition_teacher: e.target.checked })} />
+                    </td>
+                  </tr>
+                ))
+                : (
+                  <>
+                    {data.workers.map((w) => (
+                      <tr key={w.id}>
+                        <td><b>{PART_LABEL[w.part] || w.part}</b></td>
+                        <td className="c">{w.count}</td>
+                        <td>{w.contact || '—'}</td>
+                        <td className="c">{w.is_nutrition_teacher ? <span className="pillx warn">영양교사</span> : <span className="muted">—</span>}</td>
+                      </tr>
+                    ))}
+                    {data.workers.length === 0 && <tr><td colSpan={4}><div className="tstate">등록된 종사자가 없습니다. 우측 상단 [편집]에서 바로 입력하세요.</div></td></tr>}
+                  </>
+                )}
             </tbody>
           </table>
         </div>
@@ -596,21 +748,6 @@ export function SchoolDetail() {
         </div>
       </div>
 
-      {edit && (
-        <SchoolFormModal
-          school={{ id: s.id, name: s.name, address: s.address, is_private: s.is_private, education_count: s.education_count }}
-          onClose={() => setEdit(false)}
-          onSaved={() => setReload((r) => r + 1)}
-        />
-      )}
-      {workers && (
-        <WorkersEditor
-          schoolId={id || ''}
-          initial={data.workers}
-          onClose={() => setWorkers(false)}
-          onSaved={() => setReload((r) => r + 1)}
-        />
-      )}
       {msdsModal && (
         <MsdsFormModal
           schoolId={id || ''}
