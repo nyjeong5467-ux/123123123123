@@ -503,55 +503,66 @@ export function Inspection() {
                 <thead>
                   <tr>
                     <th>점검일</th>
-                    <th>공정</th>
-                    <th className="c">항목수</th>
-                    <th className="c">서명</th>
-                    <th className="c">상태</th>
+                    <th>포함 공정 (클릭 시 상세)</th>
+                    <th className="c">작성현황</th>
                     <th className="c">교육청 전송</th>
                     <th className="c">작업</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sumLoading && selItems.length === 0 && (
-                    <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>
+                    <tr><td colSpan={5}><div className="tstate">불러오는 중…</div></td></tr>
                   )}
                   {!sumLoading && selItems.length === 0 && (
-                    <tr><td colSpan={7}><div className="tstate">등록된 안전점검이 없습니다. 우측 상단 '점검표 작성'으로 추가하세요.</div></td></tr>
+                    <tr><td colSpan={5}><div className="tstate">등록된 안전점검이 없습니다. 우측 상단 '점검표 작성'으로 추가하세요.</div></td></tr>
                   )}
-                  {[...selItems].sort((a, b) => dateOf(b).localeCompare(dateOf(a))).map((r) => {
-                    const st = STATUS[r.status] || { label: r.status, cls: 'todo' }
-                    const eo = EDUOFFICE[r.eduoffice_submit_status] || { label: r.eduoffice_submit_status, cls: 'todo' }
-                    const signed = r.signatures.length > 0
-                    return (
-                      <tr key={r.id} onClick={() => setDetail(r)}>
-                        <td>{dateOf(r) || '—'}</td>
-                        <td><b>{PART_LABEL[r.part] || r.part}</b></td>
-                        <td className="c">{r.items.length}</td>
-                        <td className="c"><span className={'pillx ' + (signed ? 'ok' : 'todo')}>{signed ? '서명완료' : '미서명'}</span></td>
-                        <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
-                        <td className="c"><span className={'pillx ' + eo.cls}>{eo.label}</span></td>
-                        <td className="c">
-                          {r.status === 'draft' ? (
-                            <button
-                              className="btn btn-primary"
-                              style={{ height: 30, padding: '0 12px', fontSize: 12 }}
-                              onClick={(e) => { e.stopPropagation(); nav(`/inspection/new?school=${sel.id}&part=${r.part}&resume=${r.id}`) }}
-                            >
-                              이어서 작성
-                            </button>
-                          ) : (
-                            <button
-                              className="btn btn-ghost"
-                              style={{ height: 30, padding: '0 12px', fontSize: 12 }}
-                              onClick={(e) => { e.stopPropagation(); setDetail(r) }}
-                            >
-                              보기
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {groupToSheets(sel, selItems)
+                    .sort((a, b) => (b.date || '9999').localeCompare(a.date || '9999'))
+                    .map((sheet) => {
+                      const st = STATUS[sheet.status] || { label: sheet.status, cls: 'todo' }
+                      const eo = EDUOFFICE[sheet.eduoffice] || { label: '—', cls: 'na' }
+                      return (
+                        <tr key={sel.id + '|' + sheet.date}>
+                          <td>{sheet.date || '—'}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                              {sheet.parts.map((p) => (
+                                <button
+                                  key={p.id}
+                                  className="pillx doing"
+                                  style={{ border: 0, cursor: 'pointer', fontFamily: 'inherit' }}
+                                  title={`${PART_LABEL[p.part] || p.part} 점검 상세 보기`}
+                                  onClick={() => setDetail(p)}
+                                >
+                                  {PART_LABEL[p.part] || p.part}
+                                </button>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
+                          <td className="c"><span className={'pillx ' + eo.cls}>{eo.label}</span></td>
+                          <td className="c">
+                            {sheet.status === 'draft' ? (
+                              <button
+                                className="btn btn-primary"
+                                style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                                onClick={() => nav(`/inspection/new?school=${sel.id}&resumeall=1`)}
+                              >
+                                이어서 작성
+                              </button>
+                            ) : (
+                              <button
+                                className="btn btn-ghost"
+                                style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                                onClick={() => setDetail(sheet.parts[0])}
+                              >
+                                보기
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
                 </tbody>
               </table>
             </div>
