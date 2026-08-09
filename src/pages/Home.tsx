@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  LayoutGrid,
   Megaphone,
   Paperclip,
   Plus,
@@ -20,6 +21,7 @@ import {
   X,
 } from 'lucide-react'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { FilterBar, Pagination, SortableTh } from '../components/table'
 import { Modal } from '../components/Modal'
@@ -105,6 +107,35 @@ const SCH_SORTS = {
   name: (r: School) => r.name,
   level: (r: School) => LEVEL_ORDER[r.school_level ?? ''] ?? 99,
   manager: (r: School) => r.manager ?? '',
+}
+
+/* ===================== 홈 레이아웃 커스텀 (블록 순서·크기) [031] ===================== */
+// 6열 그리드 기준 폭: 2=1/3 · 3=1/2 · 4=2/3 · 6=전체
+type HomeBlockId = 'today' | 'notices' | 'accidents' | 'calendar' | 'week' | 'deadlines'
+type HomeBlock = { id: HomeBlockId; w: 2 | 3 | 4 | 6 }
+const HOME_BLOCK_NAME: Record<HomeBlockId, string> = {
+  today: '오늘의 할 일', notices: '공지사항', accidents: '산재 알림',
+  calendar: '캘린더', week: '이번 주 방문 예정', deadlines: '기한 알림',
+}
+const HOME_W_STEPS: HomeBlock['w'][] = [2, 3, 4, 6]
+const HOME_W_LABEL: Record<HomeBlock['w'], string> = { 2: '1/3', 3: '1/2', 4: '2/3', 6: '전체' }
+const HOME_LAYOUT_DEFAULT: HomeBlock[] = [
+  { id: 'today', w: 4 }, { id: 'notices', w: 2 },
+  { id: 'calendar', w: 4 }, { id: 'week', w: 2 },
+  { id: 'deadlines', w: 3 }, { id: 'accidents', w: 3 },
+]
+// 서버 문서 → 검증된 레이아웃 (알 수 없는 블록 제거·누락 블록 기본값으로 보충)
+function normalizeLayout(raw: unknown): HomeBlock[] {
+  const arr = Array.isArray((raw as { blocks?: unknown })?.blocks) ? ((raw as { blocks: unknown[] }).blocks) : []
+  const out: HomeBlock[] = []
+  for (const b of arr) {
+    const cand = b as { id?: string; w?: number }
+    if (!cand?.id || !(cand.id in HOME_BLOCK_NAME) || out.some((x) => x.id === cand.id)) continue
+    const w = (HOME_W_STEPS as number[]).includes(cand.w ?? 0) ? (cand.w as HomeBlock['w']) : 3
+    out.push({ id: cand.id as HomeBlockId, w })
+  }
+  for (const d of HOME_LAYOUT_DEFAULT) if (!out.some((b) => b.id === d.id)) out.push({ ...d })
+  return out
 }
 
 /* ===================== 페이지 ===================== */
@@ -194,6 +225,46 @@ export function Home() {
   const curPct = totalSchools ? Math.round((curVisited / totalSchools) * 100) : 0
 
   /* ---- 연간 법정업무 사이클(서버 문서, 인터랙티브 에디터는 CycleHero) ---- */
+  /* ---- 홈 레이아웃 커스텀: 사용자별 서버 문서(/ops/docs/home-layout-{login}) 저장 [031] ---- */
+  const { user } = useAuth()
+  const layoutKey = `home-layout-${user?.login ?? 'anon'}`
+  const [layout, setLayout] = useState<HomeBlock[]>(HOME_LAYOUT_DEFAULT)
+  const [layoutDraft, setLayoutDraft] = useState<HomeBlock[]>(HOME_LAYOUT_DEFAULT)
+  const [layoutEdit, setLayoutEdit] = useState(false)
+  const [layoutBusy, setLayoutBusy] = useState(false)
+  useEffect(() => {
+    let alive = true
+    api<{ doc: Record<string, unknown> }>(`/ops/docs/${layoutKey}`)
+      .then((r) => { if (alive) setLayout(normalizeLayout(r.doc)) })
+      .catch(() => {}) // 저장본 없으면 기본 레이아웃
+    return () => { alive = false }
+  }, [layoutKey])
+  const moveBlock = (i: number, dir: -1 | 1) =>
+    setLayoutDraft((d) => {
+      const j = i + dir
+      if (j < 0 || j >= d.length) return d
+      const next = [...d]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+  const resizeBlock = (i: number, dir: -1 | 1) =>
+    setLayoutDraft((d) => {
+      const next = [...d]
+      const cur = HOME_W_STEPS.indexOf(next[i].w)
+      const w = HOME_W_STEPS[Math.min(HOME_W_STEPS.length - 1, Math.max(0, cur + dir))]
+      next[i] = { ...next[i], w }
+      return next
+    })
+  const saveLayout = async () => {
+    setLayoutBusy(true)
+    try {
+      await api(`/ops/docs/${layoutKey}`, { method: 'PUT', body: JSON.stringify({ doc: { blocks: layoutDraft } }) })
+      setLayout(layoutDraft)
+      setLayoutEdit(false)
+    } catch { /* 저장 실패 시 편집 모드 유지 */ }
+    setLayoutBusy(false)
+  }
+
   const [cycleDoc, setCycleDoc] = useState<CycleDoc>(CYCLE_DOC_DEFAULT)
   useEffect(() => {
     let alive = true
@@ -455,14 +526,13 @@ export function Home() {
 
   const ALERT_ICON: Record<HomeAlert['level'], string> = { danger: '!', warn: '!', info: 'i' }
 
-  return (
-    <div className="page rv">
-      {/* ===== 1. 오늘의 할 일 히어로 + 공지사항 ===== */}
-      <div className="hm-top">
-        <TodayHero today={today} items={todayItems} schools={schools} unvisited={unvisited} />
-
-        {/* 공지사항 */}
-        <div className="hm-side-col">
+  /* ---- 홈 블록 렌더 (레이아웃 커스텀용 조각) [031] ---- */
+  const renderBlock = (id: HomeBlockId) => {
+    switch (id) {
+      case 'today':
+        return <TodayHero today={today} items={todayItems} schools={schools} unvisited={unvisited} />
+      case 'notices':
+        return (
           <div className="hm-card">
             <div className="hm-ch">
               <span className="hm-ic v"><Megaphone size={16} /></span>
@@ -521,8 +591,9 @@ export function Home() {
               ))}
             </div>
           </div>
-
-          {/* 산재 알림(익명) — school_masked만 노출 */}
+        )
+      case 'accidents':
+        return (
           <div className="hm-card">
             <div className="hm-ch">
               <span className="hm-ic r"><Siren size={16} /></span>
@@ -558,15 +629,10 @@ export function Home() {
               ))}
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* ===== (제거됨 0809) 연간 법정업무 운영 공지 간트 — 학교 탭 축약 배너(CycleBanner)로 대체.
-           cycleDoc 로드·기한 알림 연동은 유지. 복원 시 수정이력 [030] 참고 ===== */}
-
-      {/* ===== 3. 캘린더 + 오늘 방문 + 기한 알림 ===== */}
-      <div className="hm-plan hm-mt">
-        <div className="hm-card">
+        )
+      case 'calendar':
+        return (
+          <div className="hm-card">
           <div className="hm-calhead">
             <div className="hm-navb">
               <button onClick={() => moveMonth(-1)} aria-label="이전 달"><ChevronLeft size={15} /></button>
@@ -695,9 +761,9 @@ export function Home() {
             })}
           </div>
         </div>
-
-        <div className="hm-side-col">
-          {/* 이번 주 방문 예정 (구 '오늘 방문' — 오늘 목록은 상단 '오늘의 할 일'로 이동, 0804) */}
+        )
+      case 'week':
+        return (
           <div className="hm-card">
             <div className="hm-ch">
               <span className="hm-ic y"><CalendarDays size={16} /></span>
@@ -732,8 +798,9 @@ export function Home() {
               </div>
             ))}
           </div>
-
-          {/* 기한 알림 */}
+        )
+      case 'deadlines':
+        return (
           <div className="hm-card">
             <div className="hm-ch">
               <span className="hm-ic r"><AlarmClock size={16} /></span>
@@ -750,7 +817,46 @@ export function Home() {
               </div>
             ))}
           </div>
-        </div>
+        )
+    }
+  }
+
+  return (
+    <div className="page rv">
+      {/* ===== 홈 커스텀: 블록 그리드 — 순서·크기 편집 가능 [031] ===== */}
+      <div className="hm-custombar">
+        <span className="sp" />
+        {layoutEdit ? (
+          <>
+            <span className="hm-hint">◀ ▶ 순서 이동 · − ＋ 크기 조절</span>
+            <button className="btn btn-ghost hm-btn-sm" onClick={() => setLayoutDraft(HOME_LAYOUT_DEFAULT.map((b) => ({ ...b })))} disabled={layoutBusy}>기본 배치</button>
+            <button className="btn btn-ghost hm-btn-sm" onClick={() => setLayoutEdit(false)} disabled={layoutBusy}>취소</button>
+            <button className="btn btn-primary hm-btn-sm" onClick={() => { void saveLayout() }} disabled={layoutBusy}>{layoutBusy ? '저장 중…' : '저장'}</button>
+          </>
+        ) : (
+          <button className="btn btn-ghost hm-btn-sm" onClick={() => { setLayoutDraft(layout.map((b) => ({ ...b }))); setLayoutEdit(true) }}>
+            <LayoutGrid size={13} style={{ verticalAlign: -2 }} /> 홈 편집
+          </button>
+        )}
+      </div>
+
+      <div className="hm-grid">
+        {(layoutEdit ? layoutDraft : layout).map((b, i, arr) => (
+          <div key={b.id} className={'hm-block' + (layoutEdit ? ' editing' : '')} style={{ gridColumn: `span ${b.w}` }}>
+            {layoutEdit && (
+              <div className="hm-block-ctl">
+                <b>{HOME_BLOCK_NAME[b.id]}</b>
+                <span className="w">{HOME_W_LABEL[b.w]}</span>
+                <span className="sp" />
+                <button title="앞으로 이동" disabled={i === 0} onClick={() => moveBlock(i, -1)}>◀</button>
+                <button title="뒤로 이동" disabled={i === arr.length - 1} onClick={() => moveBlock(i, 1)}>▶</button>
+                <button title="크기 줄이기" disabled={b.w === HOME_W_STEPS[0]} onClick={() => resizeBlock(i, -1)}>−</button>
+                <button title="크기 늘리기" disabled={b.w === 6} onClick={() => resizeBlock(i, 1)}>＋</button>
+              </div>
+            )}
+            {renderBlock(b.id)}
+          </div>
+        ))}
       </div>
 
       {/* ===== 공지 등록 모달 ===== */}
