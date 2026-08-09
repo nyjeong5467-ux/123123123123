@@ -74,6 +74,17 @@
 }
 
 /* ===================== 상단: 사이클 히어로 + 공지/산재 ===================== */
+/* ---- 오늘의 할 일: 행 클릭 시 빠른 실행 버튼 [044] ---- */
+.hm-td-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 9px;
+}
+.hm-td-row.open {
+  background: color-mix(in srgb, var(--violet) 4%, var(--card));
+}
+
 /* ---- 홈 레이아웃 커스텀: 블록 그리드 + 편집 컨트롤 [031] ---- */
 .hm-custombar {
   display: flex;

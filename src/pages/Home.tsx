@@ -38,6 +38,7 @@ type School = {
   school_level?: string
   manager?: string
   address?: string
+  assigned_inspector_id?: string // 담당 점검자 (로그인 ID)
 }
 type Visit = { id: string; school_id: string; date: string; visitor?: string; purpose?: string }
 type NoticeFile = { name: string }
@@ -451,15 +452,22 @@ export function Home() {
   }, [calY, calM])
 
   /* ---- 오늘 방문: 실적 + 계획 병합 ---- */
+  // 로그인 담당자의 담당 학교 집합 — 담당 배정이 있으면 오늘의 할 일을 담당 학교로 한정 [044]
+  const myIds = useMemo(() => {
+    const mine = schools.filter((s) => s.assigned_inspector_id === (user?.login ?? ''))
+    return mine.length > 0 ? new Set(mine.map((s) => s.id)) : null // null = 담당 배정 없음 → 전체 표시
+  }, [schools, user])
+
   const todayItems = useMemo(() => {
-    const done = visitsByDate.get(TODAY_YMD) ?? []
+    const isMine = (id?: string) => !myIds || !id || myIds.has(id) // 학교 미연결(자유 입력) 계획은 유지
+    const done = (visitsByDate.get(TODAY_YMD) ?? []).filter((d) => isMine(d.school_id))
     const doneIds = new Set(done.map((d) => d.school_id))
-    const planned = (plans[TODAY_YMD] ?? []).filter((p) => !p.school_id || !doneIds.has(p.school_id))
+    const planned = (plans[TODAY_YMD] ?? []).filter((p) => isMine(p.school_id) && (!p.school_id || !doneIds.has(p.school_id)))
     return [
       ...done.map((d) => ({ key: 'v-' + d.school_id, name: d.name, school_id: d.school_id as string | undefined, done: true })),
       ...planned.map((p) => ({ key: 'p-' + p.id, name: p.name, school_id: p.school_id, done: false })),
     ]
-  }, [visitsByDate, plans, TODAY_YMD])
+  }, [visitsByDate, plans, TODAY_YMD, myIds])
 
   /* ---- 이번 주 방문 예정: 내일부터 7일간의 계획(날짜별 그룹) ---- */
   const weekPlans = useMemo(() => {
