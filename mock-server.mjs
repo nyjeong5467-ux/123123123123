@@ -323,6 +323,25 @@ on('POST', '/auth/change-password', () => ({ ok: true }))
 on('GET', '/schools', () => schools)
 on('POST', '/schools', (p, q, body) => { const s = { id: 's' + uid(), is_private: false, education_count: null, ...body }; schools.push(s); ledgers[s.id] = { school: { id: s.id, name: s.name, is_private: !!s.is_private, education_count: s.education_count ?? null, special_notes: '', address: s.address || '' }, workers: [], worker_total: 0, education_count: s.education_count ?? null, headcount_mismatch: false, msds: [], accidents: [], histories: [] }; return s })
 on('DELETE', '/schools/:id', (p) => { const i = schools.findIndex((s) => s.id === p.id); if (i >= 0) schools.splice(i, 1); return null })
+on('PUT', '/schools/:id', (p, q, body) => {
+  const s = schools.find((x) => x.id === p.id)
+  if (!s) return null
+  Object.assign(s, body || {})
+  const led = ledgers[p.id]
+  if (led) {
+    led.school = { ...led.school, name: s.name, is_private: !!s.is_private, education_count: s.education_count ?? null, address: s.address || '' }
+    led.education_count = s.education_count ?? null
+  }
+  return s
+})
+on('PUT', '/schools/:id/workers', (p, q, body) => {
+  const led = ledgers[p.id]
+  if (!led) return null
+  const workers = (body?.workers || []).map((w) => ({ id: uid(), part: w.part, count: Number(w.count) || 0, contact: w.contact || '', is_nutrition_teacher: !!w.is_nutrition_teacher }))
+  led.workers = workers
+  led.worker_total = workers.reduce((a, w) => a + w.count, 0)
+  return { ok: true }
+})
 on('GET', '/schools/:id/ledger', (p) => ledgers[p.id] || { school: { id: p.id, name: '알 수 없음', is_private: false, education_count: null, special_notes: '', address: '' }, workers: [], worker_total: 0, education_count: null, headcount_mismatch: false, msds: [], accidents: [], histories: [] })
 on('GET', '/schools/:id/approval-line', (p) => ({ steps: store.approval[p.id] || [{ title: '담당자', name: schoolById(p.id)?.manager || '' }, { title: '행정실장', name: '' }, { title: '교장', name: schoolById(p.id)?.principal || '' }] }))
 on('PUT', '/schools/:id/approval-line', (p, q, body) => { store.approval[p.id] = body?.steps || []; return { ok: true, steps: store.approval[p.id] } })
