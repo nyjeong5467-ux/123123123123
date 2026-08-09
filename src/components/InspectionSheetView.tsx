@@ -1,6 +1,7 @@
 // 종사자 안전·보건 점검표 — 실물 양식 보기 [054]
 // 점검표 1장(학교×점검일, 공정별 점검 묶음)을 제출 PDF와 같은 서식으로 표시.
 // [인쇄 / PDF 저장]으로 브라우저 인쇄 → PDF 생성 가능. 조회 전용(수정은 이어서 작성에서).
+import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
 import '../styles/inspectsheet.css'
 
@@ -33,7 +34,8 @@ export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onCl
   const included = new Set(sheet.parts.map((p) => p.part))
   const ordered = PART_ORDER.filter((k) => included.has(k)).map((k) => sheet.parts.find((p) => p.part === k)!)
 
-  return (
+  // document.body 포탈 — 앱 레이아웃(오버플로·포지셔닝) 영향 없이 인쇄 시 양식만 출력되게 [054]
+  return createPortal(
     <div className="inss-overlay" role="dialog" aria-label="종사자 안전·보건 점검표">
       <div className="inss-bar">
         <b>종사자 안전·보건 점검표 — {sheet.schoolName}{sheet.date ? ` · ${sheet.date}` : ' · 작성중'}</b>
@@ -119,6 +121,7 @@ export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onCl
           </div>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
