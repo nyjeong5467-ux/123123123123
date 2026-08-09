@@ -4,7 +4,7 @@
 // 조회 실패 시 해당 칩만 생략(화면은 항상 렌더).
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle2, ChevronRight, ListTodo } from 'lucide-react'
+import { Activity, BookOpen, CheckCircle2, ChevronRight, ClipboardCheck, ListTodo } from 'lucide-react'
 import { api } from '../lib/api'
 
 export type TodayItem = { key: string; name: string; school_id?: string; done: boolean }
@@ -48,6 +48,9 @@ export function TodayHero(p: {
     schools.forEach((s) => m.set(s.id, s))
     return m
   }, [schools])
+
+  // 행 클릭 시 빠른 실행 버튼(안전점검·근골격계·대장) 펼침 [044]
+  const [openKey, setOpenKey] = useState<string | null>(null)
 
   // 학교별 미완 업무 조회 — 오늘 방문 대상 학교만(소수) 병렬 호출
   const [tasks, setTasks] = useState<Record<string, TaskChip[]>>({})
@@ -108,11 +111,11 @@ export function TodayHero(p: {
             return (
               <div
                 key={it.key}
-                className={'hm-td-row' + (it.done ? ' done' : '') + (clickable ? ' hm-clickable' : '')}
+                className={'hm-td-row' + (it.done ? ' done' : '') + (clickable ? ' hm-clickable' : '') + (openKey === it.key ? ' open' : '')}
                 role={clickable ? 'button' : undefined}
                 tabIndex={clickable ? 0 : undefined}
-                onClick={() => { if (it.school_id) nav('/schools/' + it.school_id) }}
-                onKeyDown={(e) => { if (e.key === 'Enter' && it.school_id) nav('/schools/' + it.school_id) }}
+                onClick={() => { if (it.school_id) setOpenKey((k) => (k === it.key ? null : it.key)) }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && it.school_id) setOpenKey((k) => (k === it.key ? null : it.key)) }}
               >
                 <span className={'hm-td-st' + (it.done ? ' ok' : '')}>
                   {it.done ? <CheckCircle2 size={17} strokeWidth={2.2} /> : idx + 1 - doneCount}
@@ -134,6 +137,20 @@ export function TodayHero(p: {
                       <span className="hm-td-chip muted">업무 확인 중…</span>
                     )}
                   </div>
+                  {/* 빠른 실행 — 행 클릭으로 펼침 [044] */}
+                  {openKey === it.key && it.school_id && (
+                    <div className="hm-td-actions" onClick={(e) => e.stopPropagation()}>
+                      <button className="hm-qbtn" onClick={() => nav(`/inspection/new?school=${it.school_id}`)}>
+                        <ClipboardCheck size={13} /> 안전점검 작성
+                      </button>
+                      <button className="hm-qbtn" onClick={() => nav(`/musculo/report?school=${it.school_id}`)}>
+                        <Activity size={13} /> 근골격계 보고서
+                      </button>
+                      <button className="hm-qbtn" onClick={() => nav('/schools/' + it.school_id)}>
+                        <BookOpen size={13} /> 대장 보기
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <span className={'hm-td-pill' + (it.done ? ' ok' : '')}>{it.done ? '방문 완료' : '방문 예정'}</span>
                 {clickable && <ChevronRight size={16} className="hm-td-arr" />}
