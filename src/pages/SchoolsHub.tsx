@@ -111,7 +111,8 @@ export function SchoolsHub() {
   const [badges, setBadges] = useState<Record<string, WorkBadges>>({})
   const [nameQ, setNameQ] = useState('') // 학교명 입력값 (조회 전)
   const [regionQ, setRegionQ] = useState('') // 지역명 입력값 (조회 전)
-  const [applied, setApplied] = useState({ name: '', region: '' }) // [조회]로 확정된 검색 조건
+  const [mgrQ, setMgrQ] = useState('') // 담당자 입력값 (전체 학교에서만 노출) [043]
+  const [applied, setApplied] = useState({ name: '', region: '', manager: '' }) // [조회]로 확정된 검색 조건
   const [levelQ, setLevelQ] = useState('') // 학교급 선택값 (조회 전 — [조회] 클릭 시 반영)
 
   useEffect(() => {
@@ -182,16 +183,18 @@ export function SchoolsHub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, user?.login])
 
-  // 학교명·지역명 검색 — [조회] 버튼(또는 Enter)으로 확정된 조건 기준, 둘 다 입력 시 AND
+  // 학교명·지역명·담당자 검색 — [조회] 버튼(또는 Enter)으로 확정된 조건 기준, 복수 입력 시 AND
   const searchedRows = useMemo(() => {
     const scoped = scope === 'mine' ? rows.filter((r) => r.school.assigned_inspector_id === myLogin) : rows
     const nq = applied.name.toLowerCase()
     const rq = applied.region.toLowerCase()
-    if (!nq && !rq) return scoped
+    const mq = applied.manager.toLowerCase()
+    if (!nq && !rq && !mq) return scoped
     return scoped.filter(
       (r) =>
         (!nq || r.school.name.toLowerCase().includes(nq)) &&
-        (!rq || (r.school.address ?? '').toLowerCase().includes(rq)),
+        (!rq || (r.school.address ?? '').toLowerCase().includes(rq)) &&
+        (!mq || (r.school.manager ?? '').toLowerCase().includes(mq)),
     )
   }, [rows, applied, scope, myLogin])
 
@@ -202,7 +205,7 @@ export function SchoolsHub() {
 
   // 조회 실행 — 입력값·학교급 선택을 검색 조건으로 확정하고 1페이지로
   const doSearch = () => {
-    setApplied({ name: nameQ.trim(), region: regionQ.trim() })
+    setApplied({ name: nameQ.trim(), region: regionQ.trim(), manager: scope === 'all' ? mgrQ.trim() : '' })
     q.setFilter('level', levelQ)
     q.setPage(1)
   }
@@ -285,6 +288,27 @@ export function SchoolsHub() {
             )}
           </div>
         </div>
+        {scope === 'all' && (
+          <div className="shub-field">
+            <span className="lab">담당자</span>
+            <div className="in">
+              <input
+                value={mgrQ}
+                onChange={(e) => setMgrQ(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') doSearch() }}
+              />
+              {mgrQ && (
+                <button
+                  className="shub-search-clear"
+                  onClick={() => { setMgrQ(''); setApplied((a) => ({ ...a, manager: '' })) }}
+                  aria-label="담당자 지우기"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="shub-seg" role="group" aria-label="학교급 선택">
           <button className={levelQ === '' ? 'on' : ''} onClick={() => setLevelQ('')}>전체</button>
           {LEVELS.map((l) => (
@@ -305,7 +329,7 @@ export function SchoolsHub() {
             </span>
           )}
           <div className="shub-toggle" role="group" aria-label="담당/전체 전환">
-            <button className={scope === 'mine' ? 'on' : ''} onClick={() => setScope('mine')} title="내가 담당하는 학교만 보기">담당 학교</button>
+            <button className={scope === 'mine' ? 'on' : ''} onClick={() => { setScope('mine'); setMgrQ(''); setApplied((a) => ({ ...a, manager: '' })) }} title="내가 담당하는 학교만 보기">담당 학교</button>
             <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')} title="등록된 전체 학교 보기">전체 학교</button>
           </div>
           <ExportButton q={q} columns={HUB_EXPORT} filename="학교목록" />
