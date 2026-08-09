@@ -84,6 +84,7 @@ export function SchoolDetail() {
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
   const [edit, setEdit] = useState(false)
+  const [pageEdit, setPageEdit] = useState(false) // [036] 페이지 전체 편집 모드 — 편집 ↔ 수정 완료
   const [workers, setWorkers] = useState(false)
   const [msdsModal, setMsdsModal] = useState(false)
   const [accidentModal, setAccidentModal] = useState(false)
@@ -332,9 +333,15 @@ export function SchoolDetail() {
         <h2>{s.name}</h2>
         <span className={'pillx ' + (s.is_private ? 'doing' : 'ok')}>{s.is_private ? '사립' : '국공립'}</span>
         <div className="sp" />
-        <button className="btn btn-ghost" onClick={() => setWorkers(true)}>종사자 편집</button>
-        <button className="btn btn-ghost" onClick={() => setEdit(true)}>수정</button>
-        <button className="btn btn-ghost" onClick={handleDelete}>삭제</button>
+        {pageEdit ? (
+          <>
+            <button className="btn btn-ghost" onClick={() => setEdit(true)}>학교 정보 수정</button>
+            <button className="btn btn-ghost" onClick={handleDelete}>학교 삭제</button>
+            <button className="btn btn-primary" onClick={() => setPageEdit(false)}>수정 완료</button>
+          </>
+        ) : (
+          <button className="btn btn-primary" onClick={() => setPageEdit(true)}>편집</button>
+        )}
         <Link to="/schools" className="pill"><ChevronLeft size={15} /> 학교 목록으로</Link>
       </div>
 
@@ -345,6 +352,7 @@ export function SchoolDetail() {
           <label className="row" style={{ gap: 8, fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)', cursor: 'pointer' }}>
             <input type="checkbox" checked={reveal} onChange={(e) => setReveal(e.target.checked)} /> 영양교사 정보 표시
           </label>
+          {pageEdit && <button className="btn btn-ghost" onClick={() => setWorkers(true)}>종사자 편집</button>}
         </div>
         <div className="twrap">
           <table className="tbl">
@@ -374,10 +382,17 @@ export function SchoolDetail() {
           <div className="card-body">
             {Object.entries(FEAT_GROUPS).map(([g, keys]) => (
               <div className="shub-fg" key={g}>
-                <div className="t">{g} <span className="auto">클릭하여 있음/없음 전환</span></div>
+                <div className="t">{g} {pageEdit && <span className="auto">클릭하여 있음/없음 전환</span>}</div>
                 <div className="shub-feat">
                   {keys.map((k) => (
-                    <button key={k} type="button" className={'shub-f ' + (feat[k] ? 'yes' : 'no')} onClick={() => toggleFeat(k)} title="클릭하여 있음/없음 전환">
+                    <button
+                      key={k}
+                      type="button"
+                      className={'shub-f ' + (feat[k] ? 'yes' : 'no')}
+                      onClick={pageEdit ? () => toggleFeat(k) : undefined}
+                      title={pageEdit ? '클릭하여 있음/없음 전환' : undefined}
+                      style={pageEdit ? undefined : { cursor: 'default' }}
+                    >
                       <i /><span className="fk">{k}</span><b className="fv">{feat[k] ? '있음' : '없음'}</b>
                     </button>
                   ))}
@@ -400,12 +415,13 @@ export function SchoolDetail() {
                     <li key={i}>
                       <span className="dt">{n.date}</span>
                       <span className="tx">{n.text}</span>
-                      <button className="shub-del" title="삭제" onClick={() => saveNotes(notes.filter((_, idx) => idx !== i))}>✕</button>
+                      {pageEdit && <button className="shub-del" title="삭제" onClick={() => saveNotes(notes.filter((_, idx) => idx !== i))}>✕</button>}
                     </li>
                   ))}
                 </ul>
               )
               : <div className="tstate">기록된 특이사항이 없습니다.</div>}
+            {pageEdit && (
             <div className="shub-noteform">
               <input className="input dt" type="date" value={noteDate} onChange={(e) => setNoteDate(e.target.value)} />
               <input
@@ -417,6 +433,7 @@ export function SchoolDetail() {
               />
               <button className="btn btn-ghost" onClick={addNote}>추가</button>
             </div>
+            )}
           </div>
         </div>
       </div>
@@ -425,8 +442,12 @@ export function SchoolDetail() {
         <div className="lh">
           <h2>결재선</h2>
           <div className="sp" />
-          <button className="btn btn-ghost" onClick={() => setSteps(PRESET_DEFAULT)}>기본(담당자·행정실장·교장)</button>
-          <button className="btn btn-ghost" onClick={() => setSteps(PRESET_ORG)}>기관(부서장·팀장·과장)</button>
+          {pageEdit && (
+            <>
+              <button className="btn btn-ghost" onClick={() => setSteps(PRESET_DEFAULT)}>기본(담당자·행정실장·교장)</button>
+              <button className="btn btn-ghost" onClick={() => setSteps(PRESET_ORG)}>기관(부서장·팀장·과장)</button>
+            </>
+          )}
         </div>
         <div className="card-body">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 16 }}>
@@ -440,6 +461,7 @@ export function SchoolDetail() {
               : <span className="muted">등록된 결재선이 없습니다.</span>}
           </div>
           {/* 편집 영역은 적정 폭으로 제한 — 와이드 화면에서 입력칸이 무한정 늘어나지 않게 */}
+          {pageEdit && (
           <div style={{ maxWidth: 640 }}>
             {steps.map((st, i) => (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '32px 180px 1fr 42px', gap: 10, alignItems: 'center', marginBottom: 10 }}>
@@ -456,12 +478,13 @@ export function SchoolDetail() {
               <button className="btn btn-primary" onClick={saveApproval} disabled={apBusy}>{apBusy ? '저장 중…' : '저장'}</button>
             </div>
           </div>
+          )}
         </div>
       </div>
 
       <div className="grid2">
         <div className="ledger">
-          <div className="lh"><h2>MSDS</h2><div className="sp" /><button className="btn btn-ghost" onClick={() => setMsdsModal(true)}>추가</button></div>
+          <div className="lh"><h2>MSDS</h2><div className="sp" />{pageEdit && <button className="btn btn-ghost" onClick={() => setMsdsModal(true)}>추가</button>}</div>
           <div className="card-body">
             {data.msds.length
               ? data.msds.map((m) => <div className="kv" key={m.id}><b>{m.area}</b><span>{m.substances.join(', ') || '—'}</span></div>)
@@ -469,7 +492,7 @@ export function SchoolDetail() {
           </div>
         </div>
         <div className="ledger">
-          <div className="lh"><h2>산재 현황</h2><div className="sp" /><button className="btn btn-ghost" onClick={() => setAccidentModal(true)}>추가</button></div>
+          <div className="lh"><h2>산재 현황</h2><div className="sp" />{pageEdit && <button className="btn btn-ghost" onClick={() => setAccidentModal(true)}>추가</button>}</div>
           <div className="card-body">
             {data.accidents.length
               ? data.accidents.map((a) => <div className="kv" key={a.id}><b>{a.date}</b><span>{a.description}{a.part ? ` · ${PART_LABEL[a.part] || a.part}` : ''}</span></div>)
@@ -484,8 +507,12 @@ export function SchoolDetail() {
           <span className="pillx na">{mgrRows.length}건</span>
           <div className="sp" />
           <input ref={csvRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onCsvFile} />
-          <button className="btn btn-ghost" onClick={() => csvRef.current?.click()} disabled={mgrBusy}>CSV 업로드</button>
-          <button className="btn btn-ghost" onClick={() => { setMgrEdit(mgrRows.length ? mgrRows.map((r) => ({ ...r })) : [{ start: '', end: '', name: '', note: '' }]); setMgrErr(''); setMgrModal(true) }}>편집</button>
+          {pageEdit && (
+            <>
+              <button className="btn btn-ghost" onClick={() => csvRef.current?.click()} disabled={mgrBusy}>CSV 업로드</button>
+              <button className="btn btn-ghost" onClick={() => { setMgrEdit(mgrRows.length ? mgrRows.map((r) => ({ ...r })) : [{ start: '', end: '', name: '', note: '' }]); setMgrErr(''); setMgrModal(true) }}>편집</button>
+            </>
+          )}
         </div>
         <div className="card-body">
           {mgrErr && <div className="login-err" style={{ marginBottom: 12 }}>{mgrErr}</div>}
@@ -552,7 +579,7 @@ export function SchoolDetail() {
       </div>
 
       <div className="ledger" style={{ marginTop: 24 }}>
-        <div className="lh"><h2>월별 진행 이력</h2><div className="sp" /><button className="btn btn-ghost" onClick={() => setHistoryModal(true)}>추가</button></div>
+        <div className="lh"><h2>월별 진행 이력</h2><div className="sp" />{pageEdit && <button className="btn btn-ghost" onClick={() => setHistoryModal(true)}>추가</button>}</div>
         <div className="card-body">
           {data.histories.length
             ? (
