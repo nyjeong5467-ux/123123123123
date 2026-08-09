@@ -328,6 +328,27 @@
 }
 .shub-infogrid.view .kv span { font-size: 13.5px; font-weight: 600; color: var(--ink); }
 
+/* ---------- 허브: 업무 바로가기 색 범례 [041] ---------- */
+.shub-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  margin-right: 4px;
+  cursor: help;
+}
+.shub-legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.shub-legend i.d-ok { background: var(--green, #2eaf7d); }
+.shub-legend i.d-mut { background: var(--muted); }
+
 /* ---------- 허브: 대장 이동 표시 (행 클릭으로 진입 — 버튼 아님) ---------- */
 .shub-golink {
   font-size: 11.5px;
