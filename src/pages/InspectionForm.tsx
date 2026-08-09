@@ -418,9 +418,10 @@ export function InspectionForm() {
           <div className="insf-auto-d">
             {totalExcl
               ? reasons.map(([why, tags]) => (
-                  <span key={why} style={{ display: 'block' }}>
-                    {tags.map((t) => <code key={t}>{t}</code>)} {why}
-                  </span>
+                  <div className="insf-auto-row" key={why}>
+                    <b>{why}</b>
+                    <span className="its">{tags.join(' · ')}</span>
+                  </div>
                 ))
               : featMissing
                 ? '학교 특징 정보가 아직 저장되지 않아 자동 해당없음 규칙이 적용되지 않습니다. 학교 카드에서 특징을 저장하면 반영됩니다.'
@@ -428,15 +429,6 @@ export function InspectionForm() {
           </div>
         </div>
         {sid && <Link className="insf-auto-go" to={`/schools/${sid}`}>학교 특징 확인 →</Link>}
-      </div>
-
-      {/* 집계 바 (tally) */}
-      <div className="insf-tally">
-        <div className="insf-ty g"><div className="l">양호</div><div className="n">{tally.g}</div></div>
-        <div className="insf-ty b"><div className="l">미흡</div><div className="n">{tally.b}</div></div>
-        <div className="insf-ty n2"><div className="l">해당없음</div><div className="n">{tally.n}</div></div>
-        <div className="insf-ty w"><div className="l">미입력</div><div className="n">{tally.e}</div></div>
-        <div className="insf-ty"><div className="l">전체 항목</div><div className="n">{tally.total}</div></div>
       </div>
 
       {/* 기본정보 + 점검대상 */}
