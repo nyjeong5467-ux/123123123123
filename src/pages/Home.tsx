@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  GripVertical,
   LayoutGrid,
   Megaphone,
   Paperclip,
@@ -239,12 +240,17 @@ export function Home() {
       .catch(() => {}) // 저장본 없으면 기본 레이아웃
     return () => { alive = false }
   }, [layoutKey])
-  const moveBlock = (i: number, dir: -1 | 1) =>
+  // 드래그로 위치 이동 (아이폰 홈처럼 끌어서 재배치 — 지나가는 블록 자리로 즉시 끼워넣기)
+  const [dragId, setDragId] = useState<HomeBlockId | null>(null)
+  const dragOverBlock = (overId: HomeBlockId) =>
     setLayoutDraft((d) => {
-      const j = i + dir
-      if (j < 0 || j >= d.length) return d
+      if (!dragId || dragId === overId) return d
+      const from = d.findIndex((b) => b.id === dragId)
+      const to = d.findIndex((b) => b.id === overId)
+      if (from < 0 || to < 0) return d
       const next = [...d]
-      ;[next[i], next[j]] = [next[j], next[i]]
+      const [m] = next.splice(from, 1)
+      next.splice(to, 0, m)
       return next
     })
   const resizeBlock = (i: number, dir: -1 | 1) =>
@@ -828,7 +834,7 @@ export function Home() {
         <span className="sp" />
         {layoutEdit ? (
           <>
-            <span className="hm-hint">◀ ▶ 순서 이동 · − ＋ 크기 조절</span>
+            <span className="hm-hint">블록을 끌어서 위치 이동 · − ＋ 크기 조절</span>
             <button className="btn btn-ghost hm-btn-sm" onClick={() => setLayoutDraft(HOME_LAYOUT_DEFAULT.map((b) => ({ ...b })))} disabled={layoutBusy}>기본 배치</button>
             <button className="btn btn-ghost hm-btn-sm" onClick={() => setLayoutEdit(false)} disabled={layoutBusy}>취소</button>
             <button className="btn btn-primary hm-btn-sm" onClick={() => { void saveLayout() }} disabled={layoutBusy}>{layoutBusy ? '저장 중…' : '저장'}</button>
@@ -841,15 +847,23 @@ export function Home() {
       </div>
 
       <div className="hm-grid">
-        {(layoutEdit ? layoutDraft : layout).map((b, i, arr) => (
-          <div key={b.id} className={'hm-block' + (layoutEdit ? ' editing' : '')} style={{ gridColumn: `span ${b.w}` }}>
+        {(layoutEdit ? layoutDraft : layout).map((b, i) => (
+          <div
+            key={b.id}
+            className={'hm-block' + (layoutEdit ? ' editing' : '') + (dragId === b.id ? ' dragging' : '')}
+            style={{ gridColumn: `span ${b.w}` }}
+            draggable={layoutEdit}
+            onDragStart={layoutEdit ? (e) => { setDragId(b.id); e.dataTransfer.effectAllowed = 'move' } : undefined}
+            onDragOver={layoutEdit ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; dragOverBlock(b.id) } : undefined}
+            onDrop={layoutEdit ? (e) => { e.preventDefault(); setDragId(null) } : undefined}
+            onDragEnd={layoutEdit ? () => setDragId(null) : undefined}
+          >
             {layoutEdit && (
-              <div className="hm-block-ctl">
+              <div className="hm-block-ctl" title="끌어서 위치 이동">
+                <GripVertical size={13} className="grip" />
                 <b>{HOME_BLOCK_NAME[b.id]}</b>
                 <span className="w">{HOME_W_LABEL[b.w]}</span>
                 <span className="sp" />
-                <button title="앞으로 이동" disabled={i === 0} onClick={() => moveBlock(i, -1)}>◀</button>
-                <button title="뒤로 이동" disabled={i === arr.length - 1} onClick={() => moveBlock(i, 1)}>▶</button>
                 <button title="크기 줄이기" disabled={b.w === HOME_W_STEPS[0]} onClick={() => resizeBlock(i, -1)}>−</button>
                 <button title="크기 늘리기" disabled={b.w === 6} onClick={() => resizeBlock(i, 1)}>＋</button>
               </div>
