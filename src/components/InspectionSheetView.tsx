@@ -3,6 +3,7 @@
 // [인쇄 / PDF 저장]으로 브라우저 인쇄 → PDF 생성 가능. 조회 전용(수정은 이어서 작성에서).
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
+import { PARTDEF } from '../pages/InspectionForm'
 import '../styles/inspectsheet.css'
 
 export type SheetItem = { code: string; label: string; result?: string | null; remark?: string | null }
@@ -86,40 +87,59 @@ export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onCl
           ))}
         </div>
 
-        {/* 공정별 점검표 */}
-        {ordered.map((p) => (
-          <div key={p.part} className="inss-part">
-            <div className="inss-sec"><i />{PART_NAME[p.part] || p.part}</div>
-            <table className="inss-tbl">
-              <thead>
-                <tr>
-                  <th className="q">점검항목</th>
-                  <th className="c">양호</th>
-                  <th className="c">미흡</th>
-                  <th className="c">해당없음</th>
-                  <th className="r">비고(보완계획)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {p.items.map((it, i) => {
-                  const col = it.result != null ? RES_COL[it.result] : undefined
-                  return (
-                    <tr key={it.code}>
-                      <td className="q">{i + 1}. {it.label}</td>
-                      <td className="c">{col === 0 ? '✓' : ''}</td>
-                      <td className="c">{col === 1 ? '✓' : ''}</td>
-                      <td className="c">{col === 2 ? '✓' : ''}</td>
-                      <td className="r"><div className="memo">{it.remark || ''}</div></td>
-                    </tr>
-                  )
-                })}
-                {p.items.length === 0 && (
-                  <tr><td colSpan={5} className="q" style={{ textAlign: 'center', color: '#888' }}>점검 항목이 없습니다.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        ))}
+        {/* 공정별 점검표 — 표준 문항 전체를 그리고, 저장된 결과를 코드로 매칭해 표시 [056]
+            (과거 기록에 일부 항목만 저장돼 있어도 양식은 항상 전 문항으로 보임) */}
+        {ordered.map((p) => {
+          const def = PARTDEF.find((d) => d.key === p.part)
+          const saved = new Map(p.items.map((it) => [it.code, it]))
+          const rows = def?.q
+            ? def.q.map((question, i) => {
+                const [main, sub] = question.split('||')
+                const code = `${def.label}-${i + 1}`
+                const it = saved.get(code)
+                return { code, main, sub, result: it?.result ?? null, remark: it?.remark ?? '' }
+              })
+            : p.items.map((it) => ({ code: it.code, main: it.label, sub: undefined as string | undefined, result: it.result ?? null, remark: it.remark ?? '' }))
+          // 표준 문항 코드와 다른 과거 기록(구형식 코드 GS-01 등)은 표 하단에 이어 표시 — 저장값 유실 없이
+          for (const it of p.items) {
+            if (!rows.some((r) => r.code === it.code)) {
+              rows.push({ code: it.code, main: it.label, sub: undefined, result: it.result ?? null, remark: it.remark ?? '' })
+            }
+          }
+          return (
+            <div key={p.part} className="inss-part">
+              <div className="inss-sec"><i />{PART_NAME[p.part] || p.part}</div>
+              <table className="inss-tbl">
+                <thead>
+                  <tr>
+                    <th className="q">점검항목</th>
+                    <th className="c">양호</th>
+                    <th className="c">미흡</th>
+                    <th className="c">해당없음</th>
+                    <th className="r">비고(보완계획)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => {
+                    const col = r.result != null ? RES_COL[r.result] : undefined
+                    return (
+                      <tr key={r.code}>
+                        <td className="q">{i + 1}. {r.main}{r.sub && <div className="sub">{r.sub}</div>}</td>
+                        <td className="c">{col === 0 ? '✓' : ''}</td>
+                        <td className="c">{col === 1 ? '✓' : ''}</td>
+                        <td className="c">{col === 2 ? '✓' : ''}</td>
+                        <td className="r"><div className="memo">{r.remark || ''}</div></td>
+                      </tr>
+                    )
+                  })}
+                  {rows.length === 0 && (
+                    <tr><td colSpan={5} className="q" style={{ textAlign: 'center', color: '#888' }}>점검 항목이 없습니다.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )
+        })}
       </div>
     </div>,
     document.body,
