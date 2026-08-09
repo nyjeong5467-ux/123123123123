@@ -98,21 +98,29 @@ const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
   { header: '최근 점검일', value: (r) => r.latest },
 ]
 
-// ===== 1단계(개편 0807): 작성된 점검표 리스트 — 점검자들이 작성한 보고서가 곧 첫 화면 =====
-type InsReportRow = { school: School; ins: Inspection }
+// ===== 1단계(개편 0807 · 0809): 작성된 점검표 리스트 =====
+// 점검표는 "종사자 안전·보건 점검표" 1장 단위(한 번 작성 시 여러 공정 점검이 함께 생성됨) —
+// 공정별 개별 행이 아니라 학교×점검일 단위로 묶어 표시 [051]
+type InsReportRow = {
+  school: School
+  date: string // '' = 작성중(일자 미상)
+  parts: Inspection[]
+  status: 'draft' | 'signed' | 'submitted'
+  eduoffice: string
+}
 const REPORT_QUERY: TableQueryConfig<InsReportRow> = {
   searchFields: [(r) => r.school.name, (r) => r.school.manager ?? ''],
   searchPlaceholder: '학교명·담당자 검색',
   filters: [
     {
       key: 'status',
-      label: '상태',
+      label: '작성현황',
       options: [
         { value: 'draft', label: '작성중' },
         { value: 'signed', label: '서명완료' },
         { value: 'submitted', label: '제출' },
       ],
-      accessor: (r) => r.ins.status,
+      accessor: (r) => r.status,
     },
     {
       key: 'level',
@@ -122,22 +130,43 @@ const REPORT_QUERY: TableQueryConfig<InsReportRow> = {
     },
   ],
   sortAccessors: {
-    date: (r) => dateOf(r.ins),
+    date: (r) => r.date,
     name: (r) => r.school.name,
-    part: (r) => PART_LABEL[r.ins.part] || r.ins.part,
   },
   initialSort: { key: 'date', dir: 'desc' },
 }
 const REPORT_EXPORT: ExportColumn<InsReportRow>[] = [
-  { header: '점검일', value: (r) => dateOf(r.ins) },
+  { header: '점검일', value: (r) => r.date },
   { header: '학교', value: (r) => r.school.name },
   { header: '담당자', value: (r) => r.school.manager || '' },
-  { header: '공정', value: (r) => PART_LABEL[r.ins.part] || r.ins.part },
-  { header: '항목수', value: (r) => r.ins.items.length },
-  { header: '서명', value: (r) => (r.ins.signatures.length > 0 ? '서명완료' : '미서명') },
-  { header: '상태', value: (r) => STATUS[r.ins.status]?.label || r.ins.status },
-  { header: '교육청전송', value: (r) => EDUOFFICE[r.ins.eduoffice_submit_status]?.label || r.ins.eduoffice_submit_status },
+  { header: '포함 공정', value: (r) => r.parts.map((p) => PART_LABEL[p.part] || p.part).join(' · ') },
+  { header: '작성현황', value: (r) => STATUS[r.status]?.label || r.status },
+  { header: '교육청전송', value: (r) => EDUOFFICE[r.eduoffice]?.label || r.eduoffice },
 ]
+// 공정별 점검들을 점검표 1장으로 묶기 — 상태·교육청 전송은 보수적으로 집계
+function groupToSheets(school: School, list: Inspection[]): InsReportRow[] {
+  const map = new Map<string, Inspection[]>()
+  for (const ins of list) {
+    const key = ins.status === 'draft' ? '' : dateOf(ins)
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(ins)
+  }
+  return [...map.entries()].map(([date, parts]) => {
+    const anyDraft = parts.some((p) => p.status === 'draft')
+    const allSubmitted = parts.every((p) => p.status === 'submitted')
+    // 목서버는 'submitted'로 응답 — 라벨 맵 키(success)와 불일치 보정
+    const eduoffice = parts.some((p) => p.eduoffice_submit_status === 'submitted' || p.eduoffice_submit_status === 'success')
+      ? 'success'
+      : parts.some((p) => p.eduoffice_submit_status === 'pending')
+        ? 'pending'
+        : parts.some((p) => p.eduoffice_submit_status === 'failed') ? 'failed' : 'none'
+    return {
+      school, date, parts,
+      status: anyDraft ? 'draft' : allSubmitted ? 'submitted' : 'signed',
+      eduoffice,
+    }
+  })
+}
 
 // ===== 2단계: 월별 그룹 (안전점검은 매월 반복 업무) =====
 const UNKNOWN_MONTH = '일자 미상'
@@ -281,9 +310,9 @@ export function Inspection() {
   const totalSubmitted = useMemo(() => schoolRows.reduce((a, r) => a + r.submitted, 0), [schoolRows])
   const q = useTableQuery(schoolRows, SCHOOL_QUERY)
 
-  // 작성물 리스트(0807 개편) — 전 학교 점검표를 평탄화해 최신순 표시
+  // 작성물 리스트(0807 개편 · 0809 점검표 단위 그룹) — 학교×점검일 1장 단위, 최신순
   const reportRows: InsReportRow[] = useMemo(
-    () => schools.flatMap((s) => (insMap[s.id] ?? []).map((ins) => ({ school: s, ins }))),
+    () => schools.flatMap((s) => groupToSheets(s, insMap[s.id] ?? [])),
     [schools, insMap],
   )
   const rq = useTableQuery(reportRows, REPORT_QUERY)
@@ -417,29 +446,23 @@ export function Inspection() {
                     <SortableTh q={rq} col="date">점검일</SortableTh>
                     <SortableTh q={rq} col="name">학교</SortableTh>
                     <th>담당자</th>
-                    <SortableTh q={rq} col="part">공정</SortableTh>
-                    <th className="c">항목수</th>
-                    <th className="c">서명</th>
-                    <th className="c">상태</th>
+                    <th className="c">작성현황</th>
                     <th className="c">교육청 전송</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {(loading || sumLoading) && <tr><td colSpan={9}><div className="tstate">불러오는 중…</div></td></tr>}
-                  {!loading && error && <tr><td colSpan={9}><div className="tstate">오류: {error}</div></td></tr>}
+                  {(loading || sumLoading) && <tr><td colSpan={6}><div className="tstate">불러오는 중…</div></td></tr>}
+                  {!loading && error && <tr><td colSpan={6}><div className="tstate">오류: {error}</div></td></tr>}
                   {!loading && !sumLoading && !error && rq.view.map((r) => {
-                    const st = STATUS[r.ins.status] ?? { label: r.ins.status, cls: 'na' }
-                    const eo = EDUOFFICE[r.ins.eduoffice_submit_status] ?? { label: '—', cls: 'na' }
-                    const signed = r.ins.signatures.length > 0
+                    const st = STATUS[r.status] ?? { label: r.status, cls: 'na' }
+                    const eo = EDUOFFICE[r.eduoffice] ?? { label: '—', cls: 'na' }
+                    const partNames = r.parts.map((p) => PART_LABEL[p.part] || p.part).join(' · ')
                     return (
-                      <tr key={r.ins.id} onClick={() => openSchool(r.school)}>
-                        <td>{dateOf(r.ins) || '—'}</td>
+                      <tr key={r.school.id + '|' + r.date} onClick={() => openSchool(r.school)} title={`포함 공정: ${partNames}`}>
+                        <td>{r.date || '—'}</td>
                         <td><b>{r.school.name}</b></td>
                         <td className="inh-mgr">{r.school.manager || '—'}</td>
-                        <td><span className="pillx doing">{PART_LABEL[r.ins.part] || r.ins.part}</span></td>
-                        <td className="c">{r.ins.items.length}</td>
-                        <td className="c"><span className={'pillx ' + (signed ? 'ok' : 'todo')}>{signed ? '서명완료' : '미서명'}</span></td>
                         <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
                         <td className="c"><span className={'pillx ' + eo.cls}>{eo.label}</span></td>
                         <td className="c"><span className="chev"><ChevronRight size={15} /></span></td>
@@ -447,7 +470,7 @@ export function Inspection() {
                     )
                   })}
                   {!loading && !sumLoading && !error && rq.view.length === 0 && (
-                    <tr><td colSpan={9}><div className="tstate">{reportRows.length === 0 ? '작성된 점검표가 없습니다. 학교 탭의 [안전점검] 바로가기에서 작성하세요.' : '조건에 맞는 점검표가 없습니다.'}</div></td></tr>
+                    <tr><td colSpan={6}><div className="tstate">{reportRows.length === 0 ? '작성된 점검표가 없습니다. 학교 탭의 [안전점검] 바로가기에서 작성하세요.' : '조건에 맞는 점검표가 없습니다.'}</div></td></tr>
                   )}
                 </tbody>
               </table>
