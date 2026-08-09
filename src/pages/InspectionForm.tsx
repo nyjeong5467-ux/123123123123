@@ -476,7 +476,7 @@ export function InspectionForm() {
                 <button key={d.key} type="button" className={'insf-tg' + (on ? ' on' : '')}
                   onClick={() => setEnabled((p) => ({ ...p, [d.label]: !p[d.label] }))}>
                   <input type="checkbox" readOnly checked={on} style={{ accentColor: 'var(--violet)', pointerEvents: 'none' }} />
-                  {d.name} <span className="cnt2">{n}명</span>
+                  {d.name}
                 </button>
               )
             }
