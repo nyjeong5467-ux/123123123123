@@ -4,7 +4,7 @@
 // 행 클릭 → /schools/{id} 상세. 라우팅 배선은 리드 담당.
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { BookOpen, Building2, X } from 'lucide-react'
+import { Building2, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
@@ -130,6 +130,8 @@ export function SchoolsHub() {
             }
           }),
         )
+        // 기본 정렬: 학교명 가나다순
+        details.sort((a, b) => a.school.name.localeCompare(b.school.name, 'ko'))
         if (alive) { setRows(details); setLoading(false) }
       } catch (e) {
         if (alive) { setError(e instanceof Error ? e.message : '불러오기 실패'); setLoading(false) }
@@ -293,8 +295,8 @@ export function SchoolsHub() {
                 <SortableTh q={q} col="principal">학교(기관)장</SortableTh>
                 <SortableTh q={q} col="manager">담당자</SortableTh>
                 <SortableTh q={q} col="workers" className="c">종사자수</SortableTh>
-                <th className="c">대장</th>
                 {scope === 'mine' && <th>업무 바로가기</th>}
+                <th className="c">대장</th>
               </tr>
             </thead>
             <tbody>
@@ -319,15 +321,6 @@ export function SchoolsHub() {
                     <td>{r.school.principal || '—'}</td>
                     <td>{r.school.manager || '—'}</td>
                     <td className="c">{r.total != null ? <b>{r.total}명</b> : <span className="muted">—</span>}</td>
-                    <td className="c">
-                      <button
-                        className="shub-ledger"
-                        title={`${r.school.name} 대장 보기`}
-                        onClick={(e) => { e.stopPropagation(); nav(`/schools/${r.school.id}`) }}
-                      >
-                        <BookOpen size={12} /> 대장
-                      </button>
-                    </td>
                     {scope === 'mine' && (
                       <td>
                         <div className="shub-works-cell">
@@ -350,6 +343,7 @@ export function SchoolsHub() {
                         </div>
                       </td>
                     )}
+                    <td className="c"><span className="shub-golink" title={`${r.school.name} 대장으로 이동`}>대장 →</span></td>
                   </tr>
                 )
               })}
