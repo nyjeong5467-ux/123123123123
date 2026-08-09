@@ -503,7 +503,6 @@ export function Inspection() {
                 <thead>
                   <tr>
                     <th>점검일</th>
-                    <th>포함 공정 (클릭 시 상세)</th>
                     <th className="c">작성현황</th>
                     <th className="c">교육청 전송</th>
                     <th className="c">작업</th>
@@ -511,10 +510,10 @@ export function Inspection() {
                 </thead>
                 <tbody>
                   {sumLoading && selItems.length === 0 && (
-                    <tr><td colSpan={5}><div className="tstate">불러오는 중…</div></td></tr>
+                    <tr><td colSpan={4}><div className="tstate">불러오는 중…</div></td></tr>
                   )}
                   {!sumLoading && selItems.length === 0 && (
-                    <tr><td colSpan={5}><div className="tstate">등록된 안전점검이 없습니다. 우측 상단 '점검표 작성'으로 추가하세요.</div></td></tr>
+                    <tr><td colSpan={4}><div className="tstate">등록된 안전점검이 없습니다. 우측 상단 '점검표 작성'으로 추가하세요.</div></td></tr>
                   )}
                   {groupToSheets(sel, selItems)
                     .sort((a, b) => (b.date || '9999').localeCompare(a.date || '9999'))
@@ -522,23 +521,8 @@ export function Inspection() {
                       const st = STATUS[sheet.status] || { label: sheet.status, cls: 'todo' }
                       const eo = EDUOFFICE[sheet.eduoffice] || { label: '—', cls: 'na' }
                       return (
-                        <tr key={sel.id + '|' + sheet.date}>
+                        <tr key={sel.id + '|' + sheet.date} title={`포함 공정: ${[...new Set(sheet.parts.map((p) => PART_LABEL[p.part] || p.part))].join(' · ')}`}>
                           <td>{sheet.date || '—'}</td>
-                          <td>
-                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                              {sheet.parts.map((p) => (
-                                <button
-                                  key={p.id}
-                                  className="pillx doing"
-                                  style={{ border: 0, cursor: 'pointer', fontFamily: 'inherit' }}
-                                  title={`${PART_LABEL[p.part] || p.part} 점검 상세 보기`}
-                                  onClick={() => setDetail(p)}
-                                >
-                                  {PART_LABEL[p.part] || p.part}
-                                </button>
-                              ))}
-                            </div>
-                          </td>
                           <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
                           <td className="c"><span className={'pillx ' + eo.cls}>{eo.label}</span></td>
                           <td className="c">
