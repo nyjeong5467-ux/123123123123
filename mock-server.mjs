@@ -10,6 +10,7 @@
 // ============================================================================
 import http from 'node:http'
 import crypto from 'node:crypto'
+import { REAL_SCHOOLS } from './mock-schools.mjs'
 
 const PORT = 3001
 const uid = () => crypto.randomBytes(6).toString('hex')
@@ -63,6 +64,22 @@ for (const s of schools) {
     msds: s.id === 's01' || s.id === 's03' ? [{ id: uid(), area: '급식실', substances: ['차아염소산나트륨', '세척제A'] }, { id: uid(), area: '시설창고', substances: ['방청유'] }] : [],
     accidents: s.id === 's01' ? [{ id: uid(), date: daysAgo(40), description: '급식실 화상 사고', part: 'catering' }] : [],
     histories: [{ id: uid(), month: daysAgo(30).slice(0, 7), content: '정기 방문 점검', memo: '' }],
+  }
+}
+
+// ---- 한국산업안전협회 계약 학교 771건 (mock-schools.mjs — 엑셀 원본) ----
+// 데모 학교(s01~s12) 뒤에 추가. 대장(종사자) 데이터는 원본에 없어 빈 대장으로 시작.
+for (const s of REAL_SCHOOLS) {
+  schools.push(s)
+  ledgers[s.id] = {
+    school: { id: s.id, name: s.name, is_private: s.is_private, education_count: s.education_count, special_notes: '', address: s.address },
+    workers: [],
+    worker_total: 0,
+    education_count: s.education_count,
+    headcount_mismatch: false,
+    msds: [],
+    accidents: [],
+    histories: [],
   }
 }
 
