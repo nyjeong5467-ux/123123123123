@@ -599,7 +599,8 @@ export function InspectionForm() {
                       <td className="q">
                         <span className="insf-no">{String(no).padStart(2, '0')}</span>{main}
                         {sub && <span className="insf-subq">{sub}</span>}
-                        {isAuto && <span className="insf-autotag">자동 해당없음 · {why}</span>}
+                        {/* 자동 해당없음 대상 항목은 수동 선택·해제 후에도 안내 유지 [049] */}
+                        {why && <span className="insf-autotag">자동 해당없음 · {why}</span>}
                       </td>
                       <td className="c"><input type="radio" name={code} checked={a === '양호'} onChange={() => {}} onClick={() => toggle('양호')} /></td>
                       <td className="c"><input type="radio" name={code} checked={a === '미흡'} onChange={() => {}} onClick={() => toggle('미흡')} /></td>
