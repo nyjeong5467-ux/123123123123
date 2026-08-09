@@ -228,6 +228,29 @@ export function Home() {
   /* ---- 연간 법정업무 사이클(서버 문서, 인터랙티브 에디터는 CycleHero) ---- */
   /* ---- 홈 레이아웃 커스텀: 사용자별 서버 문서(/ops/docs/home-layout-{login}) 저장 [031] ---- */
   const { user } = useAuth()
+
+  /* ---- 시간대별 인사말 [033] — 이름은 계정 목록(/users)에서 조회, 실패 시 로그인 ID ---- */
+  const [displayName, setDisplayName] = useState('')
+  useEffect(() => {
+    let alive = true
+    const fallback = user ? (user.login === 'admin' ? '관리자' : user.login) : ''
+    api<{ login_id?: string; name?: string }[]>('/users')
+      .then((list) => {
+        if (!alive) return
+        const me = Array.isArray(list) ? list.find((u) => u.login_id === user?.login) : null
+        setDisplayName(me?.name || fallback)
+      })
+      .catch(() => { if (alive) setDisplayName(fallback) })
+    return () => { alive = false }
+  }, [user])
+  const greeting = useMemo(() => {
+    const h = today.getHours()
+    if (h >= 5 && h < 11) return { main: '좋은 아침입니다.', sub: '오늘도 안전한 하루 보내세요.' }
+    if (h >= 11 && h < 14) return { main: '점심 시간이네요.', sub: '식사는 하셨나요? 오후 일정도 확인해 보세요.' }
+    if (h >= 14 && h < 18) return { main: '활기찬 오후입니다.', sub: '남은 방문 일정을 확인해 보세요.' }
+    if (h >= 18 && h < 22) return { main: '좋은 저녁입니다.', sub: '오늘 하루 수고 많으셨습니다.' }
+    return { main: '늦은 시간까지 수고가 많으시네요.', sub: '무리하지 마시고 내일 일정을 미리 확인해 두세요.' }
+  }, [today])
   const layoutKey = `home-layout-${user?.login ?? 'anon'}`
   const [layout, setLayout] = useState<HomeBlock[]>(HOME_LAYOUT_DEFAULT)
   const [layoutDraft, setLayoutDraft] = useState<HomeBlock[]>(HOME_LAYOUT_DEFAULT)
@@ -829,8 +852,12 @@ export function Home() {
 
   return (
     <div className="page rv">
-      {/* ===== 홈 커스텀: 블록 그리드 — 순서·크기 편집 가능 [031] ===== */}
+      {/* ===== 인사말 + 홈 편집 바 [033] ===== */}
       <div className="hm-custombar">
+        <div className="hm-greet">
+          <h1>{displayName ? `${displayName}님, 안녕하세요. ` : '안녕하세요. '}{greeting.main}</h1>
+          <p>{greeting.sub}</p>
+        </div>
         <span className="sp" />
         {layoutEdit ? (
           <>
