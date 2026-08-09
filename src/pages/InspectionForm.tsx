@@ -92,6 +92,8 @@ export function InspectionForm() {
   const sid = params.get('school') || ''
   const partParam = params.get('part') || '' // 점검 현황 [이어서 작성] — 해당 공정만 선택
   const resumeId = params.get('resume') || '' // 이어서 작성할 작성중 점검 ID (있으면 새로 만들지 않고 이어감)
+  const resumeAll = params.get('resumeall') === '1' // 점검표 1장 단위 이어서 작성 — 이 학교의 모든 작성중 공정을 프리필 [052]
+  const [resumeParts, setResumeParts] = useState<string[]>([]) // resumeall로 발견된 작성중 공정 키
   const today = new Date().toISOString().slice(0, 10)
 
   const [schools, setSchools] = useState<School[]>([])
@@ -159,19 +161,37 @@ export function InspectionForm() {
         for (const insp of list) for (const it of insp.items || []) if (CARRY_VALUE[it.code] && it.remark) pv[it.code] = it.remark
         setPrevVals(pv)
         // 이어서 작성: 대상 점검의 기존 결과·비고를 폼에 프리필 (코드가 폼 규격과 일치하는 항목만)
-        if (resumeId) {
-          const target = list.find((x) => x.id === resumeId)
-          if (target) {
-            const pa: Record<string, Ans | undefined> = {}
-            const pr: Record<string, string | undefined> = {}
+        const prefill = (targets: PrevInsp[]) => {
+          const pa: Record<string, Ans | undefined> = {}
+          const pr: Record<string, string | undefined> = {}
+          for (const target of targets) {
             for (const it of target.items || []) {
               const inv = it.result ? RES_INV[it.result] : undefined
               if (inv) pa[it.code] = inv
               if (it.remark) pr[it.code] = it.remark
             }
-            if (Object.keys(pa).length) setAnswers((p) => ({ ...pa, ...p }))
-            if (Object.keys(pr).length) setRemarks((p) => ({ ...pr, ...p }))
           }
+          if (Object.keys(pa).length) setAnswers((p) => ({ ...pa, ...p }))
+          if (Object.keys(pr).length) setRemarks((p) => ({ ...pr, ...p }))
+        }
+        if (resumeAll) {
+          // 점검표 단위 이어서 작성 — 공정별 최신 작성중 점검을 모두 프리필하고 그 점검들에 이어서 기록 [052]
+          const latestDraft = new Map<string, PrevInsp>()
+          for (const insp of list) if (insp.status === 'draft' && insp.id) latestDraft.set(insp.part, insp)
+          const drafts = [...latestDraft.values()]
+          if (drafts.length) {
+            prefill(drafts)
+            const ids: Record<string, string> = {}
+            for (const dr of drafts) {
+              const def = PARTDEF.find((x) => x.key === dr.part)
+              if (def && dr.id) ids[def.label] = dr.id
+            }
+            setDraftIds((p) => ({ ...ids, ...p }))
+            setResumeParts(drafts.map((dr) => dr.part))
+          }
+        } else if (resumeId) {
+          const target = list.find((x) => x.id === resumeId)
+          if (target) prefill([target])
         }
       })
       .catch(() => {})
@@ -193,14 +213,19 @@ export function InspectionForm() {
     return c
   }, [ledger])
 
-  /* 점검대상 자동 선택: 인원이 있는 파트만 (수동 추가 가능 — 0709 회의) */
+  /* 점검대상 자동 선택: 인원이 있는 파트만 (수동 추가 가능 — 0709 회의)
+     resumeall이면 작성중 공정을 함께 선택 [052] */
   useEffect(() => {
     if (!ledger) return
     const e: Record<string, boolean> = {}
-    for (const d of PARTDEF) e[d.label] = partParam ? d.key === partParam : (counts[d.key] ?? 0) > 0
+    for (const d of PARTDEF) {
+      e[d.label] = partParam
+        ? d.key === partParam
+        : (counts[d.key] ?? 0) > 0 || (resumeAll && resumeParts.includes(d.key))
+    }
     setEnabled(e)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [counts, ledger])
+  }, [counts, ledger, resumeParts])
 
   /* 자동 해당없음 */
   const { ex, reasons } = useMemo(() => autoExcl(feat, counts), [feat, counts])
