@@ -14,14 +14,19 @@ type TaskChip = { label: string; cls: 'warn' | 'doing' | 'bad' | 'muted' }
 type InspRow = { status: string; submitted_at?: string | null; signed_at?: string | null }
 type StatusRow = { status: string }
 type MusRow = { needs_review: number }
+// 학교별 업무 요약 — 칩 + 작성중(임시저장) 점검 존재 여부 [058]
+type SchoolTasks = { chips: TaskChip[]; hasDraft: boolean }
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
 
-function deriveTasks(insp: InspRow[], risk: StatusRow[], comp: StatusRow[], mus: MusRow[], ym: string): TaskChip[] {
+function deriveTasks(insp: InspRow[], risk: StatusRow[], comp: StatusRow[], mus: MusRow[], ym: string): SchoolTasks {
   const out: TaskChip[] = []
+  // 작성중(임시저장) 점검이 있으면 '이어서 작성' 안내가 미실시 경고를 대체 [058]
+  const hasDraft = insp.some((r) => r.status === 'draft')
   const inspDone = insp.some((r) => ((r.submitted_at || r.signed_at || '') + '').slice(0, 7) === ym)
-  if (!inspDone) out.push({ label: '안전점검 · 이번 달 미실시', cls: 'warn' })
+  if (hasDraft) out.push({ label: '안전점검 작성중 · 이어서 작성', cls: 'doing' })
+  else if (!inspDone) out.push({ label: '안전점검 · 이번 달 미실시', cls: 'warn' })
   const riskDoing = risk.filter((r) => r.status !== 'completed').length
   if (riskDoing > 0) out.push({ label: `위험성평가 진행 ${riskDoing}건`, cls: 'doing' })
   const compDraft = comp.filter((c) => c.status === 'draft').length
@@ -29,7 +34,7 @@ function deriveTasks(insp: InspRow[], risk: StatusRow[], comp: StatusRow[], mus:
   const review = mus.reduce((a, m) => a + (m.needs_review || 0), 0)
   if (review > 0) out.push({ label: `증상조사표 검수 ${review}건`, cls: 'bad' })
   if (out.length === 0) out.push({ label: '특이 업무 없음 · 정기 방문', cls: 'muted' })
-  return out
+  return { chips: out, hasDraft }
 }
 
 export function TodayHero(p: {
@@ -53,7 +58,7 @@ export function TodayHero(p: {
   const [openKey, setOpenKey] = useState<string | null>(null)
 
   // 학교별 미완 업무 조회 — 오늘 방문 대상 학교만(소수) 병렬 호출
-  const [tasks, setTasks] = useState<Record<string, TaskChip[]>>({})
+  const [tasks, setTasks] = useState<Record<string, SchoolTasks>>({})
   const idsKey = items.map((i) => i.school_id).filter(Boolean).join(',')
   useEffect(() => {
     let alive = true
@@ -106,7 +111,9 @@ export function TodayHero(p: {
         ) : (
           items.map((it, idx) => {
             const sc = it.school_id ? schoolById.get(it.school_id) : undefined
-            const chips = it.school_id ? tasks[it.school_id] : undefined
+            const st = it.school_id ? tasks[it.school_id] : undefined
+            const chips = st?.chips
+            const hasDraft = st?.hasDraft ?? false
             const clickable = !!it.school_id
             return (
               <div
@@ -140,9 +147,16 @@ export function TodayHero(p: {
                   {/* 빠른 실행 — 행 클릭으로 펼침 [044] */}
                   {openKey === it.key && it.school_id && (
                     <div className="hm-td-actions" onClick={(e) => e.stopPropagation()}>
-                      <button className="hm-qbtn" onClick={() => nav(`/inspection/new?school=${it.school_id}`)}>
-                        <ClipboardCheck size={13} /> 안전점검 작성
-                      </button>
+                      {/* 작성중(임시저장) 점검이 있으면 이어서 작성하기로 전환 — 점검 현황의 resumeall 경로와 동일 [058] */}
+                      {hasDraft ? (
+                        <button className="hm-qbtn hm-qbtn-resume" onClick={() => nav(`/inspection/new?school=${it.school_id}&resumeall=1`)}>
+                          <ClipboardCheck size={13} /> 이어서 작성하기
+                        </button>
+                      ) : (
+                        <button className="hm-qbtn" onClick={() => nav(`/inspection/new?school=${it.school_id}`)}>
+                          <ClipboardCheck size={13} /> 안전점검 작성
+                        </button>
+                      )}
                       <button className="hm-qbtn" onClick={() => nav(`/musculo/report?school=${it.school_id}`)}>
                         <Activity size={13} /> 근골격계 보고서
                       </button>

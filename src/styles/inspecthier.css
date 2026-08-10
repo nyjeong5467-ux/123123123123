@@ -8,3 +8,60 @@
   flex-wrap: wrap;
   justify-content: center;
 }
+
+/* [059] 내 작업 스트립 — 작성중 점검표 이어서 작성 + 오늘 제출 요약 */
+.inh-mywork {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--sh);
+  padding: 14px 18px;
+  margin-bottom: 14px;
+}
+.inh-mywork-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inh-mywork-head b {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.inh-mywork-note {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.inh-mywork-cards {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.inh-mywork-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--violet);
+  background: var(--violet-soft);
+  border-radius: 14px;
+  padding: 10px 12px 10px 14px;
+  min-width: 260px;
+}
+.inh-mywork-info .t {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.inh-mywork-info .p {
+  font-size: 11.5px;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+.inh-mywork-btn {
+  margin-left: auto;
+  height: 32px;
+  padding: 0 14px;
+  font-size: 12.5px;
+}

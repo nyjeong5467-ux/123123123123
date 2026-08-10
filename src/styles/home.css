@@ -1105,6 +1105,16 @@
   border-color: var(--violet);
   color: var(--violet);
 }
+/* 이어서 작성하기 — 작성중(임시저장) 점검이 있을 때 강조 [058] */
+.hm-qbtn.hm-qbtn-resume {
+  border-color: var(--violet);
+  background: var(--violet-soft, rgba(124, 92, 251, 0.1));
+  color: var(--violet);
+}
+.hm-qbtn.hm-qbtn-resume:hover {
+  background: var(--violet);
+  color: #fff;
+}
 .hm-go {
   margin-left: auto;
   font-size: 11.5px;

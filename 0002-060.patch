@@ -1,0 +1,155 @@
+From 11b07ee6b8a68788ad8593645387410e1f4242c5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 10 Aug 2026 09:54:53 +0000
+Subject: [PATCH 2/2] =?UTF-8?q?=ED=95=99=EA=B5=90=20=ED=97=88=EB=B8=8C=20?=
+ =?UTF-8?q?=EB=8C=80=EC=9E=A5=20=EC=A1=B0=ED=9A=8C=20=EB=8B=B4=EB=8B=B9=20?=
+ =?UTF-8?q?=ED=95=9C=EC=A0=95=20+=20=EC=84=B8=EC=85=98=20=EC=BA=90?=
+ =?UTF-8?q?=EC=8B=9C=20[060]?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- /ledger 학교별 조회를 담당 학교로 한정(783건 → 담당 N건)
+- rows·배지 세션 캐시 — 탭 재진입 시 재조회 0건
+- 수정이력.md [060] 기록
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019tq6fWc4o7EcMMqpUCNKrg
+---
+ src/pages/SchoolsHub.tsx                      | 41 ++++++++++++++++---
+ ...30\354\240\225\354\235\264\353\240\245.md" | 20 +++++++++
+ 2 files changed, 56 insertions(+), 5 deletions(-)
+
+diff --git a/src/pages/SchoolsHub.tsx b/src/pages/SchoolsHub.tsx
+index b22f729..23bae3b 100644
+--- a/src/pages/SchoolsHub.tsx
++++ b/src/pages/SchoolsHub.tsx
+@@ -1,5 +1,5 @@
+ // 학교 허브(/schools) — IA 개편으로 신설된 학교 목록 허브.
+-// GET /schools + 학교별 GET /schools/{id}/ledger 요약(종사자수·인원대조)을 합쳐
++// GET /schools + 담당 학교별 GET /schools/{id}/ledger 요약(종사자수·인원대조 — [060] 담당 한정)을 합쳐
+ // 검색/학교급 필터/정렬/CSV/페이지네이션(useTableQuery) + 표·카드 토글을 제공.
+ // 행 클릭 → /schools/{id} 상세. 라우팅 배선은 리드 담당.
+ import { useEffect, useMemo, useState } from 'react'
+@@ -35,10 +35,16 @@ type Ledger = {
+ }
+ type Row = {
+   school: School
+-  total: number | null // null = 대장 조회 실패
++  total: number | null // null = 대장 조회 실패 또는 미조회(담당 외 학교 [060])
+   mismatch: boolean
+ }
+ 
++/* [060] 세션 캐시 — 탭 재진입 시 학교별 대장·배지 재조회 방지 (모듈 스코프, 새로고침 시 소멸).
++   rows 캐시는 계정 기준, 배지 캐시는 rows 스냅샷(객체 동일성) 기준 — 학교 등록 등으로
++   rows가 새로 조회되면 배지도 자동 재계산된다. */
++let hubRowsCache: { login: string; rows: Row[] } | null = null
++let hubBadgeCache: { forRows: Row[]; badges: Record<string, WorkBadges> } | null = null
++
+ // ── 5대 업무 바로가기 상태 배지 ──
+ type Badge = { txt: string; cls: 'ok' | 'warn' | 'doing' | 'bad' | 'muted' }
+ type WorkBadges = { insp: Badge; risk: Badge; mus: Badge; comp: Badge }
+@@ -117,13 +123,26 @@ export function SchoolsHub() {
+ 
+   useEffect(() => {
+     let alive = true
++    const login = user?.login ?? ''
++    // [060] 세션 캐시 적중 시 재조회 생략 — [reload]로 강제 갱신(학교 등록·일괄 업로드 후)
++    if (reload === 0 && hubRowsCache && hubRowsCache.login === login) {
++      setRows(hubRowsCache.rows)
++      setLoading(false)
++      return
++    }
+     setLoading(true)
+     setError('')
+     ;(async () => {
+       try {
+         const schools = await api<School[]>('/schools')
++        const list = Array.isArray(schools) ? schools : []
++        // [060] 대장 요약 조회를 담당 학교로 한정 — 전체 783교 학교별 조회 과부하 방지
++        // (배지 집계 [038]과 동일 규칙: 담당 배정이 없는 계정은 기존대로 전체 조회)
++        const mine = list.filter((s) => s.assigned_inspector_id === login)
++        const targets = new Set((mine.length > 0 ? mine : list).map((s) => s.id))
+         const details = await Promise.all(
+-          (Array.isArray(schools) ? schools : []).map(async (s): Promise<Row> => {
++          list.map(async (s): Promise<Row> => {
++            if (!targets.has(s.id)) return { school: s, total: null, mismatch: false }
+             const led = await api<Ledger>(`/schools/${s.id}/ledger`).catch(() => null)
+             return {
+               school: s,
+@@ -134,12 +153,18 @@ export function SchoolsHub() {
+         )
+         // 기본 정렬: 학교명 가나다순
+         details.sort((a, b) => a.school.name.localeCompare(b.school.name, 'ko'))
+-        if (alive) { setRows(details); setLoading(false) }
++        if (alive) {
++          hubRowsCache = { login, rows: details }
++          setRows(details)
++          setLoading(false)
++        }
+       } catch (e) {
+         if (alive) { setError(e instanceof Error ? e.message : '불러오기 실패'); setLoading(false) }
+       }
+     })()
+     return () => { alive = false }
++    // user?.login은 세션 중 변하지 않음(로그아웃 시 페이지 이탈)
++    // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [reload])
+ 
+   // 담당 학교 여부 — 점검자(담당 배정 있음)는 '담당'이 기본, 관리자는 '전체'가 기본
+@@ -158,6 +183,8 @@ export function SchoolsHub() {
+   // 집계 대상은 담당 학교로 한정 (업무 바로가기 컬럼·배너 도넛 모두 담당 기준 — 전체 783교 조회는 과부하)
+   useEffect(() => {
+     if (rows.length === 0) { setBadges({}); return }
++    // [060] 같은 rows 스냅샷이면 캐시 재사용 — 탭 재진입 시 담당 학교 3개 API 재조회 생략
++    if (hubBadgeCache && hubBadgeCache.forRows === rows) { setBadges(hubBadgeCache.badges); return }
+     const mine = rows.filter((r) => r.school.assigned_inspector_id === (user?.login ?? ''))
+     const target = mine.length > 0 ? mine : rows
+     let alive = true
+@@ -177,7 +204,11 @@ export function SchoolsHub() {
+           return [id, deriveBadges(insp, risk, mus, compDoc.doc?.[id]?.[halfKey], ym)] as const
+         }),
+       )
+-      if (alive) setBadges(Object.fromEntries(pairs))
++      if (alive) {
++        const map = Object.fromEntries(pairs)
++        hubBadgeCache = { forRows: rows, badges: map }
++        setBadges(map)
++      }
+     })()
+     return () => { alive = false }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+diff --git "a/\354\210\230\354\240\225\354\235\264\353\240\245.md" "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+index a250030..be23add 100644
+--- "a/\354\210\230\354\240\225\354\235\264\353\240\245.md"
++++ "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+@@ -1236,6 +1236,26 @@ const HUB_SEARCH = [
+ 
+ ---
+ 
++## [060] 2026-08-10 — 학교 허브: 대장 요약 조회 담당 한정 + 세션 캐시
++
++**요청·경위**: 실데이터 771건 시드([026]) 이후 학교 탭 진입 때마다 목서버 콘솔에 학교별 GET /ledger 요청 783건이 순차로 찍히는 현상 문의 → 오류가 아닌 화면 구조(학교별 개별 조회)임을 확인하고 프론트 측 최적화 진행.
++
++**변경** (`src/pages/SchoolsHub.tsx`):
++- **대장 요약(종사자수·인원대조) 조회를 담당 학교로 한정** — 배지 집계 [038]과 동일 규칙(assigned_inspector_id 기준, 담당 배정 없는 계정은 기존대로 전체). 담당 외 학교는 종사자수가 '—'(미조회)로 표시됨(전체 학교 스코프는 조회용이므로 허용 — CSV 내보내기의 종사자수·인원대조도 미조회 학교는 빈값/일치로 나감).
++- **세션 캐시(모듈 스코프)** — 학교 목록+대장 rows는 계정 기준, 업무 배지는 rows 스냅샷(객체 동일성) 기준으로 캐시. 탭 재진입 시 재조회 0건. 학교 등록·엑셀 일괄 업로드([reload]) 시 강제 재조회 후 캐시 갱신, 브라우저 새로고침 시 캐시 소멸(자연 갱신).
++
++**효과** (목서버 E2E 실측, admin=담당 53교): 첫 진입 /ledger 783건 → 53건(+개발 StrictMode 중복 별도), 배지용 API 포함 총 요청 대폭 감소. 앱 내 탭 재진입 시 **0건**(캐시 적중).
++
++**한계·후속 제안**: 경영 대시보드(/ledger 페이지)는 전 학교 집계가 목적이라 이번 최적화 대상에서 제외(진입 시 학교당 5개 API 호출 지속). 근본 해결은 백엔드에 목록용 벌크 요약 API(예: GET /schools?with=ledger_summary) 신설 요청 — 결합 후 실서버에서도 동일한 N+1 문제가 발생하는 구조이므로 백엔드 팀 전달 권장.
++
++**롤백 방법**: git 커밋 revert.
++
++**검증**: `tsc --noEmit` 통과 · 목서버 E2E — 담당 학교 53교 목록·배지 정상, 전체 학교 783교 목록 정상(종사자수 '—'), 앱 내 사이드바 이동으로 재진입 시 /ledger·/inspections 요청 0건 확인.
++
++**영향 범위**: 학교 허브(/schools)만. 백엔드 계약 파일 미수정.
++
++---
++
+ ## 부록: 신규 추가 파일 (프로젝트 소스 아님 — 개발 보조 도구)
+ 
+ | 날짜 | 파일 | 용도 |
+-- 
+2.43.0
+
