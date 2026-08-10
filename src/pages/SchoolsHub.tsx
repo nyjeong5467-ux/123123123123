@@ -8,7 +8,7 @@ import { Building2, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
-import { ExportButton, Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { BulkUploadModal } from '../components/BulkUploadModal'
 import { CycleBanner, type WorkStats } from '../components/CycleBanner'
@@ -354,16 +354,11 @@ export function SchoolsHub() {
           <h2><Building2 size={18} /> 학교 목록</h2>
           <span className="pillx doing">{q.total}교</span>
           <div className="sp" />
-          {scope === 'mine' && (
-            <span className="shub-legend" title="세부 상태(진행 건수·검수 대기 등)는 배지에 마우스를 올리면 표시됩니다">
-              업무 바로가기: <i className="d-ok" /> 완료 <i className="d-mut" /> 미완료
-            </span>
-          )}
+          {/* [064] 범례·내보내기 제거 — 배지 의미는 마우스 오버 툴팁으로 확인 */}
           <div className="shub-toggle" role="group" aria-label="담당/전체 전환">
             <button className={scope === 'mine' ? 'on' : ''} onClick={() => { setScope('mine'); setMgrQ(''); setApplied((a) => ({ ...a, manager: '' })) }} title="내가 담당하는 학교만 보기">담당 학교</button>
             <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')} title="등록된 전체 학교 보기">전체 학교</button>
           </div>
-          <ExportButton q={q} columns={HUB_EXPORT} filename="학교목록" />
         </div>
 
         <div className="twrap">

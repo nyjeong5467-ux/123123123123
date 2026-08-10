@@ -7,7 +7,8 @@ import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { Modal } from '../components/Modal'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
-import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { ExportButton, Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
 import { InspectionSheetView, type SheetData } from '../components/InspectionSheetView'
 import type { InspExtra } from './InspectionForm'
 import '../styles/hier.css'
@@ -54,7 +55,7 @@ type Inspection = {
   submitted_at?: string | null
   created_at?: string | null // 백엔드 엔티티에 아직 없음 — 생기면 자동 수용
 }
-type School = { id: string; name: string; manager?: string; school_level?: string; assigned_inspector_id?: string }
+type School = { id: string; name: string; manager?: string; school_level?: string; address?: string; assigned_inspector_id?: string }
 
 // 점검 일자 — 엔티티에 created_at 이 없어 제출일 → 서명일 → 서명기록 순으로 방어적으로 산출
 function dateOf(r: Inspection): string {
@@ -330,7 +331,24 @@ export function Inspection() {
     () => schools.flatMap((s) => groupToSheets(s, insMap[s.id] ?? [])),
     [schools, insMap],
   )
-  const rq = useTableQuery(reportRows, REPORT_QUERY)
+  // [063] 학교명·지역명 확정형 검색 (학교 탭과 동일 UX) — 학교급은 rq의 level 필터로 반영
+  const [applied, setApplied] = useState({ name: '', region: '' })
+  const searchedRows = useMemo(() => {
+    const nq = applied.name.toLowerCase()
+    const gq = applied.region.toLowerCase()
+    if (!nq && !gq) return reportRows
+    return reportRows.filter(
+      (r) =>
+        (!nq || r.school.name.toLowerCase().includes(nq)) &&
+        (!gq || (r.school.address ?? '').toLowerCase().includes(gq)),
+    )
+  }, [reportRows, applied])
+  const rq = useTableQuery(searchedRows, REPORT_QUERY)
+  const doPanelSearch = (s: WorkSearch) => {
+    setApplied({ name: s.name, region: s.region })
+    rq.setFilter('level', s.level)
+    rq.setPage(1)
+  }
 
   /* [059] 내 작업 스트립 — 작성중(임시저장) 점검표 + 오늘 제출 요약.
      담당 배정이 있으면 담당 학교로 한정(홈 오늘의 할 일 [044]과 동일 규칙 — 배정 없으면 전체) */
@@ -500,13 +518,14 @@ export function Inspection() {
             </div>
           )}
 
+          {/* [063] 학교 탭과 동일한 검색 패널 — 학교명·지역명·학교급 확정형 조회 */}
+          <WorkSearchPanel onSearch={doPanelSearch} onClear={(f) => setApplied((a) => ({ ...a, [f]: '' }))} />
+
           <div className="ledger">
             <div className="lh">
               <h2><ClipboardCheck size={18} /> 작성된 점검표</h2>
               <span className="pillx doing">{rq.total}건</span>
               <div className="sp" />
-              <FilterBar q={rq} />
-              <ExportButton q={rq} columns={REPORT_EXPORT} filename="안전점검_점검표목록" />
             </div>
             <div className="twrap">
               <table className="tbl">
