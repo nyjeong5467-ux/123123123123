@@ -1,5 +1,5 @@
 // 학교 허브(/schools) — IA 개편으로 신설된 학교 목록 허브.
-// GET /schools + 학교별 GET /schools/{id}/ledger 요약(종사자수·인원대조)을 합쳐
+// GET /schools + 담당 학교별 GET /schools/{id}/ledger 요약(종사자수·인원대조 — [060] 담당 한정)을 합쳐
 // 검색/학교급 필터/정렬/CSV/페이지네이션(useTableQuery) + 표·카드 토글을 제공.
 // 행 클릭 → /schools/{id} 상세. 라우팅 배선은 리드 담당.
 import { useEffect, useMemo, useState } from 'react'
@@ -35,9 +35,15 @@ type Ledger = {
 }
 type Row = {
   school: School
-  total: number | null // null = 대장 조회 실패
+  total: number | null // null = 대장 조회 실패 또는 미조회(담당 외 학교 [060])
   mismatch: boolean
 }
+
+/* [060] 세션 캐시 — 탭 재진입 시 학교별 대장·배지 재조회 방지 (모듈 스코프, 새로고침 시 소멸).
+   rows 캐시는 계정 기준, 배지 캐시는 rows 스냅샷(객체 동일성) 기준 — 학교 등록 등으로
+   rows가 새로 조회되면 배지도 자동 재계산된다. */
+let hubRowsCache: { login: string; rows: Row[] } | null = null
+let hubBadgeCache: { forRows: Row[]; badges: Record<string, WorkBadges> } | null = null
 
 // ── 5대 업무 바로가기 상태 배지 ──
 type Badge = { txt: string; cls: 'ok' | 'warn' | 'doing' | 'bad' | 'muted' }
@@ -117,13 +123,26 @@ export function SchoolsHub() {
 
   useEffect(() => {
     let alive = true
+    const login = user?.login ?? ''
+    // [060] 세션 캐시 적중 시 재조회 생략 — [reload]로 강제 갱신(학교 등록·일괄 업로드 후)
+    if (reload === 0 && hubRowsCache && hubRowsCache.login === login) {
+      setRows(hubRowsCache.rows)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError('')
     ;(async () => {
       try {
         const schools = await api<School[]>('/schools')
+        const list = Array.isArray(schools) ? schools : []
+        // [060] 대장 요약 조회를 담당 학교로 한정 — 전체 783교 학교별 조회 과부하 방지
+        // (배지 집계 [038]과 동일 규칙: 담당 배정이 없는 계정은 기존대로 전체 조회)
+        const mine = list.filter((s) => s.assigned_inspector_id === login)
+        const targets = new Set((mine.length > 0 ? mine : list).map((s) => s.id))
         const details = await Promise.all(
-          (Array.isArray(schools) ? schools : []).map(async (s): Promise<Row> => {
+          list.map(async (s): Promise<Row> => {
+            if (!targets.has(s.id)) return { school: s, total: null, mismatch: false }
             const led = await api<Ledger>(`/schools/${s.id}/ledger`).catch(() => null)
             return {
               school: s,
@@ -134,12 +153,18 @@ export function SchoolsHub() {
         )
         // 기본 정렬: 학교명 가나다순
         details.sort((a, b) => a.school.name.localeCompare(b.school.name, 'ko'))
-        if (alive) { setRows(details); setLoading(false) }
+        if (alive) {
+          hubRowsCache = { login, rows: details }
+          setRows(details)
+          setLoading(false)
+        }
       } catch (e) {
         if (alive) { setError(e instanceof Error ? e.message : '불러오기 실패'); setLoading(false) }
       }
     })()
     return () => { alive = false }
+    // user?.login은 세션 중 변하지 않음(로그아웃 시 페이지 이탈)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reload])
 
   // 담당 학교 여부 — 점검자(담당 배정 있음)는 '담당'이 기본, 관리자는 '전체'가 기본
@@ -158,6 +183,8 @@ export function SchoolsHub() {
   // 집계 대상은 담당 학교로 한정 (업무 바로가기 컬럼·배너 도넛 모두 담당 기준 — 전체 783교 조회는 과부하)
   useEffect(() => {
     if (rows.length === 0) { setBadges({}); return }
+    // [060] 같은 rows 스냅샷이면 캐시 재사용 — 탭 재진입 시 담당 학교 3개 API 재조회 생략
+    if (hubBadgeCache && hubBadgeCache.forRows === rows) { setBadges(hubBadgeCache.badges); return }
     const mine = rows.filter((r) => r.school.assigned_inspector_id === (user?.login ?? ''))
     const target = mine.length > 0 ? mine : rows
     let alive = true
@@ -177,7 +204,11 @@ export function SchoolsHub() {
           return [id, deriveBadges(insp, risk, mus, compDoc.doc?.[id]?.[halfKey], ym)] as const
         }),
       )
-      if (alive) setBadges(Object.fromEntries(pairs))
+      if (alive) {
+        const map = Object.fromEntries(pairs)
+        hubBadgeCache = { forRows: rows, badges: map }
+        setBadges(map)
+      }
     })()
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps

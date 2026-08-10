@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, ClipboardCheck } from 'lucide-react'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { Modal } from '../components/Modal'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
@@ -53,7 +54,7 @@ type Inspection = {
   submitted_at?: string | null
   created_at?: string | null // 백엔드 엔티티에 아직 없음 — 생기면 자동 수용
 }
-type School = { id: string; name: string; manager?: string; school_level?: string }
+type School = { id: string; name: string; manager?: string; school_level?: string; assigned_inspector_id?: string }
 
 // 점검 일자 — 엔티티에 created_at 이 없어 제출일 → 서명일 → 서명기록 순으로 방어적으로 산출
 function dateOf(r: Inspection): string {
@@ -211,6 +212,7 @@ const FLAT_EXPORT: ExportColumn<Inspection>[] = [
 
 export function Inspection() {
   const nav = useNavigate()
+  const { user } = useAuth()
   const [schools, setSchools] = useState<School[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -330,6 +332,26 @@ export function Inspection() {
   )
   const rq = useTableQuery(reportRows, REPORT_QUERY)
 
+  /* [059] 내 작업 스트립 — 작성중(임시저장) 점검표 + 오늘 제출 요약.
+     담당 배정이 있으면 담당 학교로 한정(홈 오늘의 할 일 [044]과 동일 규칙 — 배정 없으면 전체) */
+  const TODAY_YMD = useMemo(() => {
+    const d = new Date()
+    const p = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  }, [])
+  const myIds = useMemo(() => {
+    const mine = schools.filter((s) => s.assigned_inspector_id === (user?.login ?? ''))
+    return mine.length > 0 ? new Set(mine.map((s) => s.id)) : null // null = 담당 배정 없음 → 전체
+  }, [schools, user])
+  const draftSheets = useMemo(
+    () => reportRows.filter((r) => r.status === 'draft' && (!myIds || myIds.has(r.school.id))),
+    [reportRows, myIds],
+  )
+  const todaySubmitted = useMemo(
+    () => reportRows.filter((r) => r.status !== 'draft' && r.date === TODAY_YMD && (!myIds || myIds.has(r.school.id))),
+    [reportRows, TODAY_YMD, myIds],
+  )
+
   function openSchool(s: School) {
     setSel(s)
     setCollapsed({})
@@ -444,6 +466,40 @@ export function Inspection() {
 
       {!sel && (
         <>
+          {/* [059] 내 작업 스트립 — 작성중 점검표 이어서 작성 + 오늘 제출 요약 (없으면 미표시) */}
+          {(draftSheets.length > 0 || todaySubmitted.length > 0) && (
+            <div className="inh-mywork">
+              <div className="inh-mywork-head">
+                <b>내 점검 작업</b>
+                {draftSheets.length > 0 && <span className="pillx doing">작성중 {draftSheets.length}건</span>}
+                {todaySubmitted.length > 0 && (
+                  <span className="pillx ok" title={todaySubmitted.map((r) => r.school.name).join(' · ')}>
+                    오늘 제출 {todaySubmitted.length}건
+                  </span>
+                )}
+                {myIds && <span className="inh-mywork-note">담당 학교 기준</span>}
+              </div>
+              {draftSheets.length > 0 && (
+                <div className="inh-mywork-cards">
+                  {draftSheets.map((r) => (
+                    <div key={r.school.id} className="inh-mywork-card">
+                      <div className="inh-mywork-info">
+                        <div className="t">{r.school.name}</div>
+                        <div className="p">{r.parts.map((p) => PART_LABEL[p.part] || p.part).join(' · ')}</div>
+                      </div>
+                      <button
+                        className="btn btn-primary inh-mywork-btn"
+                        onClick={() => nav(`/inspection/new?school=${r.school.id}&resumeall=1`)}
+                      >
+                        이어서 작성
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="ledger">
             <div className="lh">
               <h2><ClipboardCheck size={18} /> 작성된 점검표</h2>
