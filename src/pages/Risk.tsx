@@ -4,7 +4,10 @@ import { ArrowLeft, ChevronRight, ClipboardCheck } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
-import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
+import { MyWorkStrip } from '../components/table/MyWorkStrip'
+import { useAuth } from '../lib/auth'
 import { DeptHazardInfo, type DeptInfoDoc } from '../features/risk/DeptHazardInfo'
 import { HearingSurvey, type HearingDoc } from '../features/risk/HearingSurvey'
 import { AssessmentTable, type AssessDoc, type BehaviorDoc, type StateDoc } from '../features/risk/AssessmentTable'
@@ -29,6 +32,7 @@ type School = {
   manager?: string
   school_level?: string
   address?: string
+  assigned_inspector_id?: string
 }
 // category('regular'|'adhoc')·산재 연동 필드는 백엔드가 병렬 추가 중 — 없으면 정기로 간주
 type RiskItem = {
@@ -257,6 +261,12 @@ const RISK_REPORT_QUERY: TableQueryConfig<RiskReportRow> = {
       { value: '수시', label: '수시' },
     ],
     accessor: (r) => r.kind,
+  }, {
+    // [063] 검색 패널의 학교급 세그먼트가 사용
+    key: 'level',
+    label: '학교급',
+    options: ['유', '초', '중', '고', '기타'].map((v) => ({ value: v, label: v })),
+    accessor: (r) => r.school.school_level ?? '',
   }],
   sortAccessors: { date: (r) => r.date, name: (r) => r.school.name },
   initialSort: { key: 'date', dir: 'desc' },
@@ -286,6 +296,7 @@ function subTabStyle(active: boolean): CSSProperties {
 }
 
 export function Risk() {
+  const { user } = useAuth()
   const [schools, setSchools] = useState<School[]>([])
   const [sid, setSid] = useState('') // 조사표 탭 학교 선택 (기존 UX 유지)
   const [loading, setLoading] = useState(true)
@@ -347,7 +358,42 @@ export function Risk() {
     }
     return out
   }, [schools, docMap])
-  const rq = useTableQuery(reportRows, RISK_REPORT_QUERY)
+  // [066] 내 평가 작업 스트립 — 작성중(정기 작성 중·수시 진행 중), 담당 배정 있으면 담당 학교 기준 [059]와 동일 규칙
+  const myIds = useMemo(() => {
+    const mine = schools.filter((s) => s.assigned_inspector_id === (user?.login ?? ''))
+    return mine.length > 0 ? new Set(mine.map((s) => s.id)) : null
+  }, [schools, user])
+  const myWorkItems = useMemo(
+    () => reportRows
+      .filter((r) => r.statusCls === 'doing' && (!myIds || myIds.has(r.school.id)))
+      .map((r) => ({
+        key: r.school.id + r.kind + r.title,
+        school: r.school.name,
+        detail: `${r.kind} · ${r.progress}`,
+        onResume: () => { openSchool(r.school); if (r.kind === '수시') setCtxTab('adhoc') },
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reportRows, myIds],
+  )
+
+  // [063] 학교명·지역명 확정형 검색 (학교 탭과 동일 UX)
+  const [applied, setApplied] = useState({ name: '', region: '' })
+  const searchedReportRows = useMemo(() => {
+    const nq = applied.name.toLowerCase()
+    const gq = applied.region.toLowerCase()
+    if (!nq && !gq) return reportRows
+    return reportRows.filter(
+      (r) =>
+        (!nq || r.school.name.toLowerCase().includes(nq)) &&
+        (!gq || (r.school.address ?? '').toLowerCase().includes(gq)),
+    )
+  }, [reportRows, applied])
+  const rq = useTableQuery(searchedReportRows, RISK_REPORT_QUERY)
+  const doPanelSearch = (s: WorkSearch) => {
+    setApplied({ name: s.name, region: s.region })
+    rq.setFilter('level', s.level)
+    rq.setPage(1)
+  }
 
   // 위계 상태: 선택 학교(2단계) · 접힌 그룹
   const [sel, setSel] = useState<School | null>(null)
@@ -761,13 +807,17 @@ export function Risk() {
         <>
           {actionErr && <div className="login-err" style={{ marginBottom: 12 }}>{actionErr}</div>}
 
+          {/* [066] 내 평가 작업 스트립 */}
+          <MyWorkStrip title="내 평가 작업" items={myWorkItems} mineOnly={!!myIds} />
+
+          {/* [063] 학교 탭과 동일한 검색 패널 */}
+          <WorkSearchPanel onSearch={doPanelSearch} onClear={(f) => setApplied((a) => ({ ...a, [f]: '' }))} />
+
           <div className="ledger">
             <div className="lh">
               <h2><ClipboardCheck size={18} /> 작성된 보고서</h2>
               <span className="pillx doing">{rq.total}건</span>
               <div className="sp" />
-              <FilterBar q={rq} />
-              <ExportButton q={rq} columns={RISK_REPORT_EXPORT} filename="위험성평가_보고서목록" />
             </div>
             <div className="twrap">
               <table className="tbl">

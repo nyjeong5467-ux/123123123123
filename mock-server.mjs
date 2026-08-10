@@ -446,6 +446,14 @@ on('GET', '/mail/settings', () => ({ settings: store.mail }))
 on('PUT', '/mail/settings', (p, q, body) => { Object.assign(store.mail, body?.settings || body || {}); store.mail.has_password = true; return { settings: store.mail } })
 on('POST', '/mail/test', () => ({ ok: true, message: 'IMAP 접속 성공 (mock)' }))
 on('GET', '/mail/inbox', (p, q) => mailInbox.slice(0, Number(q.limit) || 15))
+// [062] 메일 발송(mock) — 점검표 PDF 첨부 학교 송부. 실서버는 백엔드 SMTP 구현 필요.
+on('POST', '/mail/send', (p, q, body) => ({
+  ok: true,
+  to: body?.to || '',
+  subject: body?.subject || '',
+  attachments: (body?.attachments || []).map((a) => a?.name).filter(Boolean),
+  sent_at: new Date().toISOString(),
+}))
 on('GET', '/mail/message', (p, q) => { const r = mailInbox.find((m) => m.uid === q.uid) || mailInbox[0]; return { ...r, to: 'hq@safety.or.kr', body: '안녕하세요.\n\n' + r.subject + ' 관련하여 회신드립니다.\n자세한 내용은 첨부 문서를 확인해 주세요.\n\n감사합니다.', attachments: ['첨부문서.pdf'] } })
 on('GET', '/files/info', () => ({ root: '/srv/safety-docs', modules: { inspection: { dir: 'inspection', files: 128, bytes: 34_500_000 }, risk: { dir: 'risk', files: 56, bytes: 12_000_000 }, musculo: { dir: 'musculo', files: 210, bytes: 88_000_000 }, education: { dir: 'education', files: 74, bytes: 9_100_000 }, compliance: { dir: 'compliance', files: 22, bytes: 4_400_000 } } }))
 

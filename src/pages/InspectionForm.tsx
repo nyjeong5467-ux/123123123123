@@ -4,6 +4,8 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
+import { InspectionMailModal } from '../components/InspectionMailModal'
+import type { SheetData } from '../components/InspectionSheetView'
 import '../styles/inspectform.css'
 
 /* ===================== 점검항목 (프로토타입 Q_GS·Q_TH·Q_SI·Q_MI 그대로) ===================== */
@@ -68,7 +70,7 @@ const baseSlots = (n: number) => (n <= 5 ? 1 : n <= 10 ? 2 : 3)
 const MAX_SLOTS = 8
 
 /* ===================== 타입 ===================== */
-type School = { id: string; name: string }
+type School = { id: string; name: string; email?: string }
 type Worker = { id: string; part: string; count: number }
 type Ledger = {
   school: { id: string; name: string; is_private: boolean; address: string; email?: string }
@@ -134,8 +136,7 @@ export function InspectionForm() {
   const [submitErr, setSubmitErr] = useState('')
   const [statuses, setStatuses] = useState<Record<string, PartStatus>>({})
   const [doneAll, setDoneAll] = useState(false)
-  const [showMail, setShowMail] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [mailOpen, setMailOpen] = useState(false) // [062] 학교 메일 전송 모달
 
   /* 학교 목록 + 기본 선택 */
   useEffect(() => {
@@ -154,7 +155,7 @@ export function InspectionForm() {
   /* 학교 변경 → 대장·결재선·지난 점검값·학교 특징 로드 + 작성 상태 초기화 */
   useEffect(() => {
     setLedger(null); setAnswers({}); setRemarks({}); setPhotos({}); setStatuses({})
-    setSigned(false); setDoneAll(false); setShowMail(false); setSubmitErr(''); setPrevVals({}); setLoadErr('')
+    setSigned(false); setDoneAll(false); setMailOpen(false); setSubmitErr(''); setPrevVals({}); setLoadErr('')
     if (!sid) return
     let alive = true
     api<Ledger>(`/schools/${sid}/ledger`)
@@ -313,18 +314,17 @@ export function InspectionForm() {
 
   /* 메일 문구 (ins-mailto) */
   const schoolName = ledger?.school.name || schools.find((s) => s.id === sid)?.name || ''
-  const schoolMail = ledger?.school.email || ''
+  // 학교 이메일 — 대장 응답에 없으면 학교 목록에서 폴백 [062]
+  const schoolMail = ledger?.school.email || schools.find((s) => s.id === sid)?.email || ''
   const mailSteps = approval.length
     ? approval.map((s) => (s.name ? `${s.title} ${s.name}` : s.title))
     : ['업무담당', '행정실장', '교장']
   const photoNames = PARTDEF.filter((d) => enabled[d.label]).flatMap((d) =>
     (photos[d.label] ?? []).filter((s) => s.name).map((s) => s.name),
   )
+  const mailSubject = `[한국산업안전협회] ${schoolName} 종사자 안전·보건 점검표 송부 (${inspectDate})`
   const mailText = useMemo(() => {
     const lines = [
-      `수신: ${schoolMail || '(학교 이메일 미등록)'}`,
-      `제목: [한국산업안전협회] ${schoolName} 종사자 안전·보건 점검표 송부 (${inspectDate})`,
-      '',
       `${schoolName} 업무담당자님께`,
       '',
       `${inspectDate} 실시한 종사자 안전·보건 점검 결과를 송부드립니다.`,
@@ -339,13 +339,33 @@ export function InspectionForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schoolMail, schoolName, inspectDate, enabled, tally, etc, approval, photos])
 
-  async function copyMail() {
-    try {
-      await navigator.clipboard.writeText(mailText)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      /* clipboard 미지원 환경 */
+  /* [062] 메일 첨부 PDF용 — 현재 입력 상태를 양식 데이터(SheetData)로 조립 */
+  function buildSheet(): SheetData {
+    return {
+      schoolName,
+      date: inspectDate,
+      parts: activeDefs.map((d) => ({
+        part: d.key,
+        items: d.q!.map((question, i) => {
+          const code = `${d.label}-${i + 1}`
+          const a = effAnswer(d.label, i + 1)
+          const exl = ex[d.label] || {}
+          const remark = exl[i + 1] && answers[code] === undefined ? `자동 해당없음 — ${exl[i + 1]}` : effRemark(code)
+          return { code, label: question.split('||')[0], result: a ? RES_API[a] : null, remark }
+        }),
+        signatures: signed && signerName.trim() ? [{ signer: signerName.trim(), signed_at: today }] : [],
+      })),
+      extra: {
+        ids: [],
+        info: {
+          org: '(주)한국산업안전협회', dept: '(주)한국산업안전협회', role: '대표', writer: '(주)한국산업안전협회',
+          writeDate: today, inspectDate, place, accType,
+        },
+        targets: PARTDEF.filter((d) => enabled[d.label]).map((d) => d.key),
+        etc,
+        photos,
+        signer: signed ? signerName.trim() : '',
+      },
     }
   }
 
@@ -493,7 +513,7 @@ export function InspectionForm() {
     setBusy(false)
     if (okAll) {
       setDoneAll(true)
-      setShowMail(true)
+      setMailOpen(true) // 저장 완료 → 학교 메일 전송 창 자동 열기 [062]
     } else {
       setSubmitErr('일부 파트 제출에 실패했습니다. 상태를 확인하세요.')
     }
@@ -778,17 +798,15 @@ export function InspectionForm() {
         </div>
       </div>
 
-      {/* 메일 문구 미리보기 (ins-mailto) */}
-      {showMail && (
-        <div className="insf-mailbox">
-          <div className="insf-ch" style={{ padding: '0 0 2px' }}>
-            <i className="insf-sq" /><h3>학교 메일 제출 문구</h3>
-            <div className="r">
-              <button className="btn" onClick={copyMail}>{copied ? '복사됨 ✓' : '문구 복사'}</button>
-            </div>
-          </div>
-          <div className="insf-mailtext">{mailText}</div>
-        </div>
+      {/* [062] 학교 메일 전송 모달 — 점검표 PDF 자동 첨부 + 학교 이메일 자동 입력 */}
+      {mailOpen && (
+        <InspectionMailModal
+          sheet={buildSheet()}
+          to={schoolMail}
+          subject={mailSubject}
+          body={mailText}
+          onClose={() => setMailOpen(false)}
+        />
       )}
 
       {/* 제출 바 */}
@@ -807,7 +825,7 @@ export function InspectionForm() {
           )}
           {(submitErr || doneAll) && (
             <div className={doneAll && !submitErr ? 'insf-msg' : 'insf-err'} style={doneAll && !submitErr ? { color: 'var(--ok-ink)', fontWeight: 700, marginTop: 4 } : undefined}>
-              {submitErr || '전 파트 제출 완료 — 아래 메일 문구를 복사해 학교로 송부하세요.'}
+              {submitErr || '전 파트 제출 완료 — [✉ 메일] 버튼으로 점검표 PDF를 학교에 송부하세요.'}
             </div>
           )}
           {Object.keys(statuses).length > 0 && (
@@ -823,9 +841,9 @@ export function InspectionForm() {
           <label className="insf-fu">
             <input type="checkbox" checked={followupOn} onChange={(e) => setFollowupOn(e.target.checked)} /> 추후보완
           </label>
-          <button className="btn" onClick={() => setShowMail((v) => !v)}>✉ 메일 문구</button>
+          <button className="btn" disabled={!ledger} onClick={() => setMailOpen(true)}>✉ 메일</button>
           <button className="btn" disabled title="PDF 변환은 제출 후 백엔드에서 생성됩니다">▤ PDF 변환</button>
-          <button className="btn" disabled={busy || !ledger} onClick={() => { void saveDraft() }}>임시저장</button>
+          {/* 임시저장 버튼은 상단 헤더에만 — 하단 중복 버튼 제거 [061] */}
           <button className="btn btn-primary" disabled={busy || !ledger} onClick={submitAll}>
             {busy ? '전송 중…' : '저장 후 SHM 전송'}
           </button>

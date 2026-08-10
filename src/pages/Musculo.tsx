@@ -1,11 +1,15 @@
 // 근골격계 — 학교 목록 → 학교별 조사 이력(연도별) 위계 뷰. Risk.tsx(rkh-) 패턴 준용.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Activity, ArrowLeft, ChevronRight, ClipboardCheck, FileText, Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import { useTableQuery, type FilterDef, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
+import { MyWorkStrip } from '../components/table/MyWorkStrip'
 import { Modal } from '../components/Modal'
+import { useAuth } from '../lib/auth'
+import { hasMusDraft } from '../lib/musDraft'
 import '../styles/hier.css'
 import '../styles/musculohier.css'
 
@@ -29,6 +33,7 @@ type School = {
   manager?: string
   school_level?: string
   address?: string
+  assigned_inspector_id?: string
 }
 // created_at 은 백엔드 목록 응답에 아직 없을 수 있음 — 없으면 '연도 미상' 그룹으로 방어적 처리
 type Survey = {
@@ -66,6 +71,13 @@ const MUS_REPORT_QUERY: TableQueryConfig<MusReportRow> = {
         { value: 'n', label: '없음' },
       ],
       accessor: (r) => (r.sv.needs_review > 0 ? 'y' : 'n'),
+    },
+    {
+      // [063] 검색 패널의 학교급 세그먼트가 사용
+      key: 'level',
+      label: '학교급',
+      options: ['유', '초', '중', '고', '기타'].map((v) => ({ value: v, label: v })),
+      accessor: (r) => r.school.school_level ?? '',
     },
   ],
   sortAccessors: {
@@ -187,6 +199,8 @@ const STAT_LABEL: Record<string, string> = {
 }
 
 export function Musculo() {
+  const nav = useNavigate()
+  const { user } = useAuth()
   const [schools, setSchools] = useState<School[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -331,7 +345,42 @@ export function Musculo() {
     () => schools.flatMap((s) => (surveyMap[s.id] ?? []).map((sv) => ({ school: s, sv }))),
     [schools, surveyMap],
   )
-  const rq = useTableQuery(reportRows, MUS_REPORT_QUERY)
+  // [066] 내 보고서 작업 스트립 — localStorage 보고서 초안(작성중) 기준, 담당 배정 있으면 담당 학교 한정
+  const myIds = useMemo(() => {
+    const mine = schools.filter((s) => s.assigned_inspector_id === (user?.login ?? ''))
+    return mine.length > 0 ? new Set(mine.map((s) => s.id)) : null
+  }, [schools, user])
+  const myWorkItems = useMemo(
+    () => schools
+      .filter((s) => (!myIds || myIds.has(s.id)) && hasMusDraft(s.id))
+      .map((s) => ({
+        key: s.id,
+        school: s.name,
+        detail: '보고서 초안 작성중',
+        onResume: () => nav(`/musculo/report?school=${s.id}`),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [schools, myIds],
+  )
+
+  // [063] 학교명·지역명 확정형 검색 (학교 탭과 동일 UX)
+  const [applied, setApplied] = useState({ name: '', region: '' })
+  const searchedReportRows = useMemo(() => {
+    const nq = applied.name.toLowerCase()
+    const gq = applied.region.toLowerCase()
+    if (!nq && !gq) return reportRows
+    return reportRows.filter(
+      (r) =>
+        (!nq || r.school.name.toLowerCase().includes(nq)) &&
+        (!gq || (r.school.address ?? '').toLowerCase().includes(gq)),
+    )
+  }, [reportRows, applied])
+  const rq = useTableQuery(searchedReportRows, MUS_REPORT_QUERY)
+  const doPanelSearch = (s: WorkSearch) => {
+    setApplied({ name: s.name, region: s.region })
+    rq.setFilter('level', s.level)
+    rq.setPage(1)
+  }
 
   function openSchool(s: School) {
     setSel(s)
@@ -526,13 +575,17 @@ export function Musculo() {
       {/* ── 1단계: 학교 목록 ── */}
       {!sel && !error && (
         <>
+          {/* [066] 내 보고서 작업 스트립 */}
+          <MyWorkStrip title="내 보고서 작업" items={myWorkItems} mineOnly={!!myIds} />
+
+          {/* [063] 학교 탭과 동일한 검색 패널 */}
+          <WorkSearchPanel onSearch={doPanelSearch} onClear={(f) => setApplied((a) => ({ ...a, [f]: '' }))} />
+
           <div className="ledger">
             <div className="lh">
               <h2><Activity size={18} /> 작성된 조사</h2>
               <span className="pillx doing">{rq.total}건</span>
               <div className="sp" />
-              <FilterBar q={rq} />
-              <ExportButton q={rq} columns={MUS_REPORT_EXPORT} filename="근골격계_조사목록" />
             </div>
             <div className="twrap">
               <table className="tbl">

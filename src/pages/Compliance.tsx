@@ -10,14 +10,17 @@ import { ArrowLeft, ChevronRight, FileCheck2, Mail, Plus, Printer } from 'lucide
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
-import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
+import { MyWorkStrip } from '../components/table/MyWorkStrip'
+import { useAuth } from '../lib/auth'
 import {
   ComplianceSheetForm, ComplianceSheetPrint, emptySheet, periodLabel, sheetProgress,
   type CxDoc, type CxSheet,
 } from '../features/compliance/ComplianceSheet'
 import '../styles/hier.css'
 
-type School = { id: string; name: string; manager?: string; school_level?: string; email?: string }
+type School = { id: string; name: string; manager?: string; school_level?: string; address?: string; email?: string; assigned_inspector_id?: string }
 
 const DOC_KEY = 'compliance-sheets'
 const YEAR = String(new Date().getFullYear())
@@ -42,6 +45,12 @@ const CX_REPORT_QUERY: TableQueryConfig<CxReportRow> = {
       { value: 'draft', label: '작성 중' },
     ],
     accessor: (r) => (r.sheet.status === 'submitted' ? 'submitted' : 'draft'),
+  }, {
+    // [063] 검색 패널의 학교급 세그먼트가 사용
+    key: 'level',
+    label: '학교급',
+    options: ['유', '초', '중', '고', '기타'].map((v) => ({ value: v, label: v })),
+    accessor: (r) => r.school.school_level ?? '',
   }],
   sortAccessors: {
     period: (r) => r.periodKey,
@@ -79,6 +88,7 @@ const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
 ]
 
 export function Compliance() {
+  const { user } = useAuth()
   const [schools, setSchools] = useState<School[]>([])
   const [doc, setDoc] = useState<CxDoc>({})
   const [loading, setLoading] = useState(true)
@@ -169,7 +179,41 @@ export function Compliance() {
     }
     return out
   }, [schools, doc])
-  const rq = useTableQuery(reportRows, CX_REPORT_QUERY)
+  // [066] 내 조사지 작업 스트립 — 작성중(미제출) 조사지, 담당 배정 있으면 담당 학교 한정
+  const myIds = useMemo(() => {
+    const mine = schools.filter((s) => s.assigned_inspector_id === (user?.login ?? ''))
+    return mine.length > 0 ? new Set(mine.map((s) => s.id)) : null
+  }, [schools, user])
+  const myWorkItems = useMemo(
+    () => reportRows
+      .filter((r) => r.sheet.status !== 'submitted' && (!myIds || myIds.has(r.school.id)))
+      .map((r) => ({
+        key: r.school.id + r.periodKey,
+        school: r.school.name,
+        detail: periodLabel(r.periodKey),
+        onResume: () => { setSel(r.school); setEditKey(r.periodKey) },
+      })),
+    [reportRows, myIds],
+  )
+
+  // [063] 학교명·지역명 확정형 검색 (학교 탭과 동일 UX)
+  const [applied, setApplied] = useState({ name: '', region: '' })
+  const searchedReportRows = useMemo(() => {
+    const nq = applied.name.toLowerCase()
+    const gq = applied.region.toLowerCase()
+    if (!nq && !gq) return reportRows
+    return reportRows.filter(
+      (r) =>
+        (!nq || r.school.name.toLowerCase().includes(nq)) &&
+        (!gq || (r.school.address ?? '').toLowerCase().includes(gq)),
+    )
+  }, [reportRows, applied])
+  const rq = useTableQuery(searchedReportRows, CX_REPORT_QUERY)
+  const doPanelSearch = (s: WorkSearch) => {
+    setApplied({ name: s.name, region: s.region })
+    rq.setFilter('level', s.level)
+    rq.setPage(1)
+  }
 
   /* ── 학교별 조사지 목록: 실제 작성된 조사지만 표시 (연도 역순) — 새 조사지는 [조사지 작성]으로 생성 ── */
   const periodKeys = useMemo(() => {
@@ -220,13 +264,17 @@ export function Compliance() {
 
       {/* ═════ 1단계: 학교 목록 ═════ */}
       {!sel && (
+        <>
+        {/* [066] 내 조사지 작업 스트립 */}
+        <MyWorkStrip title="내 조사지 작업" items={myWorkItems} mineOnly={!!myIds} />
+
+        {/* [063] 학교 탭과 동일한 검색 패널 */}
+        <WorkSearchPanel onSearch={doPanelSearch} onClear={(f) => setApplied((a) => ({ ...a, [f]: '' }))} />
         <div className="ledger">
           <div className="lh">
             <h2><FileCheck2 size={18} /> 작성된 조사지</h2>
             <span className="pillx doing">{rq.total}건</span>
             <div className="sp" />
-            <FilterBar q={rq} />
-            <ExportButton q={rq} columns={CX_REPORT_EXPORT} filename="이행점검_조사지목록" />
           </div>
           <div className="twrap">
             <table className="tbl">
@@ -267,6 +315,7 @@ export function Compliance() {
           </div>
           <Pagination q={rq} />
         </div>
+        </>
       )}
 
       {/* ═════ 2단계: 학교별 조사지 리스트 ═════ */}

@@ -27,7 +27,8 @@ const PART_ORDER = ['catering', 'night_duty', 'commute', 'facility', 'cleaning']
 // 저장값 → 표시 컬럼 (구 시드 ok/fix 값도 방어적으로 수용)
 const RES_COL: Record<string, 0 | 1 | 2> = { good: 0, ok: 0, poor: 1, fix: 1, na: 2 }
 
-export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onClose: () => void }) {
+// 양식 본문 — 오버레이 보기와 메일 PDF 캡처([062])가 공용으로 사용
+export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
   const signer = sheet.parts.flatMap((p) => p.signatures).find((s) => s.signer)?.signer || ''
   const signedAt = sheet.parts
     .flatMap((p) => p.signatures)
@@ -41,16 +42,7 @@ export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onCl
   const targets = extra?.targets?.length ? new Set(extra.targets) : included
   const finalSigner = extra?.signer || signer
 
-  // document.body 포탈 — 앱 레이아웃(오버플로·포지셔닝) 영향 없이 인쇄 시 양식만 출력되게 [054]
-  return createPortal(
-    <div className="inss-overlay" role="dialog" aria-label="종사자 안전·보건 점검표">
-      <div className="inss-bar">
-        <b>종사자 안전·보건 점검표 — {sheet.schoolName}{sheet.date ? ` · ${sheet.date}` : ' · 작성중'}</b>
-        <div className="sp" />
-        <button className="btn btn-primary" onClick={() => window.print()}><Printer size={14} /> 인쇄 / PDF 저장</button>
-        <button className="btn btn-ghost" onClick={onClose}><X size={14} /> 닫기</button>
-      </div>
-
+  return (
       <div className="inss-page">
         {/* 제목 + 결재란 */}
         <div className="inss-head">
@@ -186,6 +178,20 @@ export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onCl
           {signedAt && <span className="dt">서명일 {signedAt}</span>}
         </div>
       </div>
+  )
+}
+
+export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onClose: () => void }) {
+  // document.body 포탈 — 앱 레이아웃(오버플로·포지셔닝) 영향 없이 인쇄 시 양식만 출력되게 [054]
+  return createPortal(
+    <div className="inss-overlay" role="dialog" aria-label="종사자 안전·보건 점검표">
+      <div className="inss-bar">
+        <b>종사자 안전·보건 점검표 — {sheet.schoolName}{sheet.date ? ` · ${sheet.date}` : ' · 작성중'}</b>
+        <div className="sp" />
+        <button className="btn btn-primary" onClick={() => window.print()}><Printer size={14} /> 인쇄 / PDF 저장</button>
+        <button className="btn btn-ghost" onClick={onClose}><X size={14} /> 닫기</button>
+      </div>
+      <InspectionSheetBody sheet={sheet} />
     </div>,
     document.body,
   )

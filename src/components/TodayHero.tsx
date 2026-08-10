@@ -4,8 +4,9 @@
 // 조회 실패 시 해당 칩만 생략(화면은 항상 렌더).
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Activity, BookOpen, CheckCircle2, ChevronRight, ClipboardCheck, ListTodo } from 'lucide-react'
+import { Activity, AlertTriangle, BookOpen, CheckCircle2, ChevronRight, ClipboardCheck, FileCheck2, ListTodo } from 'lucide-react'
 import { api } from '../lib/api'
+import { hasMusDraft } from '../lib/musDraft'
 
 export type TodayItem = { key: string; name: string; school_id?: string; done: boolean }
 type SchoolLite = { id: string; name: string; school_level?: string; manager?: string }
@@ -14,8 +15,8 @@ type TaskChip = { label: string; cls: 'warn' | 'doing' | 'bad' | 'muted' }
 type InspRow = { status: string; submitted_at?: string | null; signed_at?: string | null }
 type StatusRow = { status: string }
 type MusRow = { needs_review: number }
-// 학교별 업무 요약 — 칩 + 작성중(임시저장) 점검 존재 여부 [058]
-type SchoolTasks = { chips: TaskChip[]; hasDraft: boolean }
+// 학교별 업무 요약 — 칩 + 업무별 진행중(이어서 작성 가능) 여부 [058][065]
+type SchoolTasks = { chips: TaskChip[]; inspDraft: boolean; riskDoing: boolean; compDraft: boolean }
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
@@ -23,9 +24,9 @@ const DOW = ['일', '월', '화', '수', '목', '금', '토']
 function deriveTasks(insp: InspRow[], risk: StatusRow[], comp: StatusRow[], mus: MusRow[], ym: string): SchoolTasks {
   const out: TaskChip[] = []
   // 작성중(임시저장) 점검이 있으면 '이어서 작성' 안내가 미실시 경고를 대체 [058]
-  const hasDraft = insp.some((r) => r.status === 'draft')
+  const inspDraft = insp.some((r) => r.status === 'draft')
   const inspDone = insp.some((r) => ((r.submitted_at || r.signed_at || '') + '').slice(0, 7) === ym)
-  if (hasDraft) out.push({ label: '안전점검 작성중 · 이어서 작성', cls: 'doing' })
+  if (inspDraft) out.push({ label: '안전점검 작성중 · 이어서 작성', cls: 'doing' })
   else if (!inspDone) out.push({ label: '안전점검 · 이번 달 미실시', cls: 'warn' })
   const riskDoing = risk.filter((r) => r.status !== 'completed').length
   if (riskDoing > 0) out.push({ label: `위험성평가 진행 ${riskDoing}건`, cls: 'doing' })
@@ -34,7 +35,12 @@ function deriveTasks(insp: InspRow[], risk: StatusRow[], comp: StatusRow[], mus:
   const review = mus.reduce((a, m) => a + (m.needs_review || 0), 0)
   if (review > 0) out.push({ label: `증상조사표 검수 ${review}건`, cls: 'bad' })
   if (out.length === 0) out.push({ label: '특이 업무 없음 · 정기 방문', cls: 'muted' })
-  return { chips: out, hasDraft }
+  return {
+    chips: out,
+    inspDraft,
+    riskDoing: riskDoing > 0,
+    compDraft: comp.some((c) => c.status === 'draft'),
+  }
 }
 
 export function TodayHero(p: {
@@ -113,7 +119,8 @@ export function TodayHero(p: {
             const sc = it.school_id ? schoolById.get(it.school_id) : undefined
             const st = it.school_id ? tasks[it.school_id] : undefined
             const chips = st?.chips
-            const hasDraft = st?.hasDraft ?? false
+            const inspDraft = st?.inspDraft ?? false
+            const musDraft = openKey === it.key ? hasMusDraft(it.school_id) : false // 펼친 행만 검사
             const clickable = !!it.school_id
             return (
               <div
@@ -147,19 +154,37 @@ export function TodayHero(p: {
                   {/* 빠른 실행 — 행 클릭으로 펼침 [044] */}
                   {openKey === it.key && it.school_id && (
                     <div className="hm-td-actions" onClick={(e) => e.stopPropagation()}>
-                      {/* 작성중(임시저장) 점검이 있으면 이어서 작성하기로 전환 — 점검 현황의 resumeall 경로와 동일 [058] */}
-                      {hasDraft ? (
+                      {/* [058][065] 업무별 진행중이면 각 버튼이 '이어서 작성하기'로 전환 */}
+                      {inspDraft ? (
                         <button className="hm-qbtn hm-qbtn-resume" onClick={() => nav(`/inspection/new?school=${it.school_id}&resumeall=1`)}>
-                          <ClipboardCheck size={13} /> 이어서 작성하기
+                          <ClipboardCheck size={13} /> 안전점검 이어서 작성하기
                         </button>
                       ) : (
                         <button className="hm-qbtn" onClick={() => nav(`/inspection/new?school=${it.school_id}`)}>
                           <ClipboardCheck size={13} /> 안전점검 작성
                         </button>
                       )}
-                      <button className="hm-qbtn" onClick={() => nav(`/musculo/report?school=${it.school_id}`)}>
-                        <Activity size={13} /> 근골격계 보고서
-                      </button>
+                      {/* 근골격계 — 보고서 초안(localStorage 자동 저장·복원)이 있으면 이어서 작성 [065] */}
+                      {musDraft ? (
+                        <button className="hm-qbtn hm-qbtn-resume" onClick={() => nav(`/musculo/report?school=${it.school_id}`)}>
+                          <Activity size={13} /> 근골격계 이어서 작성하기
+                        </button>
+                      ) : (
+                        <button className="hm-qbtn" onClick={() => nav(`/musculo/report?school=${it.school_id}`)}>
+                          <Activity size={13} /> 근골격계 보고서
+                        </button>
+                      )}
+                      {/* 위험성평가·이행점검 — 진행중일 때만 이어서 작성 버튼 노출 [065] */}
+                      {st?.riskDoing && (
+                        <button className="hm-qbtn hm-qbtn-resume" onClick={() => nav(`/risk?school=${it.school_id}`)}>
+                          <AlertTriangle size={13} /> 위험성평가 이어서 작성하기
+                        </button>
+                      )}
+                      {st?.compDraft && (
+                        <button className="hm-qbtn hm-qbtn-resume" onClick={() => nav(`/compliance?school=${it.school_id}`)}>
+                          <FileCheck2 size={13} /> 이행점검 이어서 작성하기
+                        </button>
+                      )}
                       <button className="hm-qbtn" onClick={() => nav('/schools/' + it.school_id)}>
                         <BookOpen size={13} /> 대장 보기
                       </button>
