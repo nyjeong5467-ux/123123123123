@@ -34,6 +34,10 @@ type School = {
   address?: string
   assigned_inspector_id?: string
 }
+// [073] 모듈 스코프 세션 캐시 — 탭 재진입 시 전 학교 GET /risk·/risk/survey(N+1) 재발사 방지 ([060] 패턴)
+let riskSession: { account: string; schools: School[]; map: Record<string, RiskItem[]> } | null = null
+let riskDocSession: { account: string; schools: School[]; map: Record<string, { d: SurveyData; updated: string }> } | null = null
+
 // category('regular'|'adhoc')·산재 연동 필드는 백엔드가 병렬 추가 중 — 없으면 정기로 간주
 type RiskItem = {
   id: string
@@ -264,13 +268,18 @@ const RISK_REPORT_QUERY: TableQueryConfig<RiskReportRow> = {
   }, {
     // [063] 검색 패널의 학교급 세그먼트가 사용
     key: 'level',
-    label: '학교급',
+    label: '구분',
     options: ['유', '초', '중', '고', '기타'].map((v) => ({ value: v, label: v })),
     accessor: (r) => r.school.school_level ?? '',
   }],
-  sortAccessors: { date: (r) => r.date, name: (r) => r.school.name },
+  sortAccessors: {
+    date: (r) => r.date,
+    name: (r) => r.school.name,
+    level: (r) => LEVEL_ORDER_RV[r.school.school_level ?? ''] ?? 99, // 구분(학교급) 정렬 [070]
+  },
   initialSort: { key: 'date', dir: 'desc' },
 }
+const LEVEL_ORDER_RV: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, 기타: 4 }
 const RISK_REPORT_EXPORT: ExportColumn<RiskReportRow>[] = [
   { header: '구분', value: (r) => r.kind },
   { header: '보고서', value: (r) => r.title },
@@ -311,6 +320,7 @@ export function Risk() {
   const [docLoading, setDocLoading] = useState(false)
   useEffect(() => {
     if (!schools.length) return
+    if (riskDocSession && riskDocSession.schools === schools) return // 캐시 적중 [073]
     let alive = true
     setDocLoading(true)
     void Promise.all(
@@ -322,10 +332,12 @@ export function Risk() {
       if (!alive) return
       const m: Record<string, { d: SurveyData; updated: string }> = {}
       for (const it of list) if (it.doc) m[it.id] = it.doc
+      riskDocSession = { account: user?.login ?? '', schools, map: m } // [073]
       setDocMap(m)
       setDocLoading(false)
     })
     return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schools])
 
   const reportRows: RiskReportRow[] = useMemo(() => {
@@ -338,7 +350,7 @@ export function Risk() {
         out.push({
           school: s, kind: '정기',
           title: `${sm.year}년 정기 위험성평가 결과보고서`,
-          statusLabel: sm.okCnt === 5 ? '작성 완료' : '작성 중',
+          statusLabel: sm.okCnt === 5 ? '작성 완료' : '작성중',
           statusCls: sm.okCnt === 5 ? 'ok' : 'doing',
           progress: `섹션 ${sm.okCnt}/5` + (sm.high > 0 ? ` · 8점 이상 ${sm.high}건` : ''),
           date: (doc.updated || '').slice(0, 10),
@@ -426,6 +438,10 @@ export function Risk() {
       await api('/risk/survey', { method: 'PUT', body: JSON.stringify({ school_id: sel.id, sections: ctxReport.d }) })
       // 조사표 탭이 같은 학교를 이미 로드해 뒀다면 최신 문서로 동기화
       if (surveyLoadedSid.current === sel.id) setSurvey(ctxReport.d)
+      // 첫 화면 보고서 리스트·세션 캐시에도 저장분 반영 [073]
+      const entry = { d: ctxReport.d, updated: new Date().toISOString() }
+      setDocMap((m) => ({ ...m, [sel.id]: entry }))
+      if (riskDocSession) riskDocSession.map = { ...riskDocSession.map, [sel.id]: entry }
     } catch { /* 저장 실패 — 화면 상태 유지 */ } finally {
       setCtxBusy(false)
     }
@@ -459,8 +475,19 @@ export function Risk() {
   const [surveyBusy, setSurveyBusy] = useState(false)
   const surveyLoadedSid = useRef('') // GET 이 반영된 학교 id (재진입 시 편집 내용 보존)
 
-  // 학교 목록 로드
+  // 학교 목록 로드 — 세션 캐시 적중 시 재조회 없이 복원 [073]
   useEffect(() => {
+    const acct = user?.login ?? ''
+    if (riskSession && riskSession.account === acct) {
+      setSchools(riskSession.schools)
+      setRiskMap(riskSession.map)
+      if (riskDocSession && riskDocSession.account === acct && riskDocSession.schools === riskSession.schools) {
+        setDocMap(riskDocSession.map)
+      }
+      if (riskSession.schools.length) setSid(riskSession.schools[0].id)
+      setLoading(false)
+      return
+    }
     let alive = true
     api<School[]>('/schools')
       .then((s) => {
@@ -472,11 +499,13 @@ export function Risk() {
       })
       .catch((e) => { if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) } })
     return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 전 학교 평가 목록 로드 → 학교 행 요약(건수/최근일)과 2단계 그룹에 사용
   useEffect(() => {
     if (!schools.length) return
+    if (riskSession && riskSession.schools === schools) return // 캐시 적중 — 재조회 0건 [073]
     let alive = true
     setSumLoading(true)
     Promise.all(
@@ -487,16 +516,23 @@ export function Risk() {
       ),
     ).then((entries) => {
       if (!alive) return
-      setRiskMap(Object.fromEntries(entries))
+      const map = Object.fromEntries(entries)
+      riskSession = { account: user?.login ?? '', schools, map } // [073]
+      setRiskMap(map)
       setSumLoading(false)
     })
     return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schools])
 
-  // 특정 학교만 재조회 (생성 후 / 학교 진입 시 최신화)
+  // 특정 학교만 재조회 (생성 후 / 학교 진입 시 최신화) — 세션 캐시도 함께 갱신 [073]
   const refetchSchool = useCallback((schoolId: string) => {
     api<RiskItem[]>(`/risk?school_id=${schoolId}`)
-      .then((d) => setRiskMap((m) => ({ ...m, [schoolId]: Array.isArray(d) ? d : [] })))
+      .then((d) => {
+        const arr = Array.isArray(d) ? d : []
+        if (riskSession) riskSession.map = { ...riskSession.map, [schoolId]: arr }
+        setRiskMap((m) => ({ ...m, [schoolId]: arr }))
+      })
       .catch(() => { /* 캐시 유지 */ })
   }, [])
 
@@ -704,6 +740,10 @@ export function Risk() {
         body: JSON.stringify({ school_id: sid, sections: survey }),
       })
       surveyLoadedSid.current = sid
+      // 첫 화면 보고서 리스트·세션 캐시에도 저장분 반영 [073]
+      const entry = { d: survey, updated: r.updated_at || new Date().toISOString() }
+      setDocMap((m) => ({ ...m, [sid]: entry }))
+      if (riskDocSession) riskDocSession.map = { ...riskDocSession.map, [sid]: entry }
       const when = r.updated_at ? r.updated_at.replace('T', ' ').slice(0, 16) : ''
       setSurveyMsg(when ? `저장되었습니다. · ${when}` : '저장되었습니다.')
     } catch (e) {
@@ -824,8 +864,9 @@ export function Risk() {
                 <thead>
                   <tr>
                     <SortableTh q={rq} col="date">최근 저장</SortableTh>
-                    <th className="c">구분</th>
+                    <th className="c">평가 구분</th>
                     <th>보고서</th>
+                    <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                     <SortableTh q={rq} col="name">학교</SortableTh>
                     <th>진행</th>
                     <th className="c">상태</th>
@@ -833,13 +874,14 @@ export function Risk() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(loading || docLoading) && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
-                  {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
+                  {(loading || docLoading) && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
+                  {!loading && error && <tr><td colSpan={8}><div className="tstate">오류: {error}</div></td></tr>}
                   {!loading && !docLoading && !error && rq.view.map((r, i) => (
                     <tr key={r.school.id + r.kind + i} onClick={() => { openSchool(r.school); if (r.kind === '수시') setCtxTab('adhoc') }}>
                       <td>{r.date || '—'}</td>
                       <td className="c"><span className={'pillx ' + (r.kind === '수시' ? 'warn' : 'doing')}>{r.kind}</span></td>
                       <td><b>{r.title}</b></td>
+                      <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
                       <td>{r.school.name}</td>
                       <td>{r.progress}</td>
                       <td className="c"><span className={'pillx ' + r.statusCls}>{r.statusLabel}</span></td>
@@ -847,7 +889,7 @@ export function Risk() {
                     </tr>
                   ))}
                   {!loading && !docLoading && !error && rq.view.length === 0 && (
-                    <tr><td colSpan={7}><div className="tstate">{reportRows.length === 0 ? '작성된 보고서가 없습니다. 학교 탭의 [위험성평가] 바로가기에서 작성하세요.' : '조건에 맞는 보고서가 없습니다.'}</div></td></tr>
+                    <tr><td colSpan={8}><div className="tstate">{reportRows.length === 0 ? '작성된 보고서가 없습니다. 학교 탭의 [위험성평가] 바로가기에서 작성하세요.' : '조건에 맞는 보고서가 없습니다.'}</div></td></tr>
                   )}
                 </tbody>
               </table>
@@ -915,7 +957,7 @@ export function Risk() {
               partCnt > 0,
             ]
             const okCnt = secOk.filter(Boolean).length
-            const status: [string, string] = !started ? ['미작성', 'todo'] : okCnt === 5 ? ['작성 완료', 'ok'] : ['작성 중', 'doing']
+            const status: [string, string] = !started ? ['미작성', 'todo'] : okCnt === 5 ? ['작성 완료', 'ok'] : ['작성중', 'doing']
             return (
               <div className="ledger" style={{ marginBottom: 0 }}>
                 <div className="lh">

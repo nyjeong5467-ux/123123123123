@@ -26,7 +26,7 @@ const LEVEL_ORDER: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, �
 const SCH_FILTERS: FilterDef<School>[] = [
   {
     key: 'level',
-    label: '학교급',
+    label: '구분',
     options: LEVELS.map((l) => ({ value: l, label: l })),
     accessor: (r) => r.school_level ?? '',
   },
@@ -183,7 +183,7 @@ export function SchoolStatus() {
                 <input className="input" value={rName} onChange={(e) => setRName(e.target.value)} placeholder="학교(기관)명" />
               </label>
               <label className="field">
-                <span>학교급(구분)</span>
+                <span>구분</span>
                 <select className="select" value={rLevel} onChange={(e) => setRLevel(e.target.value)}>
                   <option value="">선택</option>
                   {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}

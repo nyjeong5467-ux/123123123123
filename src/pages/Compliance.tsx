@@ -29,7 +29,7 @@ const CUR_PERIODS = [`${YEAR}_h1`, `${YEAR}_h2`]
 function sheetStatus(s: CxSheet | undefined): [string, string] {
   if (!s) return ['미작성', 'todo']
   if (s.status === 'submitted') return ['제출 완료', 'ok']
-  return ['작성 중', 'doing']
+  return ['작성중', 'doing']
 }
 
 // ===== 1단계(개편 0807): 작성된 조사지 리스트 — 점검자들이 작성한 조사지가 곧 첫 화면 =====
@@ -42,13 +42,13 @@ const CX_REPORT_QUERY: TableQueryConfig<CxReportRow> = {
     label: '상태',
     options: [
       { value: 'submitted', label: '제출 완료' },
-      { value: 'draft', label: '작성 중' },
+      { value: 'draft', label: '작성중' },
     ],
     accessor: (r) => (r.sheet.status === 'submitted' ? 'submitted' : 'draft'),
   }, {
     // [063] 검색 패널의 학교급 세그먼트가 사용
     key: 'level',
-    label: '학교급',
+    label: '구분',
     options: ['유', '초', '중', '고', '기타'].map((v) => ({ value: v, label: v })),
     accessor: (r) => r.school.school_level ?? '',
   }],
@@ -56,9 +56,11 @@ const CX_REPORT_QUERY: TableQueryConfig<CxReportRow> = {
     period: (r) => r.periodKey,
     name: (r) => r.school.name,
     submitted: (r) => r.sheet.submitted_date ?? '',
+    level: (r) => LEVEL_ORDER_CX[r.school.school_level ?? ''] ?? 99, // 구분(학교급) 정렬 [070]
   },
   initialSort: { key: 'period', dir: 'desc' },
 }
+const LEVEL_ORDER_CX: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, 기타: 4 }
 const CX_REPORT_EXPORT: ExportColumn<CxReportRow>[] = [
   { header: '조사지', value: (r) => periodLabel(r.periodKey) },
   { header: '학교', value: (r) => r.school.name },
@@ -74,7 +76,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
   searchFields: [(r) => r.name, (r) => r.manager ?? ''],
   searchPlaceholder: '학교명·담당자 검색',
   filters: [{
-    key: 'level', label: '학교급',
+    key: 'level', label: '구분',
     options: SCHOOL_LEVELS.map((v) => ({ value: v, label: v })),
     accessor: (r) => r.school_level || '기타',
   }],
@@ -281,6 +283,7 @@ export function Compliance() {
               <thead>
                 <tr>
                   <SortableTh q={rq} col="period">조사지</SortableTh>
+                  <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                   <SortableTh q={rq} col="name">학교</SortableTh>
                   <th>담당자</th>
                   <th className="c">결과 기입</th>
@@ -290,14 +293,15 @@ export function Compliance() {
                 </tr>
               </thead>
               <tbody>
-                {loading && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
-                {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
+                {loading && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
+                {!loading && error && <tr><td colSpan={8}><div className="tstate">오류: {error}</div></td></tr>}
                 {!loading && !error && rq.view.map((r) => {
                   const st = sheetStatus(r.sheet)
                   const pg = sheetProgress(r.sheet)
                   return (
                     <tr key={r.school.id + r.periodKey} onClick={() => { setSel(r.school); setEditKey('') }}>
                       <td><b>{periodLabel(r.periodKey)} 점검 조사지</b></td>
+                      <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
                       <td>{r.school.name}</td>
                       <td>{r.school.manager || '—'}</td>
                       <td className="c">{pg.done}/{pg.total}</td>
@@ -308,7 +312,7 @@ export function Compliance() {
                   )
                 })}
                 {!loading && !error && rq.view.length === 0 && (
-                  <tr><td colSpan={7}><div className="tstate">{reportRows.length === 0 ? '작성된 조사지가 없습니다. 학교 탭의 [이행점검] 바로가기에서 교육청 공문 접수 후 작성하세요.' : '조건에 맞는 조사지가 없습니다.'}</div></td></tr>
+                  <tr><td colSpan={8}><div className="tstate">{reportRows.length === 0 ? '작성된 조사지가 없습니다. 학교 탭의 [이행점검] 바로가기에서 교육청 공문 접수 후 작성하세요.' : '조건에 맞는 조사지가 없습니다.'}</div></td></tr>
                 )}
               </tbody>
             </table>

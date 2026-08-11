@@ -93,7 +93,7 @@ type Person = {
 }
 
 const ST: Record<PStat, [string, string]> = {
-  done: ['ok', '작성 완료'], review: ['warn', '인식 검수 필요'], doing: ['doing', '작성 중'], todo: ['todo', '미제출'],
+  done: ['ok', '작성 완료'], review: ['warn', '인식 검수 필요'], doing: ['doing', '작성중'], todo: ['todo', '미제출'],
 }
 const VIA: Record<Via, [string, string]> = { mob: ['mob', '직접 입력'], omr: ['omr', '종이 OMR'], non: ['non', '미배포'] }
 

@@ -252,7 +252,7 @@ export function Sessions() {
                 <input className="input" placeholder="학교명·담당자 검색" value={schQ} onChange={(e) => setSchQ(e.target.value)} />
               </span>
               <select className="select" value={schLevel} onChange={(e) => setSchLevel(e.target.value)} style={{ width: 120 }}>
-                <option value="">학교급 전체</option>
+                <option value="">구분 전체</option>
                 {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
               </select>
               <button className={'sess-preset' + (onlyMine ? ' on' : '')} onClick={() => setOnlyMine((v) => !v)}

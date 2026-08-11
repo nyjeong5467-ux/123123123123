@@ -27,7 +27,7 @@ const PART_OPTIONS: { value: string; label: string }[] = [
 const STATUS: Record<string, { label: string; cls: string }> = {
   draft: { label: '작성중', cls: 'todo' },
   signed: { label: '서명완료', cls: 'doing' },
-  submitted: { label: '제출', cls: 'ok' },
+  submitted: { label: '제출 완료', cls: 'ok' },
 }
 const EDUOFFICE: Record<string, { label: string; cls: string }> = {
   pending: { label: '대기', cls: 'todo' },
@@ -57,6 +57,10 @@ type Inspection = {
 }
 type School = { id: string; name: string; manager?: string; school_level?: string; address?: string; assigned_inspector_id?: string }
 
+// [073] 모듈 스코프 세션 캐시 — 탭 재진입 때마다 전 학교 학교별 GET /inspections(N+1)이
+// 재발사되어 목서버가 밀리던 문제 방지 ([060] 학교 허브와 동일 패턴). 브라우저 새로고침 시 소멸.
+let insSession: { account: string; schools: School[]; map: Record<string, Inspection[]> } | null = null
+
 // 점검 일자 — 엔티티에 created_at 이 없어 제출일 → 서명일 → 서명기록 순으로 방어적으로 산출
 function dateOf(r: Inspection): string {
   const d = r.submitted_at || r.signed_at || r.signatures?.[0]?.signed_at || r.created_at || ''
@@ -78,7 +82,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
   filters: [
     {
       key: 'level',
-      label: '학교급',
+      label: '구분',
       options: LEVELS.map((l) => ({ value: l, label: l })),
       accessor: (r) => r.school_level ?? '',
     },
@@ -92,13 +96,13 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
   },
 }
 const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
-  { header: '학교급', value: (r) => r.school_level || '' },
+  { header: '구분', value: (r) => r.school_level || '' },
   { header: '학교', value: (r) => r.name },
   { header: '담당자', value: (r) => r.manager || '' },
   { header: '점검 건수', value: (r) => r.count },
   { header: '작성중', value: (r) => r.draft },
   { header: '서명완료', value: (r) => r.signed },
-  { header: '제출', value: (r) => r.submitted },
+  { header: '제출 완료', value: (r) => r.submitted },
   { header: '최근 점검일', value: (r) => r.latest },
 ]
 
@@ -122,13 +126,13 @@ const REPORT_QUERY: TableQueryConfig<InsReportRow> = {
       options: [
         { value: 'draft', label: '작성중' },
         { value: 'signed', label: '서명완료' },
-        { value: 'submitted', label: '제출' },
+        { value: 'submitted', label: '제출 완료' },
       ],
       accessor: (r) => r.status,
     },
     {
       key: 'level',
-      label: '학교급',
+      label: '구분',
       options: LEVELS.map((l) => ({ value: l, label: l })),
       accessor: (r) => r.school.school_level ?? '',
     },
@@ -136,6 +140,7 @@ const REPORT_QUERY: TableQueryConfig<InsReportRow> = {
   sortAccessors: {
     date: (r) => r.date,
     name: (r) => r.school.name,
+    level: (r) => LEVEL_ORDER[r.school.school_level ?? ''] ?? 99, // 구분(학교급) 정렬 [070]
   },
   initialSort: { key: 'date', dir: 'desc' },
 }
@@ -246,8 +251,15 @@ export function Inspection() {
     setSheetView({ schoolName: school.name, manager: school.manager, date, parts, extra })
   }
 
-  // 학교 목록 로드
+  // 학교 목록 로드 — 세션 캐시 적중 시 재조회 없이 복원 [073]
   useEffect(() => {
+    const acct = user?.login ?? ''
+    if (insSession && insSession.account === acct) {
+      setSchools(insSession.schools)
+      setInsMap(insSession.map)
+      setLoading(false)
+      return
+    }
     let alive = true
     api<School[]>('/schools')
       .then((d) => {
@@ -257,11 +269,13 @@ export function Inspection() {
       })
       .catch((e) => { if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) } })
     return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 전 학교 점검 목록 병렬 로드 → 학교 행 요약(건수/상태 분포/최근일)과 2단계 그룹에 사용
   useEffect(() => {
     if (!schools.length) return
+    if (insSession && insSession.schools === schools) return // 캐시 적중 — 탭 재진입 시 재조회 0건 [073]
     let alive = true
     setSumLoading(true)
     Promise.all(
@@ -272,16 +286,23 @@ export function Inspection() {
       ),
     ).then((entries) => {
       if (!alive) return
-      setInsMap(Object.fromEntries(entries))
+      const map = Object.fromEntries(entries)
+      insSession = { account: user?.login ?? '', schools, map } // [073]
+      setInsMap(map)
       setSumLoading(false)
     })
     return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schools])
 
-  // 특정 학교만 재조회 (생성 후 / 학교 진입 시 최신화)
+  // 특정 학교만 재조회 (생성 후 / 학교 진입 시 최신화) — 세션 캐시도 함께 갱신 [073]
   const refetchSchool = useCallback((schoolId: string) => {
     api<Inspection[]>(`/inspections?school_id=${schoolId}`)
-      .then((d) => setInsMap((m) => ({ ...m, [schoolId]: Array.isArray(d) ? d : [] })))
+      .then((d) => {
+        const arr = Array.isArray(d) ? d : []
+        if (insSession) insSession.map = { ...insSession.map, [schoolId]: arr }
+        setInsMap((m) => ({ ...m, [schoolId]: arr }))
+      })
       .catch(() => { /* 캐시 유지 */ })
   }, [])
 
@@ -532,6 +553,7 @@ export function Inspection() {
                 <thead>
                   <tr>
                     <SortableTh q={rq} col="date">점검일</SortableTh>
+                    <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                     <SortableTh q={rq} col="name">학교</SortableTh>
                     <th>담당자</th>
                     <th className="c">작성현황</th>
@@ -541,8 +563,8 @@ export function Inspection() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(loading || sumLoading) && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
-                  {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
+                  {(loading || sumLoading) && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
+                  {!loading && error && <tr><td colSpan={8}><div className="tstate">오류: {error}</div></td></tr>}
                   {!loading && !sumLoading && !error && rq.view.map((r) => {
                     const st = STATUS[r.status] ?? { label: r.status, cls: 'na' }
                     const eo = EDUOFFICE[r.eduoffice] ?? { label: '—', cls: 'na' }
@@ -550,6 +572,7 @@ export function Inspection() {
                     return (
                       <tr key={r.school.id + '|' + r.date} onClick={() => openSchool(r.school)} title={`포함 공정: ${partNames}`}>
                         <td>{r.date || '—'}</td>
+                        <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
                         <td><b>{r.school.name}</b></td>
                         <td className="inh-mgr">{r.school.manager || '—'}</td>
                         <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
@@ -568,7 +591,7 @@ export function Inspection() {
                     )
                   })}
                   {!loading && !sumLoading && !error && rq.view.length === 0 && (
-                    <tr><td colSpan={7}><div className="tstate">{reportRows.length === 0 ? '작성된 점검표가 없습니다. 학교 탭의 [안전점검] 바로가기에서 작성하세요.' : '조건에 맞는 점검표가 없습니다.'}</div></td></tr>
+                    <tr><td colSpan={8}><div className="tstate">{reportRows.length === 0 ? '작성된 점검표가 없습니다. 학교 탭의 [안전점검] 바로가기에서 작성하세요.' : '조건에 맞는 점검표가 없습니다.'}</div></td></tr>
                   )}
                 </tbody>
               </table>
@@ -621,7 +644,15 @@ export function Inspection() {
                       const st = STATUS[sheet.status] || { label: sheet.status, cls: 'todo' }
                       const eo = EDUOFFICE[sheet.eduoffice] || { label: '—', cls: 'na' }
                       return (
-                        <tr key={sel.id + '|' + sheet.date} title={`포함 공정: ${[...new Set(sheet.parts.map((p) => PART_LABEL[p.part] || p.part))].join(' · ')}`}>
+                        <tr
+                          key={sel.id + '|' + sheet.date}
+                          title={`포함 공정: ${[...new Set(sheet.parts.map((p) => PART_LABEL[p.part] || p.part))].join(' · ')} — 클릭하면 작성 화면으로 이동`}
+                          onClick={() => {
+                            // 행 클릭 → 작성 화면(입력 폼) 진입: 작성중은 이어서 작성, 제출·서명완료는 수정 모드 [069]
+                            if (sheet.status === 'draft') nav(`/inspection/new?school=${sel.id}&resumeall=1`)
+                            else nav(`/inspection/new?school=${sel.id}&edit=${sheet.parts.map((p) => p.id).join(',')}`)
+                          }}
+                        >
                           <td>{sheet.date || '—'}</td>
                           <td><b>{sel.name}</b></td>
                           <td>{sel.manager || '—'}</td>
@@ -632,7 +663,7 @@ export function Inspection() {
                               <button
                                 className="btn btn-primary"
                                 style={{ height: 30, padding: '0 12px', fontSize: 12 }}
-                                onClick={() => nav(`/inspection/new?school=${sel.id}&resumeall=1`)}
+                                onClick={(e) => { e.stopPropagation(); nav(`/inspection/new?school=${sel.id}&resumeall=1`) }}
                               >
                                 이어서 작성
                               </button>
@@ -640,7 +671,7 @@ export function Inspection() {
                               <button
                                 className="btn btn-ghost"
                                 style={{ height: 30, padding: '0 12px', fontSize: 12 }}
-                                onClick={() => { void openSheet(sel, sheet.date, sheet.parts) }}
+                                onClick={(e) => { e.stopPropagation(); void openSheet(sel, sheet.date, sheet.parts) }}
                               >
                                 보기
                               </button>

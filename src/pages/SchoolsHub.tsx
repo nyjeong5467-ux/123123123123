@@ -71,7 +71,7 @@ function deriveBadges(insp: InspLite[], risk: StatusLite[], mus: MusLite[], comp
     insp: inspDone ? { txt: '이번 달 완료', cls: 'ok' } : { txt: '이번 달 미실시', cls: 'muted' },
     risk: riskDoing > 0 ? { txt: `진행 ${riskDoing}건`, cls: 'muted' } : risk.length > 0 ? { txt: '완료', cls: 'ok' } : { txt: '미작성', cls: 'muted' },
     mus: mus.length === 0 ? { txt: '미작성', cls: 'muted' } : review > 0 ? { txt: `검수 ${review}건 대기`, cls: 'muted' } : { txt: '완료 · 검수 대기 없음', cls: 'ok' },
-    comp: compSheet?.status === 'submitted' ? { txt: '제출 완료', cls: 'ok' } : { txt: compSheet ? '작성 중' : '미작성', cls: 'muted' },
+    comp: compSheet?.status === 'submitted' ? { txt: '제출 완료', cls: 'ok' } : { txt: compSheet ? '작성중' : '미작성', cls: 'muted' },
   }
 }
 
@@ -81,7 +81,7 @@ const LEVEL_ORDER: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, �
 const HUB_FILTERS: FilterDef<Row>[] = [
   {
     key: 'level',
-    label: '학교급',
+    label: '구분',
     options: LEVELS.map((l) => ({ value: l, label: l })),
     accessor: (r) => r.school.school_level ?? '',
   },
@@ -340,7 +340,7 @@ export function SchoolsHub() {
             </div>
           </div>
         )}
-        <div className="shub-seg" role="group" aria-label="학교급 선택">
+        <div className="shub-seg" role="group" aria-label="구분 선택">
           <button className={levelQ === '' ? 'on' : ''} onClick={() => setLevelQ('')}>전체</button>
           {LEVELS.map((l) => (
             <button key={l} className={levelQ === l ? 'on' : ''} onClick={() => setLevelQ(l)}>{l}</button>

@@ -100,7 +100,7 @@ const LEVEL_ORDER: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, �
 const SCH_FILTERS: FilterDef<School>[] = [
   {
     key: 'level',
-    label: '학교급',
+    label: '구분',
     options: LEVELS.map((l) => ({ value: l, label: l })),
     accessor: (r) => r.school_level ?? '',
   },
