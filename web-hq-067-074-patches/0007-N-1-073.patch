@@ -1,0 +1,320 @@
+From 52c47561865d47ca07adc6cbdd13dcadf9a6a14d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 11 Aug 2026 05:22:37 +0000
+Subject: [PATCH 7/8] =?UTF-8?q?=EC=97=85=EB=AC=B4=20=ED=83=AD=20N+1=20?=
+ =?UTF-8?q?=EC=9A=94=EC=B2=AD=20=ED=8F=AD=EC=A3=BC=20=ED=95=B4=EC=86=8C=20?=
+ =?UTF-8?q?=E2=80=94=20=EC=84=B8=EC=85=98=20=EC=BA=90=EC=8B=9C=20[073]?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_016cm8Duo4LXFGNmaGXGYeKT
+---
+ src/pages/Inspection.tsx                      | 28 ++++++++++--
+ src/pages/Musculo.tsx                         | 27 ++++++++++--
+ src/pages/Risk.tsx                            | 43 +++++++++++++++++--
+ ...30\354\240\225\354\235\264\353\240\245.md" | 22 ++++++++++
+ 4 files changed, 108 insertions(+), 12 deletions(-)
+
+diff --git a/src/pages/Inspection.tsx b/src/pages/Inspection.tsx
+index a3cf868..1245d3f 100644
+--- a/src/pages/Inspection.tsx
++++ b/src/pages/Inspection.tsx
+@@ -57,6 +57,10 @@ type Inspection = {
+ }
+ type School = { id: string; name: string; manager?: string; school_level?: string; address?: string; assigned_inspector_id?: string }
+ 
++// [073] 모듈 스코프 세션 캐시 — 탭 재진입 때마다 전 학교 학교별 GET /inspections(N+1)이
++// 재발사되어 목서버가 밀리던 문제 방지 ([060] 학교 허브와 동일 패턴). 브라우저 새로고침 시 소멸.
++let insSession: { account: string; schools: School[]; map: Record<string, Inspection[]> } | null = null
++
+ // 점검 일자 — 엔티티에 created_at 이 없어 제출일 → 서명일 → 서명기록 순으로 방어적으로 산출
+ function dateOf(r: Inspection): string {
+   const d = r.submitted_at || r.signed_at || r.signatures?.[0]?.signed_at || r.created_at || ''
+@@ -247,8 +251,15 @@ export function Inspection() {
+     setSheetView({ schoolName: school.name, manager: school.manager, date, parts, extra })
+   }
+ 
+-  // 학교 목록 로드
++  // 학교 목록 로드 — 세션 캐시 적중 시 재조회 없이 복원 [073]
+   useEffect(() => {
++    const acct = user?.login ?? ''
++    if (insSession && insSession.account === acct) {
++      setSchools(insSession.schools)
++      setInsMap(insSession.map)
++      setLoading(false)
++      return
++    }
+     let alive = true
+     api<School[]>('/schools')
+       .then((d) => {
+@@ -258,11 +269,13 @@ export function Inspection() {
+       })
+       .catch((e) => { if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) } })
+     return () => { alive = false }
++    // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [])
+ 
+   // 전 학교 점검 목록 병렬 로드 → 학교 행 요약(건수/상태 분포/최근일)과 2단계 그룹에 사용
+   useEffect(() => {
+     if (!schools.length) return
++    if (insSession && insSession.schools === schools) return // 캐시 적중 — 탭 재진입 시 재조회 0건 [073]
+     let alive = true
+     setSumLoading(true)
+     Promise.all(
+@@ -273,16 +286,23 @@ export function Inspection() {
+       ),
+     ).then((entries) => {
+       if (!alive) return
+-      setInsMap(Object.fromEntries(entries))
++      const map = Object.fromEntries(entries)
++      insSession = { account: user?.login ?? '', schools, map } // [073]
++      setInsMap(map)
+       setSumLoading(false)
+     })
+     return () => { alive = false }
++    // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [schools])
+ 
+-  // 특정 학교만 재조회 (생성 후 / 학교 진입 시 최신화)
++  // 특정 학교만 재조회 (생성 후 / 학교 진입 시 최신화) — 세션 캐시도 함께 갱신 [073]
+   const refetchSchool = useCallback((schoolId: string) => {
+     api<Inspection[]>(`/inspections?school_id=${schoolId}`)
+-      .then((d) => setInsMap((m) => ({ ...m, [schoolId]: Array.isArray(d) ? d : [] })))
++      .then((d) => {
++        const arr = Array.isArray(d) ? d : []
++        if (insSession) insSession.map = { ...insSession.map, [schoolId]: arr }
++        setInsMap((m) => ({ ...m, [schoolId]: arr }))
++      })
+       .catch(() => { /* 캐시 유지 */ })
+   }, [])
+ 
+diff --git a/src/pages/Musculo.tsx b/src/pages/Musculo.tsx
+index bc79b50..c825f33 100644
+--- a/src/pages/Musculo.tsx
++++ b/src/pages/Musculo.tsx
+@@ -46,6 +46,9 @@ type Survey = {
+   created_at?: string | null
+ }
+ type Part = 'catering' | 'facility' | 'cleaning' | 'commute' | 'night_duty'
++
++// [073] 모듈 스코프 세션 캐시 — 탭 재진입 시 전 학교 GET /musculo(N+1) 재발사 방지 ([060] 패턴)
++let musSession: { account: string; schools: School[]; map: Record<string, Survey[]> } | null = null
+ type BurdenResult = { has_burden: boolean; burden_clauses: number[] }
+ 
+ // ===== 1단계(개편 0807): 작성된 조사 리스트 — 점검자들이 작성한 조사가 곧 첫 화면 =====
+@@ -232,8 +235,15 @@ export function Musculo() {
+   const [bErr, setBErr] = useState('')
+   const [bResult, setBResult] = useState<BurdenResult | null>(null)
+ 
+-  // 학교 목록 로드
++  // 학교 목록 로드 — 세션 캐시 적중 시 재조회 없이 복원 [073]
+   useEffect(() => {
++    const acct = user?.login ?? ''
++    if (musSession && musSession.account === acct) {
++      setSchools(musSession.schools)
++      setSurveyMap(musSession.map)
++      setLoading(false)
++      return
++    }
+     let alive = true
+     api<School[]>('/schools')
+       .then((s) => {
+@@ -243,11 +253,13 @@ export function Musculo() {
+       })
+       .catch((e) => { if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) } })
+     return () => { alive = false }
++    // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [])
+ 
+   // 전 학교 조사 목록 로드 → 학교 행 요약(건수/검수대기)과 2단계 그룹에 사용
+   useEffect(() => {
+     if (!schools.length) return
++    if (musSession && musSession.schools === schools) return // 캐시 적중 — 재조회 0건 [073]
+     let alive = true
+     setSumLoading(true)
+     Promise.all(
+@@ -258,16 +270,23 @@ export function Musculo() {
+       ),
+     ).then((entries) => {
+       if (!alive) return
+-      setSurveyMap(Object.fromEntries(entries))
++      const map = Object.fromEntries(entries)
++      musSession = { account: user?.login ?? '', schools, map } // [073]
++      setSurveyMap(map)
+       setSumLoading(false)
+     })
+     return () => { alive = false }
++    // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [schools])
+ 
+-  // 특정 학교만 재조회 (조사 생성 후 / 학교 진입 시 최신화)
++  // 특정 학교만 재조회 (조사 생성 후 / 학교 진입 시 최신화) — 세션 캐시도 함께 갱신 [073]
+   const refetchSchool = useCallback((schoolId: string) => {
+     api<Survey[]>(`/musculo?school_id=${schoolId}`)
+-      .then((d) => setSurveyMap((m) => ({ ...m, [schoolId]: Array.isArray(d) ? d : [] })))
++      .then((d) => {
++        const arr = Array.isArray(d) ? d : []
++        if (musSession) musSession.map = { ...musSession.map, [schoolId]: arr }
++        setSurveyMap((m) => ({ ...m, [schoolId]: arr }))
++      })
+       .catch(() => { /* 캐시 유지 */ })
+   }, [])
+ 
+diff --git a/src/pages/Risk.tsx b/src/pages/Risk.tsx
+index 09d367a..451ac4b 100644
+--- a/src/pages/Risk.tsx
++++ b/src/pages/Risk.tsx
+@@ -34,6 +34,10 @@ type School = {
+   address?: string
+   assigned_inspector_id?: string
+ }
++// [073] 모듈 스코프 세션 캐시 — 탭 재진입 시 전 학교 GET /risk·/risk/survey(N+1) 재발사 방지 ([060] 패턴)
++let riskSession: { account: string; schools: School[]; map: Record<string, RiskItem[]> } | null = null
++let riskDocSession: { account: string; schools: School[]; map: Record<string, { d: SurveyData; updated: string }> } | null = null
++
+ // category('regular'|'adhoc')·산재 연동 필드는 백엔드가 병렬 추가 중 — 없으면 정기로 간주
+ type RiskItem = {
+   id: string
+@@ -316,6 +320,7 @@ export function Risk() {
+   const [docLoading, setDocLoading] = useState(false)
+   useEffect(() => {
+     if (!schools.length) return
++    if (riskDocSession && riskDocSession.schools === schools) return // 캐시 적중 [073]
+     let alive = true
+     setDocLoading(true)
+     void Promise.all(
+@@ -327,10 +332,12 @@ export function Risk() {
+       if (!alive) return
+       const m: Record<string, { d: SurveyData; updated: string }> = {}
+       for (const it of list) if (it.doc) m[it.id] = it.doc
++      riskDocSession = { account: user?.login ?? '', schools, map: m } // [073]
+       setDocMap(m)
+       setDocLoading(false)
+     })
+     return () => { alive = false }
++    // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [schools])
+ 
+   const reportRows: RiskReportRow[] = useMemo(() => {
+@@ -431,6 +438,10 @@ export function Risk() {
+       await api('/risk/survey', { method: 'PUT', body: JSON.stringify({ school_id: sel.id, sections: ctxReport.d }) })
+       // 조사표 탭이 같은 학교를 이미 로드해 뒀다면 최신 문서로 동기화
+       if (surveyLoadedSid.current === sel.id) setSurvey(ctxReport.d)
++      // 첫 화면 보고서 리스트·세션 캐시에도 저장분 반영 [073]
++      const entry = { d: ctxReport.d, updated: new Date().toISOString() }
++      setDocMap((m) => ({ ...m, [sel.id]: entry }))
++      if (riskDocSession) riskDocSession.map = { ...riskDocSession.map, [sel.id]: entry }
+     } catch { /* 저장 실패 — 화면 상태 유지 */ } finally {
+       setCtxBusy(false)
+     }
+@@ -464,8 +475,19 @@ export function Risk() {
+   const [surveyBusy, setSurveyBusy] = useState(false)
+   const surveyLoadedSid = useRef('') // GET 이 반영된 학교 id (재진입 시 편집 내용 보존)
+ 
+-  // 학교 목록 로드
++  // 학교 목록 로드 — 세션 캐시 적중 시 재조회 없이 복원 [073]
+   useEffect(() => {
++    const acct = user?.login ?? ''
++    if (riskSession && riskSession.account === acct) {
++      setSchools(riskSession.schools)
++      setRiskMap(riskSession.map)
++      if (riskDocSession && riskDocSession.account === acct && riskDocSession.schools === riskSession.schools) {
++        setDocMap(riskDocSession.map)
++      }
++      if (riskSession.schools.length) setSid(riskSession.schools[0].id)
++      setLoading(false)
++      return
++    }
+     let alive = true
+     api<School[]>('/schools')
+       .then((s) => {
+@@ -477,11 +499,13 @@ export function Risk() {
+       })
+       .catch((e) => { if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) } })
+     return () => { alive = false }
++    // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [])
+ 
+   // 전 학교 평가 목록 로드 → 학교 행 요약(건수/최근일)과 2단계 그룹에 사용
+   useEffect(() => {
+     if (!schools.length) return
++    if (riskSession && riskSession.schools === schools) return // 캐시 적중 — 재조회 0건 [073]
+     let alive = true
+     setSumLoading(true)
+     Promise.all(
+@@ -492,16 +516,23 @@ export function Risk() {
+       ),
+     ).then((entries) => {
+       if (!alive) return
+-      setRiskMap(Object.fromEntries(entries))
++      const map = Object.fromEntries(entries)
++      riskSession = { account: user?.login ?? '', schools, map } // [073]
++      setRiskMap(map)
+       setSumLoading(false)
+     })
+     return () => { alive = false }
++    // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [schools])
+ 
+-  // 특정 학교만 재조회 (생성 후 / 학교 진입 시 최신화)
++  // 특정 학교만 재조회 (생성 후 / 학교 진입 시 최신화) — 세션 캐시도 함께 갱신 [073]
+   const refetchSchool = useCallback((schoolId: string) => {
+     api<RiskItem[]>(`/risk?school_id=${schoolId}`)
+-      .then((d) => setRiskMap((m) => ({ ...m, [schoolId]: Array.isArray(d) ? d : [] })))
++      .then((d) => {
++        const arr = Array.isArray(d) ? d : []
++        if (riskSession) riskSession.map = { ...riskSession.map, [schoolId]: arr }
++        setRiskMap((m) => ({ ...m, [schoolId]: arr }))
++      })
+       .catch(() => { /* 캐시 유지 */ })
+   }, [])
+ 
+@@ -709,6 +740,10 @@ export function Risk() {
+         body: JSON.stringify({ school_id: sid, sections: survey }),
+       })
+       surveyLoadedSid.current = sid
++      // 첫 화면 보고서 리스트·세션 캐시에도 저장분 반영 [073]
++      const entry = { d: survey, updated: r.updated_at || new Date().toISOString() }
++      setDocMap((m) => ({ ...m, [sid]: entry }))
++      if (riskDocSession) riskDocSession.map = { ...riskDocSession.map, [sid]: entry }
+       const when = r.updated_at ? r.updated_at.replace('T', ' ').slice(0, 16) : ''
+       setSurveyMsg(when ? `저장되었습니다. · ${when}` : '저장되었습니다.')
+     } catch (e) {
+diff --git "a/\354\210\230\354\240\225\354\235\264\353\240\245.md" "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+index ba53c06..59701ee 100644
+--- "a/\354\210\230\354\240\225\354\235\264\353\240\245.md"
++++ "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+@@ -1481,6 +1481,28 @@ const HUB_SEARCH = [
+ 
+ ---
+ 
++## [073] 2026-08-11 — 안전점검·근골격계·위험성평가 탭 N+1 요청 폭주 해소 (세션 캐시)
++
++**요청·경위**: 홈 공지사항 등이 "불러오는 중…"에서 멈추고 목서버 콘솔에 GET /inspections가 끝없이 찍히는 현상 문의(경로 충돌 의심) → 원인은 라우트 겹침이 아니라, 업무 탭 3곳이 첫 화면 리스트를 만들 때 **783개 학교 전체에 학교별 조회를 발사(N+1)**하는 구조. 탭에 들어갈 때마다 재발사되어 목서버가 밀리고 홈의 요청이 뒤로 밀렸음(목서버 로그는 쿼리스트링을 생략해 같은 경로처럼 보임). 학교 허브는 [060]에서 이미 캐시 처리 — 같은 패턴을 업무 탭에 적용.
++
++**변경** (`Inspection.tsx` · `Musculo.tsx` · `Risk.tsx` — 모두 [060]과 동일 패턴):
++- **모듈 스코프 세션 캐시** — 학교 목록 + 학교별 점검/조사/평가 맵을 계정 기준으로 캐시. 탭 재진입 시 재조회 0건, 브라우저 새로고침 시 캐시 소멸(자연 갱신).
++- **개별 갱신 경로 유지** — 점검·조사·평가 생성 후 refetchSchool(해당 학교 1건만 재조회)이 화면 상태와 캐시를 함께 갱신.
++- **위험성평가 보고서 문서(/risk/survey) 캐시 추가** — 문서 저장(학교 컨텍스트·조사표 탭) 시 첫 화면 보고서 리스트와 캐시에 즉시 반영(기존에는 재진입 전까지 미반영이던 것도 개선).
++- 이행점검은 문서 1건 조회 구조라 N+1 없음(변경 불필요).
++
++**효과** (목서버 E2E 실측): 안전점검 첫 진입 788건 → 사이드바 재진입 시 **0건**(홈 화면 자체 조회분 제외). 근골격계·위험성평가 동일.
++
++**한계·후속 제안**: [060]과 동일 — 학교 등록·엑셀 업로드 직후에는 업무 탭 캐시에 신규 학교가 없을 수 있음(새로고침 시 반영). 근본 해결은 백엔드 벌크 API(예: GET /inspections?all=1 또는 /schools?with=summary) 신설 — 백엔드 팀 전달 권장.
++
++**롤백 방법**: git 커밋 revert.
++
++**검증**: `tsc --noEmit` 통과 · 목서버 E2E — 사이드바 이동으로 안전점검 재진입 시 학교별 조회 0건·리스트 정상 렌더 확인.
++
++**영향 범위**: 3개 업무 탭의 데이터 로딩 방식만. 표시·백엔드 계약 변경 없음.
++
++---
++
+ ## 부록: 신규 추가 파일 (프로젝트 소스 아님 — 개발 보조 도구)
+ 
+ | 날짜 | 파일 | 용도 |
+-- 
+2.43.0
+

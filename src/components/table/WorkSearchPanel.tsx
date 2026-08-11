@@ -59,7 +59,7 @@ export function WorkSearchPanel(p: {
           )}
         </div>
       </div>
-      <div className="shub-seg" role="group" aria-label="학교급 선택">
+      <div className="shub-seg" role="group" aria-label="구분 선택">
         <button className={levelQ === '' ? 'on' : ''} onClick={() => setLevelQ('')}>전체</button>
         {LEVELS.map((l) => (
           <button key={l} className={levelQ === l ? 'on' : ''} onClick={() => setLevelQ(l)}>{l}</button>

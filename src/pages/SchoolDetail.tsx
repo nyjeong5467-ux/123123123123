@@ -205,7 +205,7 @@ export function SchoolDetail() {
         const done = insp.filter((r) => r.status === 'submitted').length
         out.push({
           key: 'insp', name: '안전점검', summary: `총 ${insp.length}건 · 제출 ${done}건`, date: '—',
-          cls: done ? 'ok' : insp.length ? 'doing' : 'todo', label: done ? '제출' : insp.length ? '진행중' : '기록 없음',
+          cls: done ? 'ok' : insp.length ? 'doing' : 'todo', label: done ? '제출 완료' : insp.length ? '진행중' : '기록 없음',
         })
       }
       if (Array.isArray(risk)) {
@@ -234,7 +234,7 @@ export function SchoolDetail() {
         const done = comp.filter((r) => r.status === 'submitted').length
         out.push({
           key: 'comp', name: '이행점검', summary: `총 ${comp.length}건 · 제출 ${done}건`, date: latestDate(comp.map((r) => r.created_at)),
-          cls: done ? 'ok' : comp.length ? 'doing' : 'todo', label: done ? '제출' : comp.length ? '작성중' : '기록 없음',
+          cls: done ? 'ok' : comp.length ? 'doing' : 'todo', label: done ? '제출 완료' : comp.length ? '작성중' : '기록 없음',
         })
       }
       setWorks(out)
@@ -440,7 +440,7 @@ export function SchoolDetail() {
           {pageEdit && infoDraft ? (
             <div className="shub-infogrid">
               <label className="field"><span>학교(기관)명 *</span><input className="input" value={infoDraft.name} onChange={(e) => setInfoDraft({ ...infoDraft, name: e.target.value })} /></label>
-              <label className="field"><span>학교급</span>
+              <label className="field"><span>구분</span>
                 <select className="input" value={infoDraft.school_level ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, school_level: e.target.value })}>
                   <option value="">선택 안 함</option>
                   {SCHOOL_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
@@ -462,7 +462,7 @@ export function SchoolDetail() {
             </div>
           ) : (
             <div className="shub-infogrid view">
-              <div className="kv"><b>학교급</b><span>{info?.school_level || '—'}</span></div>
+              <div className="kv"><b>구분</b><span>{info?.school_level || '—'}</span></div>
               <div className="kv"><b>설립 구분</b><span>{(info?.is_private ?? s.is_private) ? '사립' : '국공립'}</span></div>
               <div className="kv"><b>학교(기관)장</b><span>{info?.principal || '—'}</span></div>
               <div className="kv"><b>관리감독자</b><span>{info?.supervisor || '—'}</span></div>

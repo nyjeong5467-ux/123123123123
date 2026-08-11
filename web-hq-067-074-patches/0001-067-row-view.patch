@@ -1,0 +1,103 @@
+From 61e6b404bb29e117cbb649dbb8d6b9470e1ddda8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 11 Aug 2026 04:01:10 +0000
+Subject: [PATCH 1/8] =?UTF-8?q?=ED=95=99=EA=B5=90=20=EC=BB=A8=ED=85=8D?=
+ =?UTF-8?q?=EC=8A=A4=ED=8A=B8=20=EC=A0=90=EA=B2=80=20=ED=98=84=ED=99=A9:?=
+ =?UTF-8?q?=20=EC=A0=90=EA=B2=80=EC=9D=BC=20=ED=81=B4=EB=A6=AD=20=E2=86=92?=
+ =?UTF-8?q?=20=EC=96=91=EC=8B=9D=20=EB=B3=B4=EA=B8=B0=20[067]?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_016cm8Duo4LXFGNmaGXGYeKT
+---
+ src/pages/Inspection.tsx                      | 16 +++++++++++++++-
+ src/styles/inspecthier.css                    | 19 +++++++++++++++++++
+ ...30\354\240\225\354\235\264\353\240\245.md" | 16 ++++++++++++++++
+ 3 files changed, 50 insertions(+), 1 deletion(-)
+
+diff --git a/src/pages/Inspection.tsx b/src/pages/Inspection.tsx
+index 1eb0330..f66339e 100644
+--- a/src/pages/Inspection.tsx
++++ b/src/pages/Inspection.tsx
+@@ -622,7 +622,21 @@ export function Inspection() {
+                       const eo = EDUOFFICE[sheet.eduoffice] || { label: '—', cls: 'na' }
+                       return (
+                         <tr key={sel.id + '|' + sheet.date} title={`포함 공정: ${[...new Set(sheet.parts.map((p) => PART_LABEL[p.part] || p.part))].join(' · ')}`}>
+-                          <td>{sheet.date || '—'}</td>
++                          <td>
++                            {sheet.date ? (
++                              <button
++                                type="button"
++                                className="inh-datelink"
++                                title={sheet.status === 'draft' ? '이어서 작성' : '점검표 양식 보기'}
++                                onClick={() => {
++                                  if (sheet.status === 'draft') nav(`/inspection/new?school=${sel.id}&resumeall=1`)
++                                  else void openSheet(sel, sheet.date, sheet.parts)
++                                }}
++                              >
++                                {sheet.date}
++                              </button>
++                            ) : '—'}
++                          </td>
+                           <td><b>{sel.name}</b></td>
+                           <td>{sel.manager || '—'}</td>
+                           <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
+diff --git a/src/styles/inspecthier.css b/src/styles/inspecthier.css
+index 9acccfb..fa0fdf1 100644
+--- a/src/styles/inspecthier.css
++++ b/src/styles/inspecthier.css
+@@ -65,3 +65,22 @@
+   padding: 0 14px;
+   font-size: 12.5px;
+ }
++
++/* 점검 현황: 점검일 클릭 → 양식 보기 [067] */
++.inh-datelink {
++  appearance: none;
++  border: 0;
++  background: none;
++  padding: 0;
++  font: inherit;
++  color: var(--ink);
++  cursor: pointer;
++  text-decoration: underline;
++  text-decoration-color: transparent;
++  text-underline-offset: 3px;
++  transition: color 0.12s, text-decoration-color 0.12s;
++}
++.inh-datelink:hover {
++  color: var(--violet);
++  text-decoration-color: var(--violet);
++}
+diff --git "a/\354\210\230\354\240\225\354\235\264\353\240\245.md" "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+index 47c7a5e..10b29c1 100644
+--- "a/\354\210\230\354\240\225\354\235\264\353\240\245.md"
++++ "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+@@ -1373,6 +1373,22 @@ const HUB_SEARCH = [
+ 
+ ---
+ 
++## [067] 2026-08-11 — 학교 컨텍스트 점검 현황: 점검일 클릭 → 양식 보기
++
++**요청**: 학교 컨텍스트(안전점검 › 학교) 점검 현황 리스트에서 점검일(예: 2026-08-09)을 누르면 점검표를 볼 수 있어야 함.
++
++**변경**:
++- `src/pages/Inspection.tsx` — 점검 현황 테이블의 점검일 셀을 클릭 가능한 링크 버튼(`.inh-datelink`)으로 전환. 제출·서명완료 건은 [보기]와 동일하게 양식 보기 오버레이(openSheet [054]) 열기, 작성중(draft) 건은 [이어서 작성]과 동일하게 `resumeall=1` 폼 진입(작업 컬럼 버튼과 행동 일치). 날짜 없는 건('—')은 비활성 텍스트 유지. 툴팁으로 '점검표 양식 보기'/'이어서 작성' 안내.
++- `src/styles/inspecthier.css` — `.inh-datelink` 스타일(평시 본문색, 호버 시 보라 + 밑줄).
++
++**롤백 방법**: git 커밋 revert.
++
++**검증**: `tsc --noEmit` 통과 · vite build 통과 · 목서버 E2E(Playwright) — admin 로그인 → 한빛초등학교 컨텍스트 진입 → 2026-08-09 날짜 호버 시 보라 링크 표시, 클릭 시 양식 보기 오버레이(종사자 안전·보건 점검표 · 시설관리 체크) 정상 오픈 확인.
++
++**영향 범위**: 안전점검 학교 컨텍스트(/inspection?school=)의 점검 현황 테이블만. 첫 화면 리스트·작성 화면·백엔드 계약 변경 없음.
++
++---
++
+ ## 부록: 신규 추가 파일 (프로젝트 소스 아님 — 개발 보조 도구)
+ 
+ | 날짜 | 파일 | 용도 |
+-- 
+2.43.0
+

@@ -1,0 +1,131 @@
+From 02ca37982e19ce80b8c7d0c0b9696753355eaf31 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 11 Aug 2026 04:23:13 +0000
+Subject: [PATCH 3/8] =?UTF-8?q?=EC=A0=90=EA=B2=80=20=ED=98=84=ED=99=A9:=20?=
+ =?UTF-8?q?=ED=96=89=20=EC=A0=84=EC=B2=B4=20=ED=81=B4=EB=A6=AD=20=E2=86=92?=
+ =?UTF-8?q?=20=EC=9E=91=EC=84=B1=20=ED=99=94=EB=A9=B4=20=EC=A7=84=EC=9E=85?=
+ =?UTF-8?q?=20[069]?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_016cm8Duo4LXFGNmaGXGYeKT
+---
+ src/pages/Inspection.tsx                      | 30 ++++++++-----------
+ src/styles/inspecthier.css                    | 19 ------------
+ ...30\354\240\225\354\235\264\353\240\245.md" | 16 ++++++++++
+ 3 files changed, 28 insertions(+), 37 deletions(-)
+
+diff --git a/src/pages/Inspection.tsx b/src/pages/Inspection.tsx
+index 962fd91..d7815bd 100644
+--- a/src/pages/Inspection.tsx
++++ b/src/pages/Inspection.tsx
+@@ -621,22 +621,16 @@ export function Inspection() {
+                       const st = STATUS[sheet.status] || { label: sheet.status, cls: 'todo' }
+                       const eo = EDUOFFICE[sheet.eduoffice] || { label: '—', cls: 'na' }
+                       return (
+-                        <tr key={sel.id + '|' + sheet.date} title={`포함 공정: ${[...new Set(sheet.parts.map((p) => PART_LABEL[p.part] || p.part))].join(' · ')}`}>
+-                          <td>
+-                            {sheet.date ? (
+-                              <button
+-                                type="button"
+-                                className="inh-datelink"
+-                                title={sheet.status === 'draft' ? '이어서 작성' : '작성 화면에서 열기(수정)'}
+-                                onClick={() => {
+-                                  if (sheet.status === 'draft') nav(`/inspection/new?school=${sel.id}&resumeall=1`)
+-                                  else nav(`/inspection/new?school=${sel.id}&edit=${sheet.parts.map((p) => p.id).join(',')}`)
+-                                }}
+-                              >
+-                                {sheet.date}
+-                              </button>
+-                            ) : '—'}
+-                          </td>
++                        <tr
++                          key={sel.id + '|' + sheet.date}
++                          title={`포함 공정: ${[...new Set(sheet.parts.map((p) => PART_LABEL[p.part] || p.part))].join(' · ')} — 클릭하면 작성 화면으로 이동`}
++                          onClick={() => {
++                            // 행 클릭 → 작성 화면(입력 폼) 진입: 작성중은 이어서 작성, 제출·서명완료는 수정 모드 [069]
++                            if (sheet.status === 'draft') nav(`/inspection/new?school=${sel.id}&resumeall=1`)
++                            else nav(`/inspection/new?school=${sel.id}&edit=${sheet.parts.map((p) => p.id).join(',')}`)
++                          }}
++                        >
++                          <td>{sheet.date || '—'}</td>
+                           <td><b>{sel.name}</b></td>
+                           <td>{sel.manager || '—'}</td>
+                           <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
+@@ -646,7 +640,7 @@ export function Inspection() {
+                               <button
+                                 className="btn btn-primary"
+                                 style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+-                                onClick={() => nav(`/inspection/new?school=${sel.id}&resumeall=1`)}
++                                onClick={(e) => { e.stopPropagation(); nav(`/inspection/new?school=${sel.id}&resumeall=1`) }}
+                               >
+                                 이어서 작성
+                               </button>
+@@ -654,7 +648,7 @@ export function Inspection() {
+                               <button
+                                 className="btn btn-ghost"
+                                 style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+-                                onClick={() => { void openSheet(sel, sheet.date, sheet.parts) }}
++                                onClick={(e) => { e.stopPropagation(); void openSheet(sel, sheet.date, sheet.parts) }}
+                               >
+                                 보기
+                               </button>
+diff --git a/src/styles/inspecthier.css b/src/styles/inspecthier.css
+index fa0fdf1..9acccfb 100644
+--- a/src/styles/inspecthier.css
++++ b/src/styles/inspecthier.css
+@@ -65,22 +65,3 @@
+   padding: 0 14px;
+   font-size: 12.5px;
+ }
+-
+-/* 점검 현황: 점검일 클릭 → 양식 보기 [067] */
+-.inh-datelink {
+-  appearance: none;
+-  border: 0;
+-  background: none;
+-  padding: 0;
+-  font: inherit;
+-  color: var(--ink);
+-  cursor: pointer;
+-  text-decoration: underline;
+-  text-decoration-color: transparent;
+-  text-underline-offset: 3px;
+-  transition: color 0.12s, text-decoration-color 0.12s;
+-}
+-.inh-datelink:hover {
+-  color: var(--violet);
+-  text-decoration-color: var(--violet);
+-}
+diff --git "a/\354\210\230\354\240\225\354\235\264\353\240\245.md" "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+index dfb7a6a..c842493 100644
+--- "a/\354\210\230\354\240\225\354\235\264\353\240\245.md"
++++ "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+@@ -1410,6 +1410,22 @@ const HUB_SEARCH = [
+ 
+ ---
+ 
++## [069] 2026-08-11 — 점검 현황: 날짜 링크 → 행 전체 클릭으로 변경
++
++**요청**: [068]은 점검일 텍스트만 클릭 가능했음 → 행(점검일부터 [보기]까지의 줄) 어디를 눌러도 작성 화면으로 들어가야 함.
++
++**변경**:
++- `src/pages/Inspection.tsx` — 점검일 셀의 링크 버튼 제거(일반 텍스트 복원), 행(`<tr>`)에 onClick 부여: 작성중 → `resumeall=1`, 제출·서명완료 → `edit=` 수정 모드([068]과 동일 분기). [이어서 작성]·[보기] 버튼에는 `stopPropagation()`을 추가해 행 클릭과 분리 — [보기]는 기존대로 양식 보기 오버레이. 행 툴팁에 "클릭하면 작성 화면으로 이동" 안내 추가. 행 hover 배경·포인터 커서는 공용 `.tbl` 스타일이 이미 제공.
++- `src/styles/inspecthier.css` — [067]의 `.inh-datelink` 스타일 블록 제거(미사용).
++
++**롤백 방법**: git 커밋 revert.
++
++**검증**: `tsc --noEmit` 통과 · 목서버 E2E(Playwright) — 제출 건 행의 담당자 칸 클릭 → `/inspection/new?school=s01&edit=…` 진입, 작성중 건 행 클릭 → `resumeall=1` 진입, [보기] 버튼 클릭 시 화면 이동 없이 양식 보기 오버레이만 열림 확인.
++
++**영향 범위**: 학교 컨텍스트 점검 현황 테이블만. 백엔드 계약 변경 없음.
++
++---
++
+ ## 부록: 신규 추가 파일 (프로젝트 소스 아님 — 개발 보조 도구)
+ 
+ | 날짜 | 파일 | 용도 |
+-- 
+2.43.0
+

@@ -105,6 +105,7 @@ export function InspectionForm() {
   const partParam = params.get('part') || '' // 점검 현황 [이어서 작성] — 해당 공정만 선택
   const resumeId = params.get('resume') || '' // 이어서 작성할 작성중 점검 ID (있으면 새로 만들지 않고 이어감)
   const resumeAll = params.get('resumeall') === '1' // 점검표 1장 단위 이어서 작성 — 이 학교의 모든 작성중 공정을 프리필 [052]
+  const editIds = (params.get('edit') || '').split(',').filter(Boolean) // 제출·서명완료 점검표 수정 — 해당 점검 ID들을 프리필하고 같은 점검에 덮어쓰기 [068]
   const [resumeParts, setResumeParts] = useState<string[]>([]) // resumeall로 발견된 작성중 공정 키
   const today = new Date().toISOString().slice(0, 10)
 
@@ -200,6 +201,19 @@ export function InspectionForm() {
             setDraftIds((p) => ({ ...ids, ...p }))
             setResumeParts(drafts.map((dr) => dr.part))
           }
+        } else if (editIds.length) {
+          // 점검표 수정 — 상태와 무관하게 지정 점검들을 프리필하고, 저장 시 같은 점검에 덮어쓰기 [068]
+          const targets = list.filter((x) => x.id && editIds.includes(x.id))
+          if (targets.length) {
+            prefill(targets)
+            const ids: Record<string, string> = {}
+            for (const t of targets) {
+              const def = PARTDEF.find((x) => x.key === t.part)
+              if (def && t.id) ids[def.label] = t.id
+            }
+            setDraftIds((p) => ({ ...ids, ...p }))
+            setResumeParts(targets.map((t) => t.part))
+          }
         } else if (resumeId) {
           const target = list.find((x) => x.id === resumeId)
           if (target) prefill([target])
@@ -232,14 +246,16 @@ export function InspectionForm() {
     for (const d of PARTDEF) {
       e[d.label] = partParam
         ? d.key === partParam
-        : (counts[d.key] ?? 0) > 0 || (resumeAll && resumeParts.includes(d.key))
+        : editIds.length
+          ? resumeParts.includes(d.key) // 수정 모드: 해당 점검표에 포함된 공정만 선택 [068]
+          : (counts[d.key] ?? 0) > 0 || (resumeAll && resumeParts.includes(d.key))
     }
     setEnabled(e)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [counts, ledger, resumeParts])
 
   /* 자동 해당없음 */
-  const { ex, reasons } = useMemo(() => autoExcl(feat, counts), [feat, counts])
+  const { ex } = useMemo(() => autoExcl(feat, counts), [feat, counts]) // reasons는 [072]에서 배너 상세 제거로 미사용
   const totalExcl = useMemo(() => Object.values(ex).reduce((a, o) => a + Object.keys(o).length, 0), [ex])
 
   const activeDefs = PARTDEF.filter((d) => d.q && enabled[d.label])
@@ -552,20 +568,16 @@ export function InspectionForm() {
               ? `학교 특징에 따라 ${totalExcl}개 항목이 자동으로 '해당없음' 처리되었습니다`
               : "자동 '해당없음' 처리된 항목이 없습니다"}
           </div>
-          <div className="insf-auto-d">
-            {totalExcl
-              ? reasons.map(([why, tags]) => (
-                  <div className="insf-auto-row" key={why}>
-                    <b>{why}</b>
-                    <span className="its">{tags.join(' · ')}</span>
-                  </div>
-                ))
-              : featMissing
+          {/* [072] 자동 해당없음 상세(사유별 항목 나열)는 배너에서 제거 — 요약 문구만 표시. 사유는 각 항목 행의 비고에서 확인 가능 */}
+          {!totalExcl && (
+            <div className="insf-auto-d">
+              {featMissing
                 ? '학교 특징 정보가 아직 저장되지 않아 자동 해당없음 규칙이 적용되지 않습니다. 학교 카드에서 특징을 저장하면 반영됩니다.'
                 : `${schoolName || '이 학교'}은 점검표의 모든 설비·시설을 보유하고 있어 전 항목이 점검 대상입니다.`}
-          </div>
+            </div>
+          )}
         </div>
-        {sid && <Link className="insf-auto-go" to={`/schools/${sid}`}>학교 특징 확인 →</Link>}
+        {sid && <Link className="insf-auto-go" to={`/schools/${sid}`}>대장 →</Link>}
       </div>
 
       {/* 기본정보 + 점검대상 */}
@@ -845,7 +857,7 @@ export function InspectionForm() {
           <button className="btn" disabled title="PDF 변환은 제출 후 백엔드에서 생성됩니다">▤ PDF 변환</button>
           {/* 임시저장 버튼은 상단 헤더에만 — 하단 중복 버튼 제거 [061] */}
           <button className="btn btn-primary" disabled={busy || !ledger} onClick={submitAll}>
-            {busy ? '전송 중…' : '저장 후 SHM 전송'}
+            {busy ? '업로드 중…' : '전남교육청 업로드'}
           </button>
         </div>
       </div>

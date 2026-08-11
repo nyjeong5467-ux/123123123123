@@ -60,7 +60,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
   filters: [
     {
       key: 'level',
-      label: '학교급',
+      label: '구분',
       options: SCHOOL_LEVELS.map((v) => ({ value: v, label: v })),
       accessor: (r) => r.school_level || '기타',
     },
@@ -74,7 +74,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
 }
 const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
   { header: '학교', value: (r) => r.name },
-  { header: '학교급', value: (r) => r.school_level || '' },
+  { header: '구분', value: (r) => r.school_level || '' },
   { header: '담당자', value: (r) => r.manager || '' },
   { header: '교육 대상 인원', value: (r) => r.total },
   { header: '수료 인원', value: (r) => r.completed },
@@ -554,7 +554,7 @@ export function Education() {
                 <thead>
                   <tr>
                     <SortableTh q={q} col="name">학교</SortableTh>
-                    <th>학교급</th>
+                    <th>구분</th>
                     <th>담당자</th>
                     <SortableTh q={q} col="total" className="c">교육 대상</SortableTh>
                     <SortableTh q={q} col="pct">평균 진도율</SortableTh>

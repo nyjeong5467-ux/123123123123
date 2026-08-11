@@ -1,0 +1,58 @@
+From 00620c5b0861f0464b27c1fb2f9b3d22bc6b219d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 11 Aug 2026 05:27:26 +0000
+Subject: [PATCH 8/8] =?UTF-8?q?=EC=A0=90=EA=B2=80=ED=91=9C=20=EB=B2=84?=
+ =?UTF-8?q?=ED=8A=BC=20=EB=AC=B8=EA=B5=AC=20'=EC=A0=84=EB=82=A8=EA=B5=90?=
+ =?UTF-8?q?=EC=9C=A1=EC=B2=AD=20=EC=97=85=EB=A1=9C=EB=93=9C'=20[074]?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_016cm8Duo4LXFGNmaGXGYeKT
+---
+ src/pages/InspectionForm.tsx                       |  2 +-
+ ...210\230\354\240\225\354\235\264\353\240\245.md" | 14 ++++++++++++++
+ 2 files changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/src/pages/InspectionForm.tsx b/src/pages/InspectionForm.tsx
+index 6fa565e..2bd408f 100644
+--- a/src/pages/InspectionForm.tsx
++++ b/src/pages/InspectionForm.tsx
+@@ -857,7 +857,7 @@ export function InspectionForm() {
+           <button className="btn" disabled title="PDF 변환은 제출 후 백엔드에서 생성됩니다">▤ PDF 변환</button>
+           {/* 임시저장 버튼은 상단 헤더에만 — 하단 중복 버튼 제거 [061] */}
+           <button className="btn btn-primary" disabled={busy || !ledger} onClick={submitAll}>
+-            {busy ? '전송 중…' : '저장 후 SHM 전송'}
++            {busy ? '업로드 중…' : '전남교육청 업로드'}
+           </button>
+         </div>
+       </div>
+diff --git "a/\354\210\230\354\240\225\354\235\264\353\240\245.md" "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+index 59701ee..99f3bf4 100644
+--- "a/\354\210\230\354\240\225\354\235\264\353\240\245.md"
++++ "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+@@ -1503,6 +1503,20 @@ const HUB_SEARCH = [
+ 
+ ---
+ 
++## [074] 2026-08-11 — 점검표 저장 버튼 문구: '저장 후 SHM 전송' → '전남교육청 업로드'
++
++**요청**: 하단 제출 바의 보라색 버튼 문구 변경.
++
++**변경**: `src/pages/InspectionForm.tsx` — 버튼 '저장 후 SHM 전송' → **'전남교육청 업로드'**, 진행 중 문구 '전송 중…' → '업로드 중…'. 동작(저장→서명→제출→교육청 전송)은 변경 없음.
++
++**롤백 방법**: git 커밋 revert.
++
++**검증**: `tsc --noEmit` 통과.
++
++**영향 범위**: 안전점검 작성 폼 버튼 문구만.
++
++---
++
+ ## 부록: 신규 추가 파일 (프로젝트 소스 아님 — 개발 보조 도구)
+ 
+ | 날짜 | 파일 | 용도 |
+-- 
+2.43.0
+

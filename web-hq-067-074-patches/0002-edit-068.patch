@@ -1,0 +1,114 @@
+From d7111e8b6adac648af8219b6adc0db2c6c814f3e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 11 Aug 2026 04:17:55 +0000
+Subject: [PATCH 2/8] =?UTF-8?q?=EC=A0=90=EA=B2=80=EC=9D=BC=20=ED=81=B4?=
+ =?UTF-8?q?=EB=A6=AD:=20=EC=96=91=EC=8B=9D=20=EB=B3=B4=EA=B8=B0=20?=
+ =?UTF-8?q?=E2=86=92=20=EC=9E=91=EC=84=B1=20=ED=99=94=EB=A9=B4=20=EC=A7=84?=
+ =?UTF-8?q?=EC=9E=85(edit=20=EB=AA=A8=EB=93=9C)=20[068]?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_016cm8Duo4LXFGNmaGXGYeKT
+---
+ src/pages/Inspection.tsx                      |  4 ++--
+ src/pages/InspectionForm.tsx                  | 18 +++++++++++++++-
+ ...30\354\240\225\354\235\264\353\240\245.md" | 21 +++++++++++++++++++
+ 3 files changed, 40 insertions(+), 3 deletions(-)
+
+diff --git a/src/pages/Inspection.tsx b/src/pages/Inspection.tsx
+index f66339e..962fd91 100644
+--- a/src/pages/Inspection.tsx
++++ b/src/pages/Inspection.tsx
+@@ -627,10 +627,10 @@ export function Inspection() {
+                               <button
+                                 type="button"
+                                 className="inh-datelink"
+-                                title={sheet.status === 'draft' ? '이어서 작성' : '점검표 양식 보기'}
++                                title={sheet.status === 'draft' ? '이어서 작성' : '작성 화면에서 열기(수정)'}
+                                 onClick={() => {
+                                   if (sheet.status === 'draft') nav(`/inspection/new?school=${sel.id}&resumeall=1`)
+-                                  else void openSheet(sel, sheet.date, sheet.parts)
++                                  else nav(`/inspection/new?school=${sel.id}&edit=${sheet.parts.map((p) => p.id).join(',')}`)
+                                 }}
+                               >
+                                 {sheet.date}
+diff --git a/src/pages/InspectionForm.tsx b/src/pages/InspectionForm.tsx
+index ff7b896..424dc45 100644
+--- a/src/pages/InspectionForm.tsx
++++ b/src/pages/InspectionForm.tsx
+@@ -105,6 +105,7 @@ export function InspectionForm() {
+   const partParam = params.get('part') || '' // 점검 현황 [이어서 작성] — 해당 공정만 선택
+   const resumeId = params.get('resume') || '' // 이어서 작성할 작성중 점검 ID (있으면 새로 만들지 않고 이어감)
+   const resumeAll = params.get('resumeall') === '1' // 점검표 1장 단위 이어서 작성 — 이 학교의 모든 작성중 공정을 프리필 [052]
++  const editIds = (params.get('edit') || '').split(',').filter(Boolean) // 제출·서명완료 점검표 수정 — 해당 점검 ID들을 프리필하고 같은 점검에 덮어쓰기 [068]
+   const [resumeParts, setResumeParts] = useState<string[]>([]) // resumeall로 발견된 작성중 공정 키
+   const today = new Date().toISOString().slice(0, 10)
+ 
+@@ -200,6 +201,19 @@ export function InspectionForm() {
+             setDraftIds((p) => ({ ...ids, ...p }))
+             setResumeParts(drafts.map((dr) => dr.part))
+           }
++        } else if (editIds.length) {
++          // 점검표 수정 — 상태와 무관하게 지정 점검들을 프리필하고, 저장 시 같은 점검에 덮어쓰기 [068]
++          const targets = list.filter((x) => x.id && editIds.includes(x.id))
++          if (targets.length) {
++            prefill(targets)
++            const ids: Record<string, string> = {}
++            for (const t of targets) {
++              const def = PARTDEF.find((x) => x.key === t.part)
++              if (def && t.id) ids[def.label] = t.id
++            }
++            setDraftIds((p) => ({ ...ids, ...p }))
++            setResumeParts(targets.map((t) => t.part))
++          }
+         } else if (resumeId) {
+           const target = list.find((x) => x.id === resumeId)
+           if (target) prefill([target])
+@@ -232,7 +246,9 @@ export function InspectionForm() {
+     for (const d of PARTDEF) {
+       e[d.label] = partParam
+         ? d.key === partParam
+-        : (counts[d.key] ?? 0) > 0 || (resumeAll && resumeParts.includes(d.key))
++        : editIds.length
++          ? resumeParts.includes(d.key) // 수정 모드: 해당 점검표에 포함된 공정만 선택 [068]
++          : (counts[d.key] ?? 0) > 0 || (resumeAll && resumeParts.includes(d.key))
+     }
+     setEnabled(e)
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+diff --git "a/\354\210\230\354\240\225\354\235\264\353\240\245.md" "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+index 10b29c1..dfb7a6a 100644
+--- "a/\354\210\230\354\240\225\354\235\264\353\240\245.md"
++++ "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+@@ -1389,6 +1389,27 @@ const HUB_SEARCH = [
+ 
+ ---
+ 
++## [068] 2026-08-11 — 점검일 클릭: 양식 보기 → 작성 화면(입력 폼)으로 변경
++
++**요청**: [067]의 점검일 클릭이 읽기 전용 양식 보기로 열림 → 제출·서명완료 건도 작성 화면(입력 폼)으로 들어가 내용을 수정할 수 있어야 함.
++
++**변경**:
++- `src/pages/InspectionForm.tsx` — **수정 모드 신설**: URL 파라미터 `edit=점검ID,점검ID…`가 있으면 상태와 무관하게 해당 점검들의 기존 결과·비고를 폼에 프리필하고, 점검대상은 그 점검표에 포함된 공정만 선택. draftIds에 기존 점검 ID를 매핑해 [임시저장]·[저장] 모두 **새 점검을 만들지 않고 같은 점검에 덮어씀**(이어서 작성 [052]와 동일한 재사용 구조).
++- `src/pages/Inspection.tsx` — 학교 컨텍스트 점검 현황의 점검일 클릭: 제출·서명완료 건은 양식 보기(openSheet) 대신 `edit=` 파라미터로 작성 화면 진입. 작성중 건은 기존대로 `resumeall=1`. [보기] 버튼(양식 보기)은 그대로 유지.
++
++**유의(알려진 한계)**:
++- 구 시드 데이터(i01·i02 등)는 항목 코드가 옛 규격(GS-01·SI-01)이라 프리필되지 않음(공정 선택까지만) — 폼으로 작성·제출한 점검표는 전부 정상 프리필. 실서버 결합 시에는 폼 규격 코드만 존재하므로 문제 없음.
++- 기타의견·사진대지 등 부가정보(extras)는 프리필되지 않음(이어서 작성도 동일) — 필요 시 후속 작업.
++- 수정 후 재저장 시 목서버가 submitted_at을 현재 시각으로 갱신 → 점검 현황의 점검일이 재제출일로 바뀜. 실서버 정책(수정 이력 관리) 확인 필요.
++
++**롤백 방법**: git 커밋 revert.
++
++**검증**: `tsc --noEmit` 통과 · 목서버 E2E(Playwright) — 폼 규격으로 제출된 점검표(시설 13항목: 양호 10·미흡 1(비고 '조명 교체 필요')·해당없음 2) 생성 후 점검일 클릭 → `/inspection/new?school=s01&edit=…` 진입, 시설관리만 선택·13개 항목 결과와 비고 전부 프리필 확인.
++
++**영향 범위**: 안전점검 작성 폼의 URL 파라미터 처리 + 학교 컨텍스트 점검일 클릭 동작. 백엔드 계약 파일 미수정.
++
++---
++
+ ## 부록: 신규 추가 파일 (프로젝트 소스 아님 — 개발 보조 도구)
+ 
+ | 날짜 | 파일 | 용도 |
+-- 
+2.43.0
+

@@ -1,0 +1,253 @@
+From 2d17f28ccba35de476632e954bee2ff6e12e05ca Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 11 Aug 2026 04:58:26 +0000
+Subject: [PATCH 4/8] =?UTF-8?q?=EC=97=85=EB=AC=B4=20=ED=83=AD=204=EA=B3=B3?=
+ =?UTF-8?q?=20=EB=A6=AC=EC=8A=A4=ED=8A=B8=EC=97=90=20=EA=B5=AC=EB=B6=84(?=
+ =?UTF-8?q?=ED=95=99=EA=B5=90=EA=B8=89)=20=EC=BB=AC=EB=9F=BC=20=EC=B6=94?=
+ =?UTF-8?q?=EA=B0=80=20[070]?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_016cm8Duo4LXFGNmaGXGYeKT
+---
+ src/pages/Compliance.tsx                        | 10 +++++++---
+ src/pages/Inspection.tsx                        |  9 ++++++---
+ src/pages/Musculo.tsx                           |  8 ++++++--
+ src/pages/Risk.tsx                              | 17 ++++++++++++-----
+ ...\230\354\240\225\354\235\264\353\240\245.md" | 16 ++++++++++++++++
+ 5 files changed, 47 insertions(+), 13 deletions(-)
+
+diff --git a/src/pages/Compliance.tsx b/src/pages/Compliance.tsx
+index 9ba78d5..ffa6657 100644
+--- a/src/pages/Compliance.tsx
++++ b/src/pages/Compliance.tsx
+@@ -56,9 +56,11 @@ const CX_REPORT_QUERY: TableQueryConfig<CxReportRow> = {
+     period: (r) => r.periodKey,
+     name: (r) => r.school.name,
+     submitted: (r) => r.sheet.submitted_date ?? '',
++    level: (r) => LEVEL_ORDER_CX[r.school.school_level ?? ''] ?? 99, // 구분(학교급) 정렬 [070]
+   },
+   initialSort: { key: 'period', dir: 'desc' },
+ }
++const LEVEL_ORDER_CX: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, 기타: 4 }
+ const CX_REPORT_EXPORT: ExportColumn<CxReportRow>[] = [
+   { header: '조사지', value: (r) => periodLabel(r.periodKey) },
+   { header: '학교', value: (r) => r.school.name },
+@@ -281,6 +283,7 @@ export function Compliance() {
+               <thead>
+                 <tr>
+                   <SortableTh q={rq} col="period">조사지</SortableTh>
++                  <SortableTh q={rq} col="level" className="c">구분</SortableTh>
+                   <SortableTh q={rq} col="name">학교</SortableTh>
+                   <th>담당자</th>
+                   <th className="c">결과 기입</th>
+@@ -290,14 +293,15 @@ export function Compliance() {
+                 </tr>
+               </thead>
+               <tbody>
+-                {loading && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
+-                {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
++                {loading && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
++                {!loading && error && <tr><td colSpan={8}><div className="tstate">오류: {error}</div></td></tr>}
+                 {!loading && !error && rq.view.map((r) => {
+                   const st = sheetStatus(r.sheet)
+                   const pg = sheetProgress(r.sheet)
+                   return (
+                     <tr key={r.school.id + r.periodKey} onClick={() => { setSel(r.school); setEditKey('') }}>
+                       <td><b>{periodLabel(r.periodKey)} 점검 조사지</b></td>
++                      <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
+                       <td>{r.school.name}</td>
+                       <td>{r.school.manager || '—'}</td>
+                       <td className="c">{pg.done}/{pg.total}</td>
+@@ -308,7 +312,7 @@ export function Compliance() {
+                   )
+                 })}
+                 {!loading && !error && rq.view.length === 0 && (
+-                  <tr><td colSpan={7}><div className="tstate">{reportRows.length === 0 ? '작성된 조사지가 없습니다. 학교 탭의 [이행점검] 바로가기에서 교육청 공문 접수 후 작성하세요.' : '조건에 맞는 조사지가 없습니다.'}</div></td></tr>
++                  <tr><td colSpan={8}><div className="tstate">{reportRows.length === 0 ? '작성된 조사지가 없습니다. 학교 탭의 [이행점검] 바로가기에서 교육청 공문 접수 후 작성하세요.' : '조건에 맞는 조사지가 없습니다.'}</div></td></tr>
+                 )}
+               </tbody>
+             </table>
+diff --git a/src/pages/Inspection.tsx b/src/pages/Inspection.tsx
+index d7815bd..f48b292 100644
+--- a/src/pages/Inspection.tsx
++++ b/src/pages/Inspection.tsx
+@@ -136,6 +136,7 @@ const REPORT_QUERY: TableQueryConfig<InsReportRow> = {
+   sortAccessors: {
+     date: (r) => r.date,
+     name: (r) => r.school.name,
++    level: (r) => LEVEL_ORDER[r.school.school_level ?? ''] ?? 99, // 구분(학교급) 정렬 [070]
+   },
+   initialSort: { key: 'date', dir: 'desc' },
+ }
+@@ -532,6 +533,7 @@ export function Inspection() {
+                 <thead>
+                   <tr>
+                     <SortableTh q={rq} col="date">점검일</SortableTh>
++                    <SortableTh q={rq} col="level" className="c">구분</SortableTh>
+                     <SortableTh q={rq} col="name">학교</SortableTh>
+                     <th>담당자</th>
+                     <th className="c">작성현황</th>
+@@ -541,8 +543,8 @@ export function Inspection() {
+                   </tr>
+                 </thead>
+                 <tbody>
+-                  {(loading || sumLoading) && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
+-                  {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
++                  {(loading || sumLoading) && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
++                  {!loading && error && <tr><td colSpan={8}><div className="tstate">오류: {error}</div></td></tr>}
+                   {!loading && !sumLoading && !error && rq.view.map((r) => {
+                     const st = STATUS[r.status] ?? { label: r.status, cls: 'na' }
+                     const eo = EDUOFFICE[r.eduoffice] ?? { label: '—', cls: 'na' }
+@@ -550,6 +552,7 @@ export function Inspection() {
+                     return (
+                       <tr key={r.school.id + '|' + r.date} onClick={() => openSchool(r.school)} title={`포함 공정: ${partNames}`}>
+                         <td>{r.date || '—'}</td>
++                        <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
+                         <td><b>{r.school.name}</b></td>
+                         <td className="inh-mgr">{r.school.manager || '—'}</td>
+                         <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
+@@ -568,7 +571,7 @@ export function Inspection() {
+                     )
+                   })}
+                   {!loading && !sumLoading && !error && rq.view.length === 0 && (
+-                    <tr><td colSpan={7}><div className="tstate">{reportRows.length === 0 ? '작성된 점검표가 없습니다. 학교 탭의 [안전점검] 바로가기에서 작성하세요.' : '조건에 맞는 점검표가 없습니다.'}</div></td></tr>
++                    <tr><td colSpan={8}><div className="tstate">{reportRows.length === 0 ? '작성된 점검표가 없습니다. 학교 탭의 [안전점검] 바로가기에서 작성하세요.' : '조건에 맞는 점검표가 없습니다.'}</div></td></tr>
+                   )}
+                 </tbody>
+               </table>
+diff --git a/src/pages/Musculo.tsx b/src/pages/Musculo.tsx
+index 12e0c8e..650701c 100644
+--- a/src/pages/Musculo.tsx
++++ b/src/pages/Musculo.tsx
+@@ -84,9 +84,11 @@ const MUS_REPORT_QUERY: TableQueryConfig<MusReportRow> = {
+     date: (r) => (r.sv.created_at ?? '').slice(0, 10),
+     name: (r) => r.school.name,
+     needs: (r) => r.sv.needs_review,
++    level: (r) => LEVEL_ORDER_MU[r.school.school_level ?? ''] ?? 99, // 구분(학교급) 정렬 [070]
+   },
+   initialSort: { key: 'date', dir: 'desc' },
+ }
++const LEVEL_ORDER_MU: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, 기타: 4 }
+ const MUS_REPORT_EXPORT: ExportColumn<MusReportRow>[] = [
+   { header: '조사일', value: (r) => (r.sv.created_at ?? '').slice(0, 10) },
+   { header: '학교', value: (r) => r.school.name },
+@@ -592,6 +594,7 @@ export function Musculo() {
+                 <thead>
+                   <tr>
+                     <SortableTh q={rq} col="date">조사일</SortableTh>
++                    <SortableTh q={rq} col="level" className="c">구분</SortableTh>
+                     <SortableTh q={rq} col="name">학교</SortableTh>
+                     <th>담당자</th>
+                     <th className="c">기본조사</th>
+@@ -602,10 +605,11 @@ export function Musculo() {
+                   </tr>
+                 </thead>
+                 <tbody>
+-                  {(loading || sumLoading) && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
++                  {(loading || sumLoading) && <tr><td colSpan={9}><div className="tstate">불러오는 중…</div></td></tr>}
+                   {!loading && !sumLoading && rq.view.map((r) => (
+                     <tr key={r.sv.id} onClick={() => openSchool(r.school)} style={{ cursor: 'pointer' }}>
+                       <td>{(r.sv.created_at ?? '').slice(0, 10) || '—'}</td>
++                      <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
+                       <td><b>{r.school.name}</b></td>
+                       <td className="muh-mgr">{r.school.manager || '—'}</td>
+                       <td className="c">{r.sv.basic_surveys}</td>
+@@ -622,7 +626,7 @@ export function Musculo() {
+                     </tr>
+                   ))}
+                   {!loading && !sumLoading && rq.view.length === 0 && (
+-                    <tr><td colSpan={8}><div className="tstate">{reportRows.length === 0 ? '작성된 조사가 없습니다. 학교 탭의 [근골격계] 바로가기에서 시작하세요.' : '조건에 맞는 조사가 없습니다.'}</div></td></tr>
++                    <tr><td colSpan={9}><div className="tstate">{reportRows.length === 0 ? '작성된 조사가 없습니다. 학교 탭의 [근골격계] 바로가기에서 시작하세요.' : '조건에 맞는 조사가 없습니다.'}</div></td></tr>
+                   )}
+                 </tbody>
+               </table>
+diff --git a/src/pages/Risk.tsx b/src/pages/Risk.tsx
+index f0deff9..4f55127 100644
+--- a/src/pages/Risk.tsx
++++ b/src/pages/Risk.tsx
+@@ -268,9 +268,14 @@ const RISK_REPORT_QUERY: TableQueryConfig<RiskReportRow> = {
+     options: ['유', '초', '중', '고', '기타'].map((v) => ({ value: v, label: v })),
+     accessor: (r) => r.school.school_level ?? '',
+   }],
+-  sortAccessors: { date: (r) => r.date, name: (r) => r.school.name },
++  sortAccessors: {
++    date: (r) => r.date,
++    name: (r) => r.school.name,
++    level: (r) => LEVEL_ORDER_RV[r.school.school_level ?? ''] ?? 99, // 구분(학교급) 정렬 [070]
++  },
+   initialSort: { key: 'date', dir: 'desc' },
+ }
++const LEVEL_ORDER_RV: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, 기타: 4 }
+ const RISK_REPORT_EXPORT: ExportColumn<RiskReportRow>[] = [
+   { header: '구분', value: (r) => r.kind },
+   { header: '보고서', value: (r) => r.title },
+@@ -824,8 +829,9 @@ export function Risk() {
+                 <thead>
+                   <tr>
+                     <SortableTh q={rq} col="date">최근 저장</SortableTh>
+-                    <th className="c">구분</th>
++                    <th className="c">평가 구분</th>
+                     <th>보고서</th>
++                    <SortableTh q={rq} col="level" className="c">구분</SortableTh>
+                     <SortableTh q={rq} col="name">학교</SortableTh>
+                     <th>진행</th>
+                     <th className="c">상태</th>
+@@ -833,13 +839,14 @@ export function Risk() {
+                   </tr>
+                 </thead>
+                 <tbody>
+-                  {(loading || docLoading) && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
+-                  {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
++                  {(loading || docLoading) && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
++                  {!loading && error && <tr><td colSpan={8}><div className="tstate">오류: {error}</div></td></tr>}
+                   {!loading && !docLoading && !error && rq.view.map((r, i) => (
+                     <tr key={r.school.id + r.kind + i} onClick={() => { openSchool(r.school); if (r.kind === '수시') setCtxTab('adhoc') }}>
+                       <td>{r.date || '—'}</td>
+                       <td className="c"><span className={'pillx ' + (r.kind === '수시' ? 'warn' : 'doing')}>{r.kind}</span></td>
+                       <td><b>{r.title}</b></td>
++                      <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
+                       <td>{r.school.name}</td>
+                       <td>{r.progress}</td>
+                       <td className="c"><span className={'pillx ' + r.statusCls}>{r.statusLabel}</span></td>
+@@ -847,7 +854,7 @@ export function Risk() {
+                     </tr>
+                   ))}
+                   {!loading && !docLoading && !error && rq.view.length === 0 && (
+-                    <tr><td colSpan={7}><div className="tstate">{reportRows.length === 0 ? '작성된 보고서가 없습니다. 학교 탭의 [위험성평가] 바로가기에서 작성하세요.' : '조건에 맞는 보고서가 없습니다.'}</div></td></tr>
++                    <tr><td colSpan={8}><div className="tstate">{reportRows.length === 0 ? '작성된 보고서가 없습니다. 학교 탭의 [위험성평가] 바로가기에서 작성하세요.' : '조건에 맞는 보고서가 없습니다.'}</div></td></tr>
+                   )}
+                 </tbody>
+               </table>
+diff --git "a/\354\210\230\354\240\225\354\235\264\353\240\245.md" "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+index c842493..9b767cc 100644
+--- "a/\354\210\230\354\240\225\354\235\264\353\240\245.md"
++++ "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+@@ -1426,6 +1426,22 @@ const HUB_SEARCH = [
+ 
+ ---
+ 
++## [070] 2026-08-11 — 업무 탭 4곳 리스트에 구분(학교급) 컬럼 추가
++
++**요청**: 학교 탭 목록처럼 안전점검·위험성평가·근골격계·이행점검 첫 화면 리스트에도 유/초/중/고 구분이 보이도록.
++
++**변경** (`Inspection.tsx` · `Risk.tsx` · `Musculo.tsx` · `Compliance.tsx`):
++- 각 첫 화면 리스트의 학교 컬럼 앞에 **구분 컬럼** 추가 — 학교 탭과 동일한 보라 칩(`pillx doing`), 미지정 학교는 '—'. 헤더는 정렬 가능(SortableTh, 유→초→중→고→기타 순), 각 리스트 쿼리에 level 정렬 접근자 추가. 로딩·빈 상태 행의 colSpan 보정.
++- **위험성평가 유의**: 기존 '구분'(정기/수시) 컬럼과 이름이 겹쳐 기존 컬럼을 **'평가 구분'**으로 개명하고, 학교급 컬럼이 '구분'을 사용(학교 탭과 용어 통일).
++
++**롤백 방법**: git 커밋 revert.
++
++**검증**: `tsc --noEmit` 통과 · 목서버 E2E — 4개 탭 헤더에 구분 컬럼 확인(안전점검: 점검일·구분·학교…, 위험성평가: 최근 저장·평가 구분·보고서·구분·학교…), 안전점검 리스트에서 초/중/고 칩 정상 표시·정렬 동작 확인.
++
++**영향 범위**: 4개 업무 탭의 첫 화면 리스트만. 학교 컨텍스트·작성 화면·백엔드 계약 변경 없음.
++
++---
++
+ ## 부록: 신규 추가 파일 (프로젝트 소스 아님 — 개발 보조 도구)
+ 
+ | 날짜 | 파일 | 용도 |
+-- 
+2.43.0
+

@@ -31,7 +31,7 @@ function deriveTasks(insp: InspRow[], risk: StatusRow[], comp: StatusRow[], mus:
   const riskDoing = risk.filter((r) => r.status !== 'completed').length
   if (riskDoing > 0) out.push({ label: `위험성평가 진행 ${riskDoing}건`, cls: 'doing' })
   const compDraft = comp.filter((c) => c.status === 'draft').length
-  if (compDraft > 0) out.push({ label: '이행점검 작성 중', cls: 'doing' })
+  if (compDraft > 0) out.push({ label: '이행점검 작성중', cls: 'doing' })
   const review = mus.reduce((a, m) => a + (m.needs_review || 0), 0)
   if (review > 0) out.push({ label: `증상조사표 검수 ${review}건`, cls: 'bad' })
   if (out.length === 0) out.push({ label: '특이 업무 없음 · 정기 방문', cls: 'muted' })

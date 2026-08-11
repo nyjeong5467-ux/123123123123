@@ -1,0 +1,404 @@
+From df80d13abcaf71476179c05a4d0cf6d6e026e08b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 11 Aug 2026 05:07:34 +0000
+Subject: [PATCH 5/8] =?UTF-8?q?=EC=9A=A9=EC=96=B4=20=ED=86=B5=EC=9D=BC:=20?=
+ =?UTF-8?q?=EC=9E=91=EC=84=B1=EC=A4=91=C2=B7=EC=A0=9C=EC=B6=9C=20=EC=99=84?=
+ =?UTF-8?q?=EB=A3=8C=C2=B7=EA=B5=AC=EB=B6=84=20[071]?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_016cm8Duo4LXFGNmaGXGYeKT
+---
+ src/components/SchoolFormModal.tsx            |  2 +-
+ src/components/TodayHero.tsx                  |  2 +-
+ src/components/table/WorkSearchPanel.tsx      |  2 +-
+ src/pages/Compliance.tsx                      |  8 +++----
+ src/pages/Education.tsx                       |  6 ++---
+ src/pages/Home.tsx                            |  2 +-
+ src/pages/Inspection.tsx                      | 12 +++++-----
+ src/pages/Musculo.tsx                         |  2 +-
+ src/pages/MusculoReport.tsx                   |  2 +-
+ src/pages/Risk.tsx                            |  6 ++---
+ src/pages/SchoolDetail.tsx                    |  8 +++----
+ src/pages/SchoolStatus.tsx                    |  4 ++--
+ src/pages/SchoolsHub.tsx                      |  6 ++---
+ src/pages/Sessions.tsx                        |  2 +-
+ ...30\354\240\225\354\235\264\353\240\245.md" | 22 +++++++++++++++++++
+ 15 files changed, 54 insertions(+), 32 deletions(-)
+
+diff --git a/src/components/SchoolFormModal.tsx b/src/components/SchoolFormModal.tsx
+index 8d859de..45c7181 100644
+--- a/src/components/SchoolFormModal.tsx
++++ b/src/components/SchoolFormModal.tsx
+@@ -96,7 +96,7 @@ export function SchoolFormModal({
+         />
+       </label>
+       <label className="field">
+-        <span>학교급(구분)</span>
++        <span>구분</span>
+         <select className="select" value={schoolLevel} onChange={(e) => setSchoolLevel(e.target.value)}>
+           <option value="">선택</option>
+           {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+diff --git a/src/components/TodayHero.tsx b/src/components/TodayHero.tsx
+index ccfc3fb..564f141 100644
+--- a/src/components/TodayHero.tsx
++++ b/src/components/TodayHero.tsx
+@@ -31,7 +31,7 @@ function deriveTasks(insp: InspRow[], risk: StatusRow[], comp: StatusRow[], mus:
+   const riskDoing = risk.filter((r) => r.status !== 'completed').length
+   if (riskDoing > 0) out.push({ label: `위험성평가 진행 ${riskDoing}건`, cls: 'doing' })
+   const compDraft = comp.filter((c) => c.status === 'draft').length
+-  if (compDraft > 0) out.push({ label: '이행점검 작성 중', cls: 'doing' })
++  if (compDraft > 0) out.push({ label: '이행점검 작성중', cls: 'doing' })
+   const review = mus.reduce((a, m) => a + (m.needs_review || 0), 0)
+   if (review > 0) out.push({ label: `증상조사표 검수 ${review}건`, cls: 'bad' })
+   if (out.length === 0) out.push({ label: '특이 업무 없음 · 정기 방문', cls: 'muted' })
+diff --git a/src/components/table/WorkSearchPanel.tsx b/src/components/table/WorkSearchPanel.tsx
+index 3de29a7..0c0e5d0 100644
+--- a/src/components/table/WorkSearchPanel.tsx
++++ b/src/components/table/WorkSearchPanel.tsx
+@@ -59,7 +59,7 @@ export function WorkSearchPanel(p: {
+           )}
+         </div>
+       </div>
+-      <div className="shub-seg" role="group" aria-label="학교급 선택">
++      <div className="shub-seg" role="group" aria-label="구분 선택">
+         <button className={levelQ === '' ? 'on' : ''} onClick={() => setLevelQ('')}>전체</button>
+         {LEVELS.map((l) => (
+           <button key={l} className={levelQ === l ? 'on' : ''} onClick={() => setLevelQ(l)}>{l}</button>
+diff --git a/src/pages/Compliance.tsx b/src/pages/Compliance.tsx
+index ffa6657..3457401 100644
+--- a/src/pages/Compliance.tsx
++++ b/src/pages/Compliance.tsx
+@@ -29,7 +29,7 @@ const CUR_PERIODS = [`${YEAR}_h1`, `${YEAR}_h2`]
+ function sheetStatus(s: CxSheet | undefined): [string, string] {
+   if (!s) return ['미작성', 'todo']
+   if (s.status === 'submitted') return ['제출 완료', 'ok']
+-  return ['작성 중', 'doing']
++  return ['작성중', 'doing']
+ }
+ 
+ // ===== 1단계(개편 0807): 작성된 조사지 리스트 — 점검자들이 작성한 조사지가 곧 첫 화면 =====
+@@ -42,13 +42,13 @@ const CX_REPORT_QUERY: TableQueryConfig<CxReportRow> = {
+     label: '상태',
+     options: [
+       { value: 'submitted', label: '제출 완료' },
+-      { value: 'draft', label: '작성 중' },
++      { value: 'draft', label: '작성중' },
+     ],
+     accessor: (r) => (r.sheet.status === 'submitted' ? 'submitted' : 'draft'),
+   }, {
+     // [063] 검색 패널의 학교급 세그먼트가 사용
+     key: 'level',
+-    label: '학교급',
++    label: '구분',
+     options: ['유', '초', '중', '고', '기타'].map((v) => ({ value: v, label: v })),
+     accessor: (r) => r.school.school_level ?? '',
+   }],
+@@ -76,7 +76,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
+   searchFields: [(r) => r.name, (r) => r.manager ?? ''],
+   searchPlaceholder: '학교명·담당자 검색',
+   filters: [{
+-    key: 'level', label: '학교급',
++    key: 'level', label: '구분',
+     options: SCHOOL_LEVELS.map((v) => ({ value: v, label: v })),
+     accessor: (r) => r.school_level || '기타',
+   }],
+diff --git a/src/pages/Education.tsx b/src/pages/Education.tsx
+index 97f36de..1006ff5 100644
+--- a/src/pages/Education.tsx
++++ b/src/pages/Education.tsx
+@@ -60,7 +60,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
+   filters: [
+     {
+       key: 'level',
+-      label: '학교급',
++      label: '구분',
+       options: SCHOOL_LEVELS.map((v) => ({ value: v, label: v })),
+       accessor: (r) => r.school_level || '기타',
+     },
+@@ -74,7 +74,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
+ }
+ const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
+   { header: '학교', value: (r) => r.name },
+-  { header: '학교급', value: (r) => r.school_level || '' },
++  { header: '구분', value: (r) => r.school_level || '' },
+   { header: '담당자', value: (r) => r.manager || '' },
+   { header: '교육 대상 인원', value: (r) => r.total },
+   { header: '수료 인원', value: (r) => r.completed },
+@@ -554,7 +554,7 @@ export function Education() {
+                 <thead>
+                   <tr>
+                     <SortableTh q={q} col="name">학교</SortableTh>
+-                    <th>학교급</th>
++                    <th>구분</th>
+                     <th>담당자</th>
+                     <SortableTh q={q} col="total" className="c">교육 대상</SortableTh>
+                     <SortableTh q={q} col="pct">평균 진도율</SortableTh>
+diff --git a/src/pages/Home.tsx b/src/pages/Home.tsx
+index 0957470..e3bb7f2 100644
+--- a/src/pages/Home.tsx
++++ b/src/pages/Home.tsx
+@@ -100,7 +100,7 @@ const LEVEL_ORDER: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, 
+ const SCH_FILTERS: FilterDef<School>[] = [
+   {
+     key: 'level',
+-    label: '학교급',
++    label: '구분',
+     options: LEVELS.map((l) => ({ value: l, label: l })),
+     accessor: (r) => r.school_level ?? '',
+   },
+diff --git a/src/pages/Inspection.tsx b/src/pages/Inspection.tsx
+index f48b292..a3cf868 100644
+--- a/src/pages/Inspection.tsx
++++ b/src/pages/Inspection.tsx
+@@ -27,7 +27,7 @@ const PART_OPTIONS: { value: string; label: string }[] = [
+ const STATUS: Record<string, { label: string; cls: string }> = {
+   draft: { label: '작성중', cls: 'todo' },
+   signed: { label: '서명완료', cls: 'doing' },
+-  submitted: { label: '제출', cls: 'ok' },
++  submitted: { label: '제출 완료', cls: 'ok' },
+ }
+ const EDUOFFICE: Record<string, { label: string; cls: string }> = {
+   pending: { label: '대기', cls: 'todo' },
+@@ -78,7 +78,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
+   filters: [
+     {
+       key: 'level',
+-      label: '학교급',
++      label: '구분',
+       options: LEVELS.map((l) => ({ value: l, label: l })),
+       accessor: (r) => r.school_level ?? '',
+     },
+@@ -92,13 +92,13 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
+   },
+ }
+ const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
+-  { header: '학교급', value: (r) => r.school_level || '' },
++  { header: '구분', value: (r) => r.school_level || '' },
+   { header: '학교', value: (r) => r.name },
+   { header: '담당자', value: (r) => r.manager || '' },
+   { header: '점검 건수', value: (r) => r.count },
+   { header: '작성중', value: (r) => r.draft },
+   { header: '서명완료', value: (r) => r.signed },
+-  { header: '제출', value: (r) => r.submitted },
++  { header: '제출 완료', value: (r) => r.submitted },
+   { header: '최근 점검일', value: (r) => r.latest },
+ ]
+ 
+@@ -122,13 +122,13 @@ const REPORT_QUERY: TableQueryConfig<InsReportRow> = {
+       options: [
+         { value: 'draft', label: '작성중' },
+         { value: 'signed', label: '서명완료' },
+-        { value: 'submitted', label: '제출' },
++        { value: 'submitted', label: '제출 완료' },
+       ],
+       accessor: (r) => r.status,
+     },
+     {
+       key: 'level',
+-      label: '학교급',
++      label: '구분',
+       options: LEVELS.map((l) => ({ value: l, label: l })),
+       accessor: (r) => r.school.school_level ?? '',
+     },
+diff --git a/src/pages/Musculo.tsx b/src/pages/Musculo.tsx
+index 650701c..bc79b50 100644
+--- a/src/pages/Musculo.tsx
++++ b/src/pages/Musculo.tsx
+@@ -75,7 +75,7 @@ const MUS_REPORT_QUERY: TableQueryConfig<MusReportRow> = {
+     {
+       // [063] 검색 패널의 학교급 세그먼트가 사용
+       key: 'level',
+-      label: '학교급',
++      label: '구분',
+       options: ['유', '초', '중', '고', '기타'].map((v) => ({ value: v, label: v })),
+       accessor: (r) => r.school.school_level ?? '',
+     },
+diff --git a/src/pages/MusculoReport.tsx b/src/pages/MusculoReport.tsx
+index 5fc7682..dfd5d13 100644
+--- a/src/pages/MusculoReport.tsx
++++ b/src/pages/MusculoReport.tsx
+@@ -93,7 +93,7 @@ type Person = {
+ }
+ 
+ const ST: Record<PStat, [string, string]> = {
+-  done: ['ok', '작성 완료'], review: ['warn', '인식 검수 필요'], doing: ['doing', '작성 중'], todo: ['todo', '미제출'],
++  done: ['ok', '작성 완료'], review: ['warn', '인식 검수 필요'], doing: ['doing', '작성중'], todo: ['todo', '미제출'],
+ }
+ const VIA: Record<Via, [string, string]> = { mob: ['mob', '직접 입력'], omr: ['omr', '종이 OMR'], non: ['non', '미배포'] }
+ 
+diff --git a/src/pages/Risk.tsx b/src/pages/Risk.tsx
+index 4f55127..09d367a 100644
+--- a/src/pages/Risk.tsx
++++ b/src/pages/Risk.tsx
+@@ -264,7 +264,7 @@ const RISK_REPORT_QUERY: TableQueryConfig<RiskReportRow> = {
+   }, {
+     // [063] 검색 패널의 학교급 세그먼트가 사용
+     key: 'level',
+-    label: '학교급',
++    label: '구분',
+     options: ['유', '초', '중', '고', '기타'].map((v) => ({ value: v, label: v })),
+     accessor: (r) => r.school.school_level ?? '',
+   }],
+@@ -343,7 +343,7 @@ export function Risk() {
+         out.push({
+           school: s, kind: '정기',
+           title: `${sm.year}년 정기 위험성평가 결과보고서`,
+-          statusLabel: sm.okCnt === 5 ? '작성 완료' : '작성 중',
++          statusLabel: sm.okCnt === 5 ? '작성 완료' : '작성중',
+           statusCls: sm.okCnt === 5 ? 'ok' : 'doing',
+           progress: `섹션 ${sm.okCnt}/5` + (sm.high > 0 ? ` · 8점 이상 ${sm.high}건` : ''),
+           date: (doc.updated || '').slice(0, 10),
+@@ -922,7 +922,7 @@ export function Risk() {
+               partCnt > 0,
+             ]
+             const okCnt = secOk.filter(Boolean).length
+-            const status: [string, string] = !started ? ['미작성', 'todo'] : okCnt === 5 ? ['작성 완료', 'ok'] : ['작성 중', 'doing']
++            const status: [string, string] = !started ? ['미작성', 'todo'] : okCnt === 5 ? ['작성 완료', 'ok'] : ['작성중', 'doing']
+             return (
+               <div className="ledger" style={{ marginBottom: 0 }}>
+                 <div className="lh">
+diff --git a/src/pages/SchoolDetail.tsx b/src/pages/SchoolDetail.tsx
+index 65b3ada..d6a7606 100644
+--- a/src/pages/SchoolDetail.tsx
++++ b/src/pages/SchoolDetail.tsx
+@@ -205,7 +205,7 @@ export function SchoolDetail() {
+         const done = insp.filter((r) => r.status === 'submitted').length
+         out.push({
+           key: 'insp', name: '안전점검', summary: `총 ${insp.length}건 · 제출 ${done}건`, date: '—',
+-          cls: done ? 'ok' : insp.length ? 'doing' : 'todo', label: done ? '제출' : insp.length ? '진행중' : '기록 없음',
++          cls: done ? 'ok' : insp.length ? 'doing' : 'todo', label: done ? '제출 완료' : insp.length ? '진행중' : '기록 없음',
+         })
+       }
+       if (Array.isArray(risk)) {
+@@ -234,7 +234,7 @@ export function SchoolDetail() {
+         const done = comp.filter((r) => r.status === 'submitted').length
+         out.push({
+           key: 'comp', name: '이행점검', summary: `총 ${comp.length}건 · 제출 ${done}건`, date: latestDate(comp.map((r) => r.created_at)),
+-          cls: done ? 'ok' : comp.length ? 'doing' : 'todo', label: done ? '제출' : comp.length ? '작성중' : '기록 없음',
++          cls: done ? 'ok' : comp.length ? 'doing' : 'todo', label: done ? '제출 완료' : comp.length ? '작성중' : '기록 없음',
+         })
+       }
+       setWorks(out)
+@@ -440,7 +440,7 @@ export function SchoolDetail() {
+           {pageEdit && infoDraft ? (
+             <div className="shub-infogrid">
+               <label className="field"><span>학교(기관)명 *</span><input className="input" value={infoDraft.name} onChange={(e) => setInfoDraft({ ...infoDraft, name: e.target.value })} /></label>
+-              <label className="field"><span>학교급</span>
++              <label className="field"><span>구분</span>
+                 <select className="input" value={infoDraft.school_level ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, school_level: e.target.value })}>
+                   <option value="">선택 안 함</option>
+                   {SCHOOL_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+@@ -462,7 +462,7 @@ export function SchoolDetail() {
+             </div>
+           ) : (
+             <div className="shub-infogrid view">
+-              <div className="kv"><b>학교급</b><span>{info?.school_level || '—'}</span></div>
++              <div className="kv"><b>구분</b><span>{info?.school_level || '—'}</span></div>
+               <div className="kv"><b>설립 구분</b><span>{(info?.is_private ?? s.is_private) ? '사립' : '국공립'}</span></div>
+               <div className="kv"><b>학교(기관)장</b><span>{info?.principal || '—'}</span></div>
+               <div className="kv"><b>관리감독자</b><span>{info?.supervisor || '—'}</span></div>
+diff --git a/src/pages/SchoolStatus.tsx b/src/pages/SchoolStatus.tsx
+index 7867a97..ab22725 100644
+--- a/src/pages/SchoolStatus.tsx
++++ b/src/pages/SchoolStatus.tsx
+@@ -26,7 +26,7 @@ const LEVEL_ORDER: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, 
+ const SCH_FILTERS: FilterDef<School>[] = [
+   {
+     key: 'level',
+-    label: '학교급',
++    label: '구분',
+     options: LEVELS.map((l) => ({ value: l, label: l })),
+     accessor: (r) => r.school_level ?? '',
+   },
+@@ -183,7 +183,7 @@ export function SchoolStatus() {
+                 <input className="input" value={rName} onChange={(e) => setRName(e.target.value)} placeholder="학교(기관)명" />
+               </label>
+               <label className="field">
+-                <span>학교급(구분)</span>
++                <span>구분</span>
+                 <select className="select" value={rLevel} onChange={(e) => setRLevel(e.target.value)}>
+                   <option value="">선택</option>
+                   {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+diff --git a/src/pages/SchoolsHub.tsx b/src/pages/SchoolsHub.tsx
+index af363a2..9e0405e 100644
+--- a/src/pages/SchoolsHub.tsx
++++ b/src/pages/SchoolsHub.tsx
+@@ -71,7 +71,7 @@ function deriveBadges(insp: InspLite[], risk: StatusLite[], mus: MusLite[], comp
+     insp: inspDone ? { txt: '이번 달 완료', cls: 'ok' } : { txt: '이번 달 미실시', cls: 'muted' },
+     risk: riskDoing > 0 ? { txt: `진행 ${riskDoing}건`, cls: 'muted' } : risk.length > 0 ? { txt: '완료', cls: 'ok' } : { txt: '미작성', cls: 'muted' },
+     mus: mus.length === 0 ? { txt: '미작성', cls: 'muted' } : review > 0 ? { txt: `검수 ${review}건 대기`, cls: 'muted' } : { txt: '완료 · 검수 대기 없음', cls: 'ok' },
+-    comp: compSheet?.status === 'submitted' ? { txt: '제출 완료', cls: 'ok' } : { txt: compSheet ? '작성 중' : '미작성', cls: 'muted' },
++    comp: compSheet?.status === 'submitted' ? { txt: '제출 완료', cls: 'ok' } : { txt: compSheet ? '작성중' : '미작성', cls: 'muted' },
+   }
+ }
+ 
+@@ -81,7 +81,7 @@ const LEVEL_ORDER: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, 
+ const HUB_FILTERS: FilterDef<Row>[] = [
+   {
+     key: 'level',
+-    label: '학교급',
++    label: '구분',
+     options: LEVELS.map((l) => ({ value: l, label: l })),
+     accessor: (r) => r.school.school_level ?? '',
+   },
+@@ -340,7 +340,7 @@ export function SchoolsHub() {
+             </div>
+           </div>
+         )}
+-        <div className="shub-seg" role="group" aria-label="학교급 선택">
++        <div className="shub-seg" role="group" aria-label="구분 선택">
+           <button className={levelQ === '' ? 'on' : ''} onClick={() => setLevelQ('')}>전체</button>
+           {LEVELS.map((l) => (
+             <button key={l} className={levelQ === l ? 'on' : ''} onClick={() => setLevelQ(l)}>{l}</button>
+diff --git a/src/pages/Sessions.tsx b/src/pages/Sessions.tsx
+index dfdc9ab..cfe12ac 100644
+--- a/src/pages/Sessions.tsx
++++ b/src/pages/Sessions.tsx
+@@ -252,7 +252,7 @@ export function Sessions() {
+                 <input className="input" placeholder="학교명·담당자 검색" value={schQ} onChange={(e) => setSchQ(e.target.value)} />
+               </span>
+               <select className="select" value={schLevel} onChange={(e) => setSchLevel(e.target.value)} style={{ width: 120 }}>
+-                <option value="">학교급 전체</option>
++                <option value="">구분 전체</option>
+                 {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+               </select>
+               <button className={'sess-preset' + (onlyMine ? ' on' : '')} onClick={() => setOnlyMine((v) => !v)}
+diff --git "a/\354\210\230\354\240\225\354\235\264\353\240\245.md" "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+index 9b767cc..a0a3b6b 100644
+--- "a/\354\210\230\354\240\225\354\235\264\353\240\245.md"
++++ "b/\354\210\230\354\240\225\354\235\264\353\240\245.md"
+@@ -1442,6 +1442,28 @@ const HUB_SEARCH = [
+ 
+ ---
+ 
++## [071] 2026-08-11 — 용어 통일: 작성중 · 제출 완료 · 구분
++
++**요청**: 화면마다 어긋난 용어를 ⑴ draft 상태는 **작성중**(붙여쓰기) ⑵ submitted 상태 칩은 **제출 완료** ⑶ 학교급 라벨은 **구분**으로 통일.
++
++**변경** (UI 노출 문자열만 — 코드 식별자·주석·백엔드 계약 미변경):
++
++| 통일 | 변경 지점 |
++|---|---|
++| '작성 중' → **작성중** | `Compliance.tsx`(상태 칩·필터) · `Risk.tsx`(보고서 진행 2곳) · `MusculoReport.tsx`(진행 칩) · `SchoolsHub.tsx`(배지 툴팁) · `TodayHero.tsx`(홈 칩 '이행점검 작성중') |
++| '제출' → **제출 완료** | `Inspection.tsx`(상태 칩·필터·학교 목록 CSV 헤더) · `SchoolDetail.tsx`(안전점검·이행점검 요약 칩 2곳) |
++| '학교급'·'학교급(구분)' → **구분** | 필터 라벨 9곳(`Home`·`Inspection`×2·`SchoolsHub`·`SchoolStatus`·`Musculo`·`Compliance`×2·`Risk`·`Education`) · CSV 헤더 2곳(`Inspection`·`Education`) · 폼 라벨(`SchoolFormModal`·`SchoolStatus`·`SchoolDetail` 편집·정보) · 교육 테이블 헤더(`Education`) · 세션 발급 드롭다운 '구분 전체'(`Sessions`) · aria-label 2곳(`WorkSearchPanel`·`SchoolsHub`) |
++
++**유지(의도적)**: '작성 완료'(다른 상태) · '전송완료'(교육청 전송 계열) · 경영 대시보드 차트 제목 '학교급별 안전점검 현황'(복합어라 유지) · CycleHero 간트 마크 '제출'(시점 표기).
++
++**롤백 방법**: git 커밋 revert.
++
++**검증**: `tsc --noEmit` 통과 · 목서버 E2E — 안전점검 리스트 칩이 작성중/서명완료/제출 완료/전송완료로 표시 확인.
++
++**영향 범위**: 표시 문구만. API 값·필터 키·정렬 동작 변경 없음.
++
++---
++
+ ## 부록: 신규 추가 파일 (프로젝트 소스 아님 — 개발 보조 도구)
+ 
+ | 날짜 | 파일 | 용도 |
+-- 
+2.43.0
+

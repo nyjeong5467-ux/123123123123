@@ -46,6 +46,9 @@ type Survey = {
   created_at?: string | null
 }
 type Part = 'catering' | 'facility' | 'cleaning' | 'commute' | 'night_duty'
+
+// [073] 모듈 스코프 세션 캐시 — 탭 재진입 시 전 학교 GET /musculo(N+1) 재발사 방지 ([060] 패턴)
+let musSession: { account: string; schools: School[]; map: Record<string, Survey[]> } | null = null
 type BurdenResult = { has_burden: boolean; burden_clauses: number[] }
 
 // ===== 1단계(개편 0807): 작성된 조사 리스트 — 점검자들이 작성한 조사가 곧 첫 화면 =====
@@ -75,7 +78,7 @@ const MUS_REPORT_QUERY: TableQueryConfig<MusReportRow> = {
     {
       // [063] 검색 패널의 학교급 세그먼트가 사용
       key: 'level',
-      label: '학교급',
+      label: '구분',
       options: ['유', '초', '중', '고', '기타'].map((v) => ({ value: v, label: v })),
       accessor: (r) => r.school.school_level ?? '',
     },
@@ -84,9 +87,11 @@ const MUS_REPORT_QUERY: TableQueryConfig<MusReportRow> = {
     date: (r) => (r.sv.created_at ?? '').slice(0, 10),
     name: (r) => r.school.name,
     needs: (r) => r.sv.needs_review,
+    level: (r) => LEVEL_ORDER_MU[r.school.school_level ?? ''] ?? 99, // 구분(학교급) 정렬 [070]
   },
   initialSort: { key: 'date', dir: 'desc' },
 }
+const LEVEL_ORDER_MU: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3, 기타: 4 }
 const MUS_REPORT_EXPORT: ExportColumn<MusReportRow>[] = [
   { header: '조사일', value: (r) => (r.sv.created_at ?? '').slice(0, 10) },
   { header: '학교', value: (r) => r.school.name },
@@ -230,8 +235,15 @@ export function Musculo() {
   const [bErr, setBErr] = useState('')
   const [bResult, setBResult] = useState<BurdenResult | null>(null)
 
-  // 학교 목록 로드
+  // 학교 목록 로드 — 세션 캐시 적중 시 재조회 없이 복원 [073]
   useEffect(() => {
+    const acct = user?.login ?? ''
+    if (musSession && musSession.account === acct) {
+      setSchools(musSession.schools)
+      setSurveyMap(musSession.map)
+      setLoading(false)
+      return
+    }
     let alive = true
     api<School[]>('/schools')
       .then((s) => {
@@ -241,11 +253,13 @@ export function Musculo() {
       })
       .catch((e) => { if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) } })
     return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 전 학교 조사 목록 로드 → 학교 행 요약(건수/검수대기)과 2단계 그룹에 사용
   useEffect(() => {
     if (!schools.length) return
+    if (musSession && musSession.schools === schools) return // 캐시 적중 — 재조회 0건 [073]
     let alive = true
     setSumLoading(true)
     Promise.all(
@@ -256,16 +270,23 @@ export function Musculo() {
       ),
     ).then((entries) => {
       if (!alive) return
-      setSurveyMap(Object.fromEntries(entries))
+      const map = Object.fromEntries(entries)
+      musSession = { account: user?.login ?? '', schools, map } // [073]
+      setSurveyMap(map)
       setSumLoading(false)
     })
     return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schools])
 
-  // 특정 학교만 재조회 (조사 생성 후 / 학교 진입 시 최신화)
+  // 특정 학교만 재조회 (조사 생성 후 / 학교 진입 시 최신화) — 세션 캐시도 함께 갱신 [073]
   const refetchSchool = useCallback((schoolId: string) => {
     api<Survey[]>(`/musculo?school_id=${schoolId}`)
-      .then((d) => setSurveyMap((m) => ({ ...m, [schoolId]: Array.isArray(d) ? d : [] })))
+      .then((d) => {
+        const arr = Array.isArray(d) ? d : []
+        if (musSession) musSession.map = { ...musSession.map, [schoolId]: arr }
+        setSurveyMap((m) => ({ ...m, [schoolId]: arr }))
+      })
       .catch(() => { /* 캐시 유지 */ })
   }, [])
 
@@ -592,6 +613,7 @@ export function Musculo() {
                 <thead>
                   <tr>
                     <SortableTh q={rq} col="date">조사일</SortableTh>
+                    <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                     <SortableTh q={rq} col="name">학교</SortableTh>
                     <th>담당자</th>
                     <th className="c">기본조사</th>
@@ -602,10 +624,11 @@ export function Musculo() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(loading || sumLoading) && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
+                  {(loading || sumLoading) && <tr><td colSpan={9}><div className="tstate">불러오는 중…</div></td></tr>}
                   {!loading && !sumLoading && rq.view.map((r) => (
                     <tr key={r.sv.id} onClick={() => openSchool(r.school)} style={{ cursor: 'pointer' }}>
                       <td>{(r.sv.created_at ?? '').slice(0, 10) || '—'}</td>
+                      <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
                       <td><b>{r.school.name}</b></td>
                       <td className="muh-mgr">{r.school.manager || '—'}</td>
                       <td className="c">{r.sv.basic_surveys}</td>
@@ -622,7 +645,7 @@ export function Musculo() {
                     </tr>
                   ))}
                   {!loading && !sumLoading && rq.view.length === 0 && (
-                    <tr><td colSpan={8}><div className="tstate">{reportRows.length === 0 ? '작성된 조사가 없습니다. 학교 탭의 [근골격계] 바로가기에서 시작하세요.' : '조건에 맞는 조사가 없습니다.'}</div></td></tr>
+                    <tr><td colSpan={9}><div className="tstate">{reportRows.length === 0 ? '작성된 조사가 없습니다. 학교 탭의 [근골격계] 바로가기에서 시작하세요.' : '조건에 맞는 조사가 없습니다.'}</div></td></tr>
                   )}
                 </tbody>
               </table>

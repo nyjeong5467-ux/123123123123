@@ -96,7 +96,7 @@ export function SchoolFormModal({
         />
       </label>
       <label className="field">
-        <span>학교급(구분)</span>
+        <span>구분</span>
         <select className="select" value={schoolLevel} onChange={(e) => setSchoolLevel(e.target.value)}>
           <option value="">선택</option>
           {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
