@@ -1,4 +1,5 @@
-/* 정기 위험성평가 결과보고서 — 인쇄용 (A4 가로). RiskReport.tsx 전용 (rr- 접두사) */
+/* 정기 위험성평가 결과보고서 — 인쇄용 (A4 가로). RiskReport.tsx 전용 (rr- 접두사)
+   이행점검 조사지 인쇄(ComplianceSheet)도 rr-overlay·rr-page를 재사용함 */
 .rr-overlay {
   position: fixed;
   inset: 0;
@@ -6,6 +7,9 @@
   background: #565661;
   overflow-y: auto;
   padding: 0 0 40px;
+  /* [075] 인쇄/PDF 저장 시 배경 그래픽(물결·강조색 등)을 브라우저 설정과 무관하게 항상 출력 */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 .rr-toolbar {
   position: sticky;

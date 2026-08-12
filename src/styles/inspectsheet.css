@@ -8,6 +8,9 @@
   background: rgba(24, 22, 40, 0.55);
   overflow: auto;
   padding: 24px 0 60px;
+  /* [075] 인쇄/PDF 저장 시 배경색(체크 강조 등)을 브라우저 설정과 무관하게 항상 출력 */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 .inss-bar {
   position: sticky;

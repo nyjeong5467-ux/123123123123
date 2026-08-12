@@ -38,6 +38,13 @@ type School = {
 let riskSession: { account: string; schools: School[]; map: Record<string, RiskItem[]> } | null = null
 let riskDocSession: { account: string; schools: School[]; map: Record<string, { d: SurveyData; updated: string }> } | null = null
 
+// [076] 담당 학교 한정 조회 — 담당 배정이 있는 계정은 담당 학교만 학교별 API를 조회(N+1 축소, [060] 규칙).
+// 배정이 없는 계정은 기존대로 전체 조회. 리스트에는 조회된 학교의 작성물만 표시됨.
+function scopeToAssigned(schools: School[], login?: string): School[] {
+  const mine = login ? schools.filter((s) => s.assigned_inspector_id === login) : []
+  return mine.length ? mine : schools
+}
+
 // category('regular'|'adhoc')·산재 연동 필드는 백엔드가 병렬 추가 중 — 없으면 정기로 간주
 type RiskItem = {
   id: string
@@ -324,7 +331,7 @@ export function Risk() {
     let alive = true
     setDocLoading(true)
     void Promise.all(
-      schools.map(async (s) => {
+      scopeToAssigned(schools, user?.login).map(async (s) => { // [076] 담당 학교 한정
         const r = await api<SurveyGetResp>(`/risk/survey?school_id=${s.id}`).catch(() => null)
         return { id: s.id, doc: r ? { d: mergeSurvey(r.sections ?? {}), updated: r.updated_at || '' } : null }
       }),
@@ -509,7 +516,7 @@ export function Risk() {
     let alive = true
     setSumLoading(true)
     Promise.all(
-      schools.map((s) =>
+      scopeToAssigned(schools, user?.login).map((s) => // [076] 담당 학교 한정
         api<RiskItem[]>(`/risk?school_id=${s.id}`)
           .then((d) => [s.id, Array.isArray(d) ? d : []] as const)
           .catch(() => [s.id, []] as const),
@@ -864,32 +871,36 @@ export function Risk() {
                 <thead>
                   <tr>
                     <SortableTh q={rq} col="date">최근 저장</SortableTh>
-                    <th className="c">평가 구분</th>
-                    <th>보고서</th>
                     <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                     <SortableTh q={rq} col="name">학교</SortableTh>
-                    <th>진행</th>
-                    <th className="c">상태</th>
-                    <th />
+                    <th>담당자</th>
+                    <th className="c">평가 구분</th>
+                    <th className="c">작성현황</th>
+                    <th className="c">작업</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(loading || docLoading) && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
-                  {!loading && error && <tr><td colSpan={8}><div className="tstate">오류: {error}</div></td></tr>}
+                  {(loading || docLoading) && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
+                  {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
                   {!loading && !docLoading && !error && rq.view.map((r, i) => (
                     <tr key={r.school.id + r.kind + i} onClick={() => { openSchool(r.school); if (r.kind === '수시') setCtxTab('adhoc') }}>
                       <td>{r.date || '—'}</td>
-                      <td className="c"><span className={'pillx ' + (r.kind === '수시' ? 'warn' : 'doing')}>{r.kind}</span></td>
-                      <td><b>{r.title}</b></td>
                       <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
-                      <td>{r.school.name}</td>
-                      <td>{r.progress}</td>
-                      <td className="c"><span className={'pillx ' + r.statusCls}>{r.statusLabel}</span></td>
-                      <td className="c"><span className="chev"><ChevronRight size={15} /></span></td>
+                      <td><b>{r.school.name}</b></td>
+                      <td>{r.school.manager || '—'}</td>
+                      <td className="c"><span className={'pillx ' + (r.kind === '수시' ? 'warn' : 'doing')}>{r.kind}</span></td>
+                      {/* [079] 보고서명·진행은 툴팁으로 (안전점검 리스트와 동일 컬럼 구성) */}
+                      <td className="c"><span className={'pillx ' + r.statusCls} title={r.title + (r.progress ? ' · ' + r.progress : '')}>{r.statusLabel}</span></td>
+                      <td className="c">
+                        <button className="btn" style={{ fontSize: 12, padding: '5px 12px' }}
+                          onClick={(e) => { e.stopPropagation(); openSchool(r.school); if (r.kind === '수시') setCtxTab('adhoc') }}>
+                          보기
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {!loading && !docLoading && !error && rq.view.length === 0 && (
-                    <tr><td colSpan={8}><div className="tstate">{reportRows.length === 0 ? '작성된 보고서가 없습니다. 학교 탭의 [위험성평가] 바로가기에서 작성하세요.' : '조건에 맞는 보고서가 없습니다.'}</div></td></tr>
+                    <tr><td colSpan={7}><div className="tstate">{reportRows.length === 0 ? '작성된 보고서가 없습니다. 학교 탭의 [위험성평가] 바로가기에서 작성하세요.' : '조건에 맞는 보고서가 없습니다.'}</div></td></tr>
                   )}
                 </tbody>
               </table>
@@ -1041,9 +1052,14 @@ export function Risk() {
           <div className="lh">
             <button className="rkh-back" onClick={() => setRegularEdit(false)}><ArrowLeft size={14} /> 보고서 개요</button>
             <h2 style={{ marginLeft: 8 }}><ClipboardCheck size={18} /> 정기 위험성평가 결과보고서 작성</h2>
-            <button className="btn btn-primary" style={{ marginLeft: 14 }} onClick={() => setReportOpen(true)} disabled={!sid}>
+            {/* [077] 상단 임시저장 — 어느 탭에서든 현재 작성 내용을 보고서 문서에 저장 (하단 저장과 동일 동작) */}
+            <button className="btn" style={{ marginLeft: 14 }} onClick={saveSurvey} disabled={!sid || surveyBusy}>
+              {surveyBusy ? '저장 중…' : '임시저장'}
+            </button>
+            <button className="btn btn-primary" style={{ marginLeft: 8 }} onClick={() => setReportOpen(true)} disabled={!sid}>
               보고서 출력
             </button>
+            {surveyMsg && <span style={{ fontSize: 12.5, color: 'var(--ok-ink)', fontWeight: 700, marginLeft: 10 }}>{surveyMsg}</span>}
             <div className="sp" />
             <span className="pillx doing" style={{ whiteSpace: 'normal', lineHeight: 1.5 }}>
               법령근거 「산업안전보건법」제36조 · 「중대재해처벌법 시행령」제4조3항
