@@ -114,9 +114,9 @@ const compliances = [
 ]
 
 const musculos = [
-  { id: 'm01', school_id: 's01', has_burden: true, basic_surveys: 8, sheets: 8, needs_review: 2, created_at: iso(25) },
-  { id: 'm02', school_id: 's03', has_burden: true, basic_surveys: 14, sheets: 12, needs_review: 0, created_at: iso(90) },
-  { id: 'm03', school_id: 's06', has_burden: false, basic_surveys: 8, sheets: 8, needs_review: 0, created_at: iso(70) },
+  { id: 'm01', category: 'regular', school_id: 's01', has_burden: true, basic_surveys: 8, sheets: 8, needs_review: 2, created_at: iso(25) },
+  { id: 'm02', category: 'regular', school_id: 's03', has_burden: true, basic_surveys: 14, sheets: 12, needs_review: 0, created_at: iso(90) },
+  { id: 'm03', category: 'regular', school_id: 's06', has_burden: false, basic_surveys: 8, sheets: 8, needs_review: 0, created_at: iso(70) },
 ]
 const sheetsBySurvey = {
   m01: [
@@ -379,7 +379,7 @@ on('POST', '/compliance/:id/submit', (p) => { const c = compliances.find((x) => 
 
 // ---- 근골격계 ----
 on('GET', '/musculo', (p, q) => musculos.filter((m) => !q.school_id || m.school_id === q.school_id))
-on('POST', '/musculo', (p, q, body) => { const m = { id: 'm' + uid(), school_id: body?.school_id || '', has_burden: false, basic_surveys: 0, sheets: 0, needs_review: 0, created_at: new Date().toISOString() }; musculos.push(m); sheetsBySurvey[m.id] = []; return m })
+on('POST', '/musculo', (p, q, body) => { const m = { id: 'm' + uid(), category: 'regular', school_id: body?.school_id || '', has_burden: false, basic_surveys: 0, sheets: 0, needs_review: 0, created_at: new Date().toISOString() }; musculos.push(m); sheetsBySurvey[m.id] = []; return m })
 on('POST', '/musculo/:id/burden', (p, q, body) => { const m = musculos.find((x) => x.id === p.id); const clauses = Array.isArray(body?.burden_clauses) ? body.burden_clauses : [1, 4]; if (m) m.has_burden = clauses.length > 0; return { has_burden: clauses.length > 0, burden_clauses: clauses } })
 on('POST', '/musculo/:id/basic-survey', (p, q, body) => { const m = musculos.find((x) => x.id === p.id); if (m) m.basic_surveys += 1; return { id: uid(), score: 12 } })
 on('GET', '/musculo/:id/sheets', (p) => sheetsBySurvey[p.id] || [])
@@ -402,7 +402,7 @@ on('POST', '/education/ingest', (p, q, body) => ({ ingested: (body?.rows || []).
 // ---- 산업재해 ----
 on('GET', '/accidents', () => accidents)
 on('POST', '/accidents', (p, q, body) => { const sc = schoolById(body?.school_id); const a = { id: 'a' + uid(), school_id: body?.school_id || '', school_name: sc?.name || '', school_masked: (sc?.name?.[0] || 'X') + '학교', kind: body?.kind || 'accident', date: body?.date || daysAgo(0), summary: body?.summary || '', detail: body?.detail || '', status: 'open', files: body?.files || [], links: {}, created_at: new Date().toISOString() }; accidents.unshift(a); return a })
-on('POST', '/accidents/:id/generate', (p, q, body) => { const a = accidents.find((x) => x.id === p.id); if (!a) return null; if (body?.target === 'musculo') { const m = { id: 'm' + uid(), school_id: a.school_id, has_burden: false, basic_surveys: 0, sheets: 0, needs_review: 0, created_at: new Date().toISOString() }; musculos.push(m); sheetsBySurvey[m.id] = []; a.links = { ...a.links, musculo_id: m.id } } else { const r = { id: 'r' + uid(), school_id: a.school_id, process: 'catering', status: 'in_progress', count: 3, unsafe_count: 0, created_at: new Date().toISOString(), category: 'adhoc', accident_id: a.id, source: 'accident', origin: a.summary, items: [0, 1, 2].map(mkRiskItem) }; risks.push(r); a.links = { ...a.links, risk_id: r.id } } return a })
+on('POST', '/accidents/:id/generate', (p, q, body) => { const a = accidents.find((x) => x.id === p.id); if (!a) return null; if (body?.target === 'musculo') { const m = { id: 'm' + uid(), category: 'adhoc', school_id: a.school_id, has_burden: false, basic_surveys: 0, sheets: 0, needs_review: 0, created_at: new Date().toISOString() }; musculos.push(m); sheetsBySurvey[m.id] = []; a.links = { ...a.links, musculo_id: m.id } } else { const r = { id: 'r' + uid(), school_id: a.school_id, process: 'catering', status: 'in_progress', count: 3, unsafe_count: 0, created_at: new Date().toISOString(), category: 'adhoc', accident_id: a.id, source: 'accident', origin: a.summary, items: [0, 1, 2].map(mkRiskItem) }; risks.push(r); a.links = { ...a.links, risk_id: r.id } } return a })
 on('GET', '/accidents/feed-settings', () => ({ settings: store.feed }))
 on('PUT', '/accidents/feed-settings', (p, q, body) => { Object.assign(store.feed, body?.settings || body || {}); store.feed.has_service_key = true; return { settings: store.feed } })
 on('POST', '/accidents/feed-sync', () => ({ created: 2, duplicates: 1, unmatched: ['알수없음중학교'], fetched: 4 }))

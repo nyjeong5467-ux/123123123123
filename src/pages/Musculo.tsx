@@ -44,11 +44,19 @@ type Survey = {
   sheets: number
   needs_review: number
   created_at?: string | null
+  category?: 'regular' | 'adhoc' | null // [079] 정기/수시 구분 (산재 연동 생성 = adhoc, 없으면 정기로 간주)
 }
 type Part = 'catering' | 'facility' | 'cleaning' | 'commute' | 'night_duty'
 
 // [073] 모듈 스코프 세션 캐시 — 탭 재진입 시 전 학교 GET /musculo(N+1) 재발사 방지 ([060] 패턴)
 let musSession: { account: string; schools: School[]; map: Record<string, Survey[]> } | null = null
+
+// [076] 담당 학교 한정 조회 — 담당 배정이 있는 계정은 담당 학교만 학교별 API를 조회(N+1 축소, [060] 규칙).
+// 배정이 없는 계정은 기존대로 전체 조회. 리스트에는 조회된 학교의 작성물만 표시됨.
+function scopeToAssigned(schools: School[], login?: string): School[] {
+  const mine = login ? schools.filter((s) => s.assigned_inspector_id === login) : []
+  return mine.length ? mine : schools
+}
 type BurdenResult = { has_burden: boolean; burden_clauses: number[] }
 
 // ===== 1단계(개편 0807): 작성된 조사 리스트 — 점검자들이 작성한 조사가 곧 첫 화면 =====
@@ -263,7 +271,7 @@ export function Musculo() {
     let alive = true
     setSumLoading(true)
     Promise.all(
-      schools.map((s) =>
+      scopeToAssigned(schools, user?.login).map((s) => // [076] 담당 학교 한정
         api<Survey[]>(`/musculo?school_id=${s.id}`)
           .then((d) => [s.id, Array.isArray(d) ? d : []] as const)
           .catch(() => [s.id, []] as const),
@@ -616,36 +624,38 @@ export function Musculo() {
                     <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                     <SortableTh q={rq} col="name">학교</SortableTh>
                     <th>담당자</th>
-                    <th className="c">기본조사</th>
-                    <th className="c">증상조사표</th>
-                    <th className="c">부담작업</th>
-                    <SortableTh q={rq} col="needs" className="c">검수 대기</SortableTh>
-                    <th />
+                    <th className="c">평가 구분</th>
+                    <th className="c">작성현황</th>
+                    <th className="c">작업</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(loading || sumLoading) && <tr><td colSpan={9}><div className="tstate">불러오는 중…</div></td></tr>}
-                  {!loading && !sumLoading && rq.view.map((r) => (
+                  {(loading || sumLoading) && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
+                  {!loading && !sumLoading && rq.view.map((r) => {
+                    // [079] 작성현황 요약 — 세부 수치(기본조사·증상조사표·부담작업)는 툴팁으로
+                    const st: [string, string] = r.sv.needs_review > 0
+                      ? [`검수 대기 ${r.sv.needs_review}건`, 'warn']
+                      : (r.sv.basic_surveys > 0 || r.sv.sheets > 0) ? ['작성 완료', 'ok'] : ['작성중', 'doing']
+                    const tip = `기본조사 ${r.sv.basic_surveys} · 증상조사표 ${r.sv.sheets} · 부담작업 ${r.sv.has_burden ? '있음' : '없음'}`
+                    return (
                     <tr key={r.sv.id} onClick={() => openSchool(r.school)} style={{ cursor: 'pointer' }}>
                       <td>{(r.sv.created_at ?? '').slice(0, 10) || '—'}</td>
                       <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
                       <td><b>{r.school.name}</b></td>
                       <td className="muh-mgr">{r.school.manager || '—'}</td>
-                      <td className="c">{r.sv.basic_surveys}</td>
-                      <td className="c">{r.sv.sheets}</td>
+                      <td className="c"><span className={'pillx ' + (r.sv.category === 'adhoc' ? 'warn' : 'doing')}>{r.sv.category === 'adhoc' ? '수시' : '정기'}</span></td>
+                      <td className="c"><span className={'pillx ' + st[1]} title={tip}>{st[0]}</span></td>
                       <td className="c">
-                        <span className={'pillx ' + (r.sv.has_burden ? 'doing' : 'na')}>{r.sv.has_burden ? '있음' : '없음'}</span>
+                        <button className="btn" style={{ fontSize: 12, padding: '5px 12px' }}
+                          onClick={(e) => { e.stopPropagation(); openSchool(r.school) }}>
+                          보기
+                        </button>
                       </td>
-                      <td className="c">
-                        {r.sv.needs_review > 0
-                          ? <span className="pillx warn">{r.sv.needs_review}건</span>
-                          : <span className="muh-dim">—</span>}
-                      </td>
-                      <td className="c"><span className="chev"><ChevronRight size={15} /></span></td>
                     </tr>
-                  ))}
+                    )
+                  })}
                   {!loading && !sumLoading && rq.view.length === 0 && (
-                    <tr><td colSpan={9}><div className="tstate">{reportRows.length === 0 ? '작성된 조사가 없습니다. 학교 탭의 [근골격계] 바로가기에서 시작하세요.' : '조건에 맞는 조사가 없습니다.'}</div></td></tr>
+                    <tr><td colSpan={7}><div className="tstate">{reportRows.length === 0 ? '작성된 조사가 없습니다. 학교 탭의 [근골격계] 바로가기에서 시작하세요.' : '조건에 맞는 조사가 없습니다.'}</div></td></tr>
                   )}
                 </tbody>
               </table>

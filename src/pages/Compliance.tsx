@@ -6,7 +6,7 @@
 // (구 화면: 학교별 연도·반기 이력 + 항목 체크 모달 — 조사지 체계로 대체. /compliance API 데이터는 서버에 보존)
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ChevronRight, FileCheck2, Mail, Plus, Printer } from 'lucide-react'
+import { ArrowLeft, FileCheck2, Mail, Plus, Printer } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
@@ -282,37 +282,40 @@ export function Compliance() {
             <table className="tbl">
               <thead>
                 <tr>
-                  <SortableTh q={rq} col="period">조사지</SortableTh>
+                  <SortableTh q={rq} col="period">반기</SortableTh>
                   <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                   <SortableTh q={rq} col="name">학교</SortableTh>
                   <th>담당자</th>
-                  <th className="c">결과 기입</th>
-                  <th className="c">상태</th>
-                  <SortableTh q={rq} col="submitted">제출일</SortableTh>
-                  <th />
+                  <th className="c">작성현황</th>
+                  <th className="c">작업</th>
                 </tr>
               </thead>
               <tbody>
-                {loading && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
-                {!loading && error && <tr><td colSpan={8}><div className="tstate">오류: {error}</div></td></tr>}
+                {loading && <tr><td colSpan={6}><div className="tstate">불러오는 중…</div></td></tr>}
+                {!loading && error && <tr><td colSpan={6}><div className="tstate">오류: {error}</div></td></tr>}
                 {!loading && !error && rq.view.map((r) => {
                   const st = sheetStatus(r.sheet)
                   const pg = sheetProgress(r.sheet)
+                  // [079] 결과 기입·제출일은 툴팁으로 (안전점검 리스트와 동일 컬럼 구성)
+                  const tip = `결과 기입 ${pg.done}/${pg.total}` + (r.sheet.submitted_date ? ` · 제출일 ${r.sheet.submitted_date}` : '')
                   return (
                     <tr key={r.school.id + r.periodKey} onClick={() => { setSel(r.school); setEditKey('') }}>
-                      <td><b>{periodLabel(r.periodKey)} 점검 조사지</b></td>
+                      <td><b>{periodLabel(r.periodKey)}</b></td>
                       <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
-                      <td>{r.school.name}</td>
+                      <td><b>{r.school.name}</b></td>
                       <td>{r.school.manager || '—'}</td>
-                      <td className="c">{pg.done}/{pg.total}</td>
-                      <td className="c"><span className={'pillx ' + st[1]}>{st[0]}</span></td>
-                      <td>{r.sheet.submitted_date || '—'}</td>
-                      <td className="c"><span className="chev"><ChevronRight size={15} /></span></td>
+                      <td className="c"><span className={'pillx ' + st[1]} title={tip}>{st[0]}</span></td>
+                      <td className="c">
+                        <button className="btn" style={{ fontSize: 12, padding: '5px 12px' }}
+                          onClick={(e) => { e.stopPropagation(); setSel(r.school); setEditKey('') }}>
+                          보기
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
                 {!loading && !error && rq.view.length === 0 && (
-                  <tr><td colSpan={8}><div className="tstate">{reportRows.length === 0 ? '작성된 조사지가 없습니다. 학교 탭의 [이행점검] 바로가기에서 교육청 공문 접수 후 작성하세요.' : '조건에 맞는 조사지가 없습니다.'}</div></td></tr>
+                  <tr><td colSpan={6}><div className="tstate">{reportRows.length === 0 ? '작성된 조사지가 없습니다. 학교 탭의 [이행점검] 바로가기에서 교육청 공문 접수 후 작성하세요.' : '조건에 맞는 조사지가 없습니다.'}</div></td></tr>
                 )}
               </tbody>
             </table>

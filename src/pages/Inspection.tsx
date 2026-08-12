@@ -61,6 +61,13 @@ type School = { id: string; name: string; manager?: string; school_level?: strin
 // 재발사되어 목서버가 밀리던 문제 방지 ([060] 학교 허브와 동일 패턴). 브라우저 새로고침 시 소멸.
 let insSession: { account: string; schools: School[]; map: Record<string, Inspection[]> } | null = null
 
+// [076] 담당 학교 한정 조회 — 담당 배정이 있는 계정은 담당 학교만 학교별 API를 조회(N+1 축소, [060] 규칙).
+// 배정이 없는 계정은 기존대로 전체 조회. 리스트에는 조회된 학교의 작성물만 표시됨.
+function scopeToAssigned(schools: School[], login?: string): School[] {
+  const mine = login ? schools.filter((s) => s.assigned_inspector_id === login) : []
+  return mine.length ? mine : schools
+}
+
 // 점검 일자 — 엔티티에 created_at 이 없어 제출일 → 서명일 → 서명기록 순으로 방어적으로 산출
 function dateOf(r: Inspection): string {
   const d = r.submitted_at || r.signed_at || r.signatures?.[0]?.signed_at || r.created_at || ''
@@ -279,7 +286,7 @@ export function Inspection() {
     let alive = true
     setSumLoading(true)
     Promise.all(
-      schools.map((s) =>
+      scopeToAssigned(schools, user?.login).map((s) => // [076] 담당 학교 한정
         api<Inspection[]>(`/inspections?school_id=${s.id}`)
           .then((d) => [s.id, Array.isArray(d) ? d : []] as const)
           .catch(() => [s.id, []] as const),
