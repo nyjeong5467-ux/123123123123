@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 set "LOG=commit-push-log.txt"
-echo ==== 실행 시작 ==== > "%LOG%"
+echo ==== commit log ==== > "%LOG%"
 
 set "GIT="
 where git >nul 2>nul && set "GIT=git"
@@ -15,30 +15,29 @@ if not defined GIT (
   )
 )
 if not defined GIT (
-  echo git 실행 파일을 찾지 못했습니다. >> "%LOG%"
-  echo git 실행 파일을 찾지 못했습니다. 로그: %LOG%
+  echo git not found. See log: %LOG%
   pause
   exit /b 1
 )
 echo git = !GIT! >> "%LOG%"
 
-echo [067]~[074] 작업분을 커밋하고 GitHub에 푸시합니다...
+echo Commit and push [075]-[102] ...
 "!GIT!" add -A >> "%LOG%" 2>&1
-"!GIT!" -c i18n.commitEncoding=utf-8 commit -F commit-msg-067-074.txt >> "%LOG%" 2>&1
+"!GIT!" -c i18n.commitEncoding=utf-8 commit -F commit-msg-075-102.txt >> "%LOG%" 2>&1
 if errorlevel 1 (
-  echo 커밋 실패 또는 커밋할 변경 없음 - 아래 로그 확인
+  echo Commit failed or nothing to commit - see log below
   type "%LOG%"
   pause
   exit /b 1
 )
-echo 커밋 완료. 푸시 중...
+echo Commit done. Pushing...
 "!GIT!" push origin main >> "%LOG%" 2>&1
 if errorlevel 1 (
-  echo 푸시 실패 - 아래 로그 확인 ^(커밋은 완료됨^)
+  echo Push failed - see log below ^(commit is done^)
   type "%LOG%"
   pause
   exit /b 1
 )
-echo 완료! GitHub에 업로드되었습니다.
+echo Done! Uploaded to GitHub.
 type "%LOG%"
 pause
