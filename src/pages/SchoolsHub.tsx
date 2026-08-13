@@ -49,8 +49,8 @@ let hubBadgeCache: { forRows: Row[]; badges: Record<string, WorkBadges> } | null
 type Badge = { txt: string; cls: 'ok' | 'warn' | 'doing' | 'bad' | 'muted' }
 type WorkBadges = { insp: Badge; risk: Badge; mus: Badge; comp: Badge }
 type InspLite = { submitted_at?: string | null; signed_at?: string | null }
-type StatusLite = { status: string }
-type MusLite = { needs_review: number }
+type StatusLite = { status: string; created_at?: string | null }
+type MusLite = { needs_review: number; created_at?: string | null }
 type CompSheetLite = { status?: string }
 type CompDoc = Record<string, Record<string, CompSheetLite>>
 
@@ -65,12 +65,16 @@ const WORKS: { key: keyof WorkBadges | 'edu'; label: string; path: string }[] = 
 // 배지 색은 2색 이진 표시 — 완료(초록) / 미완료(회색). 세부 상태는 txt(툴팁)로만 제공
 function deriveBadges(insp: InspLite[], risk: StatusLite[], mus: MusLite[], compSheet: CompSheetLite | undefined, ym: string): WorkBadges {
   const inspDone = insp.some((r) => ((r.submitted_at || r.signed_at || '') + '').slice(0, 7) === ym)
-  const riskDoing = risk.filter((r) => r.status !== 'completed').length
-  const review = mus.reduce((a, m) => a + (m.needs_review || 0), 0)
+  // [086] 위험성평가·근골격계는 연 1회 법정업무 — 당해 연도 작성분 기준으로 판정 (해가 바뀌면 자동 미작성 리셋)
+  const year = ym.slice(0, 4)
+  const riskY = risk.filter((r) => ((r.created_at ?? '') + '').slice(0, 4) === year)
+  const riskDoing = riskY.filter((r) => r.status !== 'completed').length
+  const musY = mus.filter((m) => ((m.created_at ?? '') + '').slice(0, 4) === year)
+  const review = musY.reduce((a, m) => a + (m.needs_review || 0), 0)
   return {
     insp: inspDone ? { txt: '이번 달 완료', cls: 'ok' } : { txt: '이번 달 미실시', cls: 'muted' },
-    risk: riskDoing > 0 ? { txt: `진행 ${riskDoing}건`, cls: 'muted' } : risk.length > 0 ? { txt: '완료', cls: 'ok' } : { txt: '미작성', cls: 'muted' },
-    mus: mus.length === 0 ? { txt: '미작성', cls: 'muted' } : review > 0 ? { txt: `검수 ${review}건 대기`, cls: 'muted' } : { txt: '완료 · 검수 대기 없음', cls: 'ok' },
+    risk: riskY.length === 0 ? { txt: `${year}년 미작성`, cls: 'muted' } : riskDoing > 0 ? { txt: `${year}년 진행 ${riskDoing}건`, cls: 'muted' } : { txt: `${year}년 완료`, cls: 'ok' },
+    mus: musY.length === 0 ? { txt: `${year}년 미작성`, cls: 'muted' } : review > 0 ? { txt: `검수 ${review}건 대기`, cls: 'muted' } : { txt: `${year}년 완료 · 검수 대기 없음`, cls: 'ok' },
     comp: compSheet?.status === 'submitted' ? { txt: '제출 완료', cls: 'ok' } : { txt: compSheet ? '작성중' : '미작성', cls: 'muted' },
   }
 }
@@ -401,18 +405,17 @@ export function SchoolsHub() {
                       <td>
                         <div className="shub-works-cell">
                           {WORKS.map((w) => {
-                            const badge: Badge | undefined =
-                              w.key === 'edu'
-                                ? (!r.total ? { txt: '대장 미입력', cls: 'muted' } : r.mismatch ? { txt: '인원 불일치', cls: 'muted' } : { txt: '인원 일치', cls: 'ok' })
-                                : b?.[w.key]
+                            // [086] 점 제거 — 완료 업무만 연초록 칩(done)으로 구분. 교육 칩은 상태 표시 없는 순수 바로가기
+                            const badge: Badge | undefined = w.key === 'edu' ? undefined : b?.[w.key]
+                            const done = badge?.cls === 'ok'
                             return (
                               <button
                                 key={w.key}
-                                className={'shub-w ' + (badge?.cls ?? 'muted')}
-                                title={`${w.label} — ${badge?.txt ?? '상태 확인 중'}`}
+                                className={'shub-w' + (done ? ' done' : '')}
+                                title={w.key === 'edu' ? '교육 진도표 바로가기' : `${w.label} — ${badge?.txt ?? '상태 확인 중'}`}
                                 onClick={(e) => { e.stopPropagation(); nav(`${w.path}?school=${r.school.id}`) }}
                               >
-                                <i />{w.label}
+                                {w.label}
                               </button>
                             )
                           })}

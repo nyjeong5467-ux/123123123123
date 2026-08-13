@@ -106,10 +106,17 @@ export function AdhocSection(p: {
   onChange: (cases: AdhocCase[]) => void
   onSave: () => void
   busy: boolean
+  initialCaseId?: string // [081] 작성물 리스트에서 수시 행 클릭 시 해당 케이스 에디터 바로 열기
 }) {
   const cases = p.cases ?? []
   const [selId, setSelId] = useState('')
   const selCase = cases.find((c) => c.id === selId) ?? null
+
+  // [081] 케이스 목록 로드 완료 시 직행 대상 케이스 자동 선택
+  useEffect(() => {
+    if (p.initialCaseId && cases.some((c) => c.id === p.initialCaseId)) setSelId(p.initialCaseId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.initialCaseId, cases.length])
 
   // 이 학교의 사고성 산재 목록 (수시평가 대상)
   const [accidents, setAccidents] = useState<Accident[]>([])

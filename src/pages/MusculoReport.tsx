@@ -98,9 +98,9 @@ const ST: Record<PStat, [string, string]> = {
 const VIA: Record<Via, [string, string]> = { mob: ['mob', '직접 입력'], omr: ['omr', '종이 OMR'], non: ['non', '미배포'] }
 
 // 명단 = 학교 대장의 파트별 종사자 집계(GET /schools/{id}/ledger workers)에서 생성.
-// 백엔드는 개인 실명이 아닌 파트별 인원수만 보유 → 행은 직무 자리표시자로 전개하고,
-// 성명·연령·성별은 조사표 작성 시 기입한다(초안 localStorage에 학교별 보존).
-type Worker = { id: string; part: string; count: number; contact: string; is_nutrition_teacher: boolean }
+// [097] 대장에 개인 명단(names)이 있으면 성명·부서가 자동 매핑되고, 없으면(구 백엔드) 직무 자리표시자로 전개.
+// 연령·성별 등 나머지는 조사표 작성 시 기입한다(초안 localStorage에 학교별 보존).
+type Worker = { id: string; part: string; count: number; contact: string; is_nutrition_teacher: boolean; names?: string[] }
 
 const PART_INFO: Record<string, { dept: string; job: string }> = {
   catering: { dept: '급식실', job: '조리실무사' },
@@ -119,7 +119,9 @@ function rosterFromWorkers(workers: Worker[]): Person[] {
     for (let i = 0; i < (w.count || 0); i++) {
       const k = `${info.dept}|${job}`
       seq[k] = (seq[k] || 0) + 1
-      out.push({ n: `${job} ${seq[k]}`, a: 0, g: '—', d: `${info.dept} · ${job}`, via: 'non', st: 'todo', res: null, detail: null })
+      // [097] 대장 명단의 실명 우선, 없으면 자리표시자
+      const name = w.names?.[i] || `${job} ${seq[k]}`
+      out.push({ n: name, a: 0, g: '—', d: `${info.dept} · ${job}`, via: 'non', st: 'todo', res: null, detail: null })
     }
   }
   return out
@@ -134,7 +136,13 @@ function mergeRoster(base: Person[], draft: Person[]): Person[] {
   const dm = new Map(draft.map((p) => [personKey(p), p]))
   const merged = base.map((p) => dm.get(personKey(p)) || p)
   const bk = new Set(base.map(personKey))
-  for (const p of draft) if (!bk.has(personKey(p))) merged.push(p)
+  for (const p of draft) {
+    if (bk.has(personKey(p))) continue
+    // [097] 대장 명단이 자리표시자→실명으로 바뀐 경우: 같은 부서·직무의 미작성 행에 초안 진행분을 순서대로 얹음(실명 유지)
+    const idx = merged.findIndex((m) => m.d === p.d && m.st === 'todo' && !dm.has(personKey(m)))
+    if (idx >= 0) merged[idx] = { ...p, n: merged[idx].n }
+    else merged.push(p)
+  }
   return merged
 }
 
@@ -194,7 +202,7 @@ function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T
 }
 
-type Shot = { name: string; url?: string }
+type Shot = { name: string; url?: string; cap?: string } // [094] cap: 사진별 설명 문구
 type PlanRow = { src: string; part: string; target: string; problem: string; measure: string; due: string; owner: string }
 type School = { id: string; name: string }
 
@@ -205,6 +213,7 @@ type Draft = {
   hz: Record<string, string[]>
   caps: Record<string, string>
   shots: Record<string, Shot[]> // 파일명 메타만 저장
+  cutN?: Record<string, number> // [095] 작업별 사진·설명 세트 수
   roster: Person[]
   plan: PlanRow[]
   surveyId: string
@@ -213,7 +222,7 @@ type Draft = {
 
 function defaultDraft(): Draft {
   return {
-    parts: clone(MU_PARTS), chk: clone(MU_INIT), ab: {}, hz: {}, caps: {}, shots: {},
+    parts: clone(MU_PARTS), chk: clone(MU_INIT), ab: {}, hz: {}, caps: {}, shots: {}, cutN: {},
     roster: [], plan: [], surveyId: '', date: new Date().toISOString().slice(0, 10),
   }
 }
@@ -260,6 +269,9 @@ export function MusculoReport() {
   const [shots, setShots] = useState<Record<string, Shot[]>>({})
   const [roster, setRoster] = useState<Person[]>([])
   const [plan, setPlan] = useState<PlanRow[]>([])
+  // [089] 단계 탭 — 선택된 섹션만 표시 (위험성평가 보고서 작성 [017]과 동일 UX). display 전환이라 입력 상태·사진은 유지됨
+  const [step, setStep] = useState(1)
+  function goStep(n: number) { setStep(n); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const [surveyId, setSurveyId] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [hydrated, setHydrated] = useState(false)
@@ -317,7 +329,7 @@ export function MusculoReport() {
           try { d = { ...d, ...(JSON.parse(raw) as Partial<Draft>) } } catch { /* 손상된 초안은 무시 */ }
         }
         setParts(d.parts); setChk(d.chk); setAb(d.ab); setHz(d.hz); setCaps(d.caps)
-        setShots(d.shots); setRoster(mergeRoster(base, d.roster)); setPlan(d.plan); setSurveyId(d.surveyId); setDate(d.date)
+        setShots(d.shots); setCutN(d.cutN ?? {}); setRoster(mergeRoster(base, d.roster)); setPlan(d.plan); setSurveyId(d.surveyId); setDate(d.date)
         setSyOpen(-1); setFormIdx(-1); setForm(null); setSubLog([])
         setHydrated(true)
       })
@@ -326,8 +338,8 @@ export function MusculoReport() {
 
   function buildDraft(): Draft {
     const meta: Record<string, Shot[]> = {}
-    for (const [k, list] of Object.entries(shots)) meta[k] = list.map((s) => ({ name: s.name })) // dataURL 미보존 — 파일명 메타만
-    return { parts, chk, ab, hz, caps, shots: meta, roster, plan, surveyId, date }
+    for (const [k, list] of Object.entries(shots)) meta[k] = list.map((s) => ({ name: s.name, cap: s.cap })) // dataURL 미보존 — 파일명·설명만 [095]
+    return { parts, chk, ab, hz, caps, shots: meta, cutN, roster, plan, surveyId, date }
   }
 
   useEffect(() => {
@@ -391,6 +403,20 @@ export function MusculoReport() {
   function removeShot(k: string, i: number) {
     setShots((m) => ({ ...m, [k]: (m[k] || []).filter((_, j) => j !== i) }))
   }
+  // [094] 사진별 설명 문구 입력
+  function setShotCap(k: string, i: number, cap: string) {
+    setShots((m) => ({ ...m, [k]: (m[k] || []).map((s, j) => (j === i ? { ...s, cap } : s)) }))
+  }
+  // [095] 작업별 사진·설명 세트 수 (기본 1세트, [+ 세트 추가]로 증가)
+  const [cutN, setCutN] = useState<Record<string, number>>({})
+  // [094] 유해위험요인 '기타' 직접 입력 — 입력값을 해당 작업의 선택 목록에 추가(선택 상태로)
+  const [hzInput, setHzInput] = useState<Record<string, string>>({})
+  function addCustomHz(k: string) {
+    const v = (hzInput[k] || '').trim()
+    if (!v) return
+    setHz((m) => { const set = new Set(m[k] || []); set.add(v); return { ...m, [k]: [...set] } })
+    setHzInput((m) => ({ ...m, [k]: '' }))
+  }
   function toggleHz(k: string, h: string) {
     setHz((m) => {
       const set = new Set(m[k] || [])
@@ -423,8 +449,9 @@ export function MusculoReport() {
 
   function closeForm(temp?: boolean) {
     if (form && formIdx >= 0) {
-      setRoster((rs) => rs.map((p, i) =>
-        i === formIdx ? { ...p, form: form, st: temp && p.st === 'todo' ? 'doing' : p.st } : p))
+      setRoster((rs) => rs
+        .map((p, i) => (i === formIdx ? { ...p, form: form, st: temp && p.st === 'todo' ? 'doing' : p.st } : p))
+        .filter((p, i) => !(i === formIdx && !p.n.trim()))) // [098] 성명 없이 닫으면 (신규 추가 취소로 보고) 행 제거
     }
     setFormIdx(-1); setForm(null)
   }
@@ -454,6 +481,19 @@ export function MusculoReport() {
     if (!n) return
     setRoster((rs) => [...rs, { n, a: +apAge || 0, g: apG, d: apDept.trim() || '—', via: 'non', st: 'todo', res: null, detail: null }])
     setApName(''); setApAge(''); setApDept('')
+  }
+
+  // [098] [+ 추가] → 빈 종사자 행 생성 후 곧바로 조사표 모달 오픈 (기본 정보는 모달 Ⅰ부에서 기입)
+  function addPersonViaForm() {
+    const idx = roster.length
+    setRoster((rs) => [...rs, { n: '', a: 0, g: '여', d: '', via: 'non', st: 'todo', res: null, detail: null }])
+    setForm({ pain: 0, parts: {} })
+    setFormIdx(idx)
+  }
+  // [098] 조사표 모달 Ⅰ부 기본 정보 → 명단 행에 즉시 반영
+  function patchPerson(patch: Partial<Person>) {
+    if (formIdx < 0) return
+    setRoster((rs) => rs.map((p, i) => (i === formIdx ? { ...p, ...patch } : p)))
   }
 
   function omrUploadAll(files: FileList | null) {
@@ -637,23 +677,30 @@ export function MusculoReport() {
           </div>
           <div className="m"><div className="k">조사자</div><div className="v">한국산업안전협회</div></div>
           <div className="m"><div className="k">부서명</div><div className="v">공정별 조사</div></div>
-          <div className="m"><div className="k">조사 주기</div><div className="v">3년 1회 <small>· 8월 착수 → 10월 제출</small></div></div>
+          {/* [102] 조사 주기 3년 1회 → 1년 1회 정정 */}
+          <div className="m"><div className="k">조사 주기</div><div className="v">1년 1회 <small>· 8월 착수 → 10월 제출</small></div></div>
         </div>
+        {/* [101] 제출 진행 로그 — 구 7단계에서 이동 (상단 [보고서 제출] 클릭 시 표시) */}
+        {subLog.length > 0 && (
+          <div className="mur-sublog">
+            {subLog.map((m, i) => (
+              <div key={i} className={m.startsWith('✓') ? 'ok' : m.startsWith('✕') ? 'err' : ''}>{m}</div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* ---- 목차 ---- */}
+      {/* ---- 단계 탭 (구 목차 앵커 → 선택 섹션만 표시) [089] ---- */}
       <div className="mur-toc">
-        <a href="#mur-s1"><span className="n">1</span>부담작업 체크리스트</a>
-        <a href="#mur-s2"><span className="n">2</span>작업조건 조사</a>
-        <a href="#mur-s3"><span className="n">3</span>유해위험요인 사진</a>
-        <a href="#mur-s4"><span className="n">4</span>증상 조사표</a>
-        <a href="#mur-s5"><span className="n">5</span>공단 엑셀 열 매핑</a>
-        <a href="#mur-s6"><span className="n">6</span>작업환경 개선계획서</a>
-        <a href="#mur-s7"><span className="n">7</span>제출</a>
+        {['부담작업 체크리스트', '작업조건 조사', '유해위험요인 사진', '증상 조사표', '공단 엑셀 미리보기', '작업환경 개선계획서'].map((label, i) => (
+          <button key={label} type="button" className={step === i + 1 ? 'on' : ''} onClick={() => goStep(i + 1)}>
+            <span className="n">{i + 1}</span>{label}
+          </button>
+        ))}
       </div>
 
       {/* ---- 1. 부담작업 체크리스트 ---- */}
-      <div className="mur-sec" id="mur-s1">
+      <div className="mur-sec" id="mur-s1" style={{ display: step === 1 ? undefined : 'none' }}>
         <div className="mur-ch">
           <span className="num">1</span><h3>근골격계부담작업 체크리스트</h3>
           <div className="r">칸을 눌러 <b style={{ color: 'var(--red-ink)' }}>O</b> / <b>X</b> 를 전환합니다</div>
@@ -708,10 +755,15 @@ export function MusculoReport() {
           <button className="mur-btn-sm pri" onClick={addPart}><Plus size={12} /> 추가</button>
           <span className="mur-note" style={{ margin: 0 }}>표준 5개 파트가 없는 기관도 파트를 추가해 조사할 수 있습니다.</span>
         </div>
+
+        {/* [090] 다음 버튼 — 섹션 카드 내부 하단 (위험성평가와 동일) */}
+        <div style={{ display: 'flex', marginTop: 14 }}>
+          <button className="btn" style={{ marginLeft: 'auto', fontWeight: 800 }} onClick={() => goStep(2)}>다음 →</button>
+        </div>
       </div>
 
       {/* ---- 2. 작업조건 조사 ---- */}
-      <div className="mur-sec" id="mur-s2">
+      <div className="mur-sec" id="mur-s2" style={{ display: step === 2 ? undefined : 'none' }}>
         <div className="mur-ch">
           <span className="num">2</span><h3>작업조건 조사</h3>
           <div className="r">2단계 · 작업별 작업부하 및 작업빈도 (근로자 면담)</div>
@@ -775,10 +827,15 @@ export function MusculoReport() {
             })}
           </tbody>
         </table>
+
+        {/* [090] 다음 버튼 — 섹션 카드 내부 하단 (위험성평가와 동일) */}
+        <div style={{ display: 'flex', marginTop: 14 }}>
+          <button className="btn" style={{ marginLeft: 'auto', fontWeight: 800 }} onClick={() => goStep(3)}>다음 →</button>
+        </div>
       </div>
 
       {/* ---- 3. 유해위험요인 사진 ---- */}
-      <div className="mur-sec" id="mur-s3">
+      <div className="mur-sec" id="mur-s3" style={{ display: step === 3 ? undefined : 'none' }}>
         <div className="mur-ch">
           <span className="num">3</span><h3>부담작업 유해위험요인 사진</h3>
           <div className="r">부담작업으로 판정된 작업만 표시됩니다 <span className="mur-facade">사진은 파일명 메타만 서버 전송</span></div>
@@ -793,36 +850,76 @@ export function MusculoReport() {
             <div className="mur-riskgrp">{p.name}</div>
             {p.jobs.map((j) => {
               const k = `${p.key}-${j}`
-              const list = shots[k] || []
-              const on = hz[k] || []
-              const inputId = 'mur-file-' + k
+              const nSets = cutN[k] ?? 1
               return (
                 <div className="mur-riskrow" key={k}>
                   <div className="wn">{j}</div>
                   <div>
-                    <div className="mur-shots">
-                      {list.map((s, i) => (
-                        <div className={'mur-shot' + (s.url ? '' : ' meta')} key={i}>
-                          {s.url ? <img src={s.url} alt={s.name} /> : <span>{s.name}</span>}
-                          {s.url && <span className="nm">{s.name}</span>}
-                          <button className="x" onClick={() => removeShot(k, i)} title="삭제">×</button>
+                    {/* [095][096] 사진·설명·유해위험요인 세트 — [+ 세트 추가]마다 사진/설명과 유해위험요인 패널이 한 묶음으로 생김 */}
+                    {Array.from({ length: nSets }, (_, c) => {
+                      const kc = c === 0 ? k : `${k}#${c}`
+                      const list = shots[kc] || []
+                      const on = hz[kc] || []
+                      const inputId = 'mur-file-' + kc
+                      return (
+                        <div className="mur-cutset" key={kc}>
+                          <div>
+                            <div className="mur-shots">
+                              {list.map((s, i) => (
+                                /* [094] 사진마다 개별 설명 입력칸 */
+                                <div className="mur-shotwrap" key={i}>
+                                  <div className={'mur-shot' + (s.url ? '' : ' meta')}>
+                                    {s.url ? <img src={s.url} alt={s.name} /> : <span>{s.name}</span>}
+                                    {s.url && <span className="nm">{s.name}</span>}
+                                    <button className="x" onClick={() => removeShot(kc, i)} title="삭제">×</button>
+                                  </div>
+                                  <input className="mur-shotcap" placeholder="사진 설명" value={s.cap || ''}
+                                    onChange={(e) => setShotCap(kc, i, e.target.value)} />
+                                </div>
+                              ))}
+                              <label className="mur-addshot" htmlFor={inputId} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                                <Camera size={13} /> 사진 추가
+                              </label>
+                              <input id={inputId} type="file" accept="image/*" multiple style={{ display: 'none' }}
+                                onChange={(e) => { addShots(kc, e.target.files); e.target.value = '' }} />
+                            </div>
+                            <textarea className="mur-cap" placeholder="작업 설명 (예: 국솥 앞 서서 젓기, 1회 15분)"
+                              value={caps[kc] || ''} onChange={(e) => setCaps((m) => ({ ...m, [kc]: e.target.value }))} />
+                          </div>
+                          <div>
+                            <div className="mur-hazlab">유해위험요인 (복수 선택)</div>
+                            <div className="mur-hazchips">
+                              {/* [094] 기본 목록 + 이 세트에 직접 추가한 기타 요인 칩 */}
+                              {[...HAZ, ...on.filter((h) => !HAZ.includes(h))].map((h) => (
+                                <button key={h} className={'mur-hz' + (on.includes(h) ? ' on' : '')} onClick={() => toggleHz(kc, h)}>{h}</button>
+                              ))}
+                            </div>
+                            <div className="mur-hazadd">
+                              <input placeholder="기타 요인 직접 입력 (예: 진동)" value={hzInput[kc] || ''}
+                                onChange={(e) => setHzInput((m) => ({ ...m, [kc]: e.target.value }))}
+                                onKeyDown={(e) => { if (e.key === 'Enter') addCustomHz(kc) }} />
+                              <button className="mur-btn-sm" onClick={() => addCustomHz(kc)}>+ 추가</button>
+                            </div>
+                          </div>
                         </div>
-                      ))}
-                      <label className="mur-addshot" htmlFor={inputId} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                        <Camera size={13} /> 사진 추가
-                      </label>
-                      <input id={inputId} type="file" accept="image/*" multiple style={{ display: 'none' }}
-                        onChange={(e) => { addShots(k, e.target.files); e.target.value = '' }} />
-                    </div>
-                    <textarea className="mur-cap" placeholder="작업 설명 (예: 국솥 앞 서서 젓기, 1회 15분)"
-                      value={caps[k] || ''} onChange={(e) => setCaps((m) => ({ ...m, [k]: e.target.value }))} />
-                  </div>
-                  <div>
-                    <div className="mur-hazlab">유해위험요인 (복수 선택)</div>
-                    <div className="mur-hazchips">
-                      {HAZ.map((h) => (
-                        <button key={h} className={'mur-hz' + (on.includes(h) ? ' on' : '')} onClick={() => toggleHz(k, h)}>{h}</button>
-                      ))}
+                      )
+                    })}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                      <button className="mur-btn-sm" onClick={() => setCutN((m) => ({ ...m, [k]: (m[k] ?? 1) + 1 }))}>
+                        <Plus size={12} /> 사진·설명 세트 추가
+                      </button>
+                      {nSets > 1 && (
+                        <button className="mur-btn-sm" onClick={() => {
+                          const last = `${k}#${nSets - 1}`
+                          setShots((m) => { const n = { ...m }; delete n[last]; return n })
+                          setCaps((m) => { const n = { ...m }; delete n[last]; return n })
+                          setHz((m) => { const n = { ...m }; delete n[last]; return n })
+                          setHzInput((m) => { const n = { ...m }; delete n[last]; return n })
+                          setCutN((m) => ({ ...m, [k]: nSets - 1 }))
+                        }}>
+                          <X size={12} /> 마지막 세트 삭제
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -830,32 +927,25 @@ export function MusculoReport() {
             })}
           </div>
         ))}
+
+        {/* [090] 다음 버튼 — 섹션 카드 내부 하단 (위험성평가와 동일) */}
+        <div style={{ display: 'flex', marginTop: 14 }}>
+          <button className="btn" style={{ marginLeft: 'auto', fontWeight: 800 }} onClick={() => goStep(4)}>다음 →</button>
+        </div>
       </div>
 
       {/* ---- 4. 증상 조사표 ---- */}
-      <div className="mur-sec" id="mur-s4">
+      <div className="mur-sec" id="mur-s4" style={{ display: step === 4 ? undefined : 'none' }}>
         <div className="mur-ch">
           <span className="num">4</span><h3>근골격계질환 증상 조사표</h3>
           <div className="r">부담작업 여부와 무관하게 <b>전 종사자</b>가 작성</div>
         </div>
 
-        <div className="mur-svbar">
-          <div className="mur-sv p"><div className="l">작성 완료</div><div className="n">{done}<small> / {roster.length}명</small></div></div>
-          <div className="mur-sv"><div className="l">직접 입력 · 종이</div><div className="n">{mob}<small> · </small>{omrN}<small>명</small></div></div>
-          <div className="mur-sv o"><div className="l">OMR 인식 검수</div><div className="n">{review}<small>명</small></div></div>
-          <div className="mur-sv o"><div className="l">관리대상자</div><div className="n">{mgmtN}<small>명</small></div></div>
-          <div className="mur-sv d"><div className="l">통증호소자</div><div className="n">{painN}<small>명</small></div></div>
-        </div>
-
+        {/* [092] 통계 카드 5종(작성 완료~통증호소자)·[조사표 링크 일괄 발송]·[종이 스캔 업로드(OMR)] 버튼 제거 —
+            개인별 행의 조사표 작성·스캔 업로드는 유지. 구 JSX는 이 주석 자리에 복원 가능 */}
         <div className="mur-svtools">
-          <button className="mur-btn-sm" onClick={() => setToolMsg('조사표 링크 일괄 발송 — 데모 파사드 (발송 API 미연결)')}>✉ 조사표 링크 일괄 발송</button>
-          <button className="mur-btn-sm" onClick={() => omrAllRef.current?.click()}><Upload size={12} /> 종이 스캔 업로드 (OMR)</button>
-          <input ref={omrAllRef} type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }}
-            onChange={(e) => { omrUploadAll(e.target.files); e.target.value = '' }} />
+          {/* [100] 엑셀 내보내기 버튼은 5단계(공단 엑셀 미리보기)로 이동 */}
           <div className="sp">전 종사자 {roster.length}명 · 미제출 {roster.filter((p) => p.st === 'todo').length}명</div>
-          <button className="btn btn-primary" style={{ height: 34, fontSize: 12 }} onClick={exportCsv}>
-            <Download size={14} /> 안전보건공단 엑셀 내보내기
-          </button>
         </div>
         {toolMsg && <div className="mur-note" style={{ marginBottom: 10 }}>{toolMsg}</div>}
 
@@ -924,16 +1014,10 @@ export function MusculoReport() {
                           <div className="mur-note" style={{ margin: 0 }}>기간=2번 · 강도=3번 · 빈도=4번 · 엑셀 <b>T~BA</b> 열에 숫자 그대로 기입됩니다.</div>
                         </>
                       ) : p.st === 'doing' ? (
-                        <div className="mur-note" style={{ margin: 0 }}>작성 중입니다. 조사표를 열어 이어서 작성하세요.</div>
+                        <div className="mur-note" style={{ margin: 0 }}>작성 중입니다. 오른쪽 [조사표 열기]로 이어서 작성하세요.</div>
                       ) : (
-                        <div className="mur-btnrow">
-                          <button className="mur-btn-sm pri" onClick={() => openForm(i)}>조사표 작성</button>
-                          <button className="mur-btn-sm" onClick={() => setToolMsg(`${p.n}에게 조사표 링크 발송 — 데모 파사드`)}>✉ 조사표 링크 발송</button>
-                          <label className="mur-btn-sm" htmlFor={'mur-omr-' + i} style={{ cursor: 'pointer' }}><Upload size={12} /> 종이 스캔 업로드</label>
-                          <input id={'mur-omr-' + i} type="file" accept="image/*,.pdf" style={{ display: 'none' }}
-                            onChange={(e) => { omrUploadFor(i, e.target.files); e.target.value = '' }} />
-                          <span className="mur-note" style={{ margin: 0 }}>종이로 받은 경우 스캔본을 올리면 OMR로 값을 추출합니다.</span>
-                        </div>
+                        /* [099] 중복 버튼(조사표 작성)·링크 발송 제거, 종이 스캔 업로드는 조사표 모달 안으로 이동 */
+                        <div className="mur-note" style={{ margin: 0 }}>오른쪽 [조사표 작성]으로 응답을 입력하세요. 종이 제출분은 조사표를 연 뒤 [종이 스캔 업로드]로 올리면 됩니다.</div>
                       )}
                     </td>
                   </tr>,
@@ -953,24 +1037,73 @@ export function MusculoReport() {
           </tbody>
         </table>
 
-        <div className="mur-addperson">
-          <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-2)' }}>종사자 추가</span>
-          <input placeholder="성명" value={apName} onChange={(e) => setApName(e.target.value)} style={{ width: 110 }} />
-          <input placeholder="연령" value={apAge} onChange={(e) => setApAge(e.target.value)} style={{ width: 70 }} />
-          <select value={apG} onChange={(e) => setApG(e.target.value)}>
-            <option>여</option><option>남</option>
-          </select>
-          <input placeholder="부서 · 작업 (예: 급식실 · 조리실무사)" value={apDept} onChange={(e) => setApDept(e.target.value)} style={{ minWidth: 220 }} />
-          <button className="mur-btn-sm pri" onClick={addPerson}><Plus size={12} /> 추가</button>
+        {/* [098] 입력칸 나열형 종사자 추가 → 좌측 [+ 추가] 버튼 하나로 대체. 누르면 조사표 작성 모달이 열리고 Ⅰ부에서 기본 정보를 기입 */}
+        <div style={{ marginTop: 10 }}>
+          <button className="mur-btn-sm pri" onClick={addPersonViaForm}><Plus size={12} /> 추가</button>
+        </div>
+
+        {/* [090] 다음 버튼 — 섹션 카드 내부 하단 (위험성평가와 동일) */}
+        <div style={{ display: 'flex', marginTop: 14 }}>
+          <button className="btn" style={{ marginLeft: 'auto', fontWeight: 800 }} onClick={() => goStep(5)}>다음 →</button>
         </div>
       </div>
 
       {/* ---- 5. 공단 엑셀 열 매핑 ---- */}
-      <div className="mur-sec" id="mur-s5">
+      <div className="mur-sec" id="mur-s5" style={{ display: step === 5 ? undefined : 'none' }}>
         <div className="mur-ch">
-          <span className="num">5</span><h3 style={{ fontSize: 12.5 }}>안전보건공단 엑셀 자동 기입 — 열 매핑</h3>
-          <div className="r"><span className="mur-colhint">데이터</span> 시트 7행부터 1인 1행</div>
+          <span className="num">5</span><h3>공단 엑셀 미리보기 — 기본사항 · 판정 결과</h3>
+          <div className="r">
+            4단계 응답으로 자동 생성 — 별도 작성 없음
+            <button className="btn btn-primary" style={{ height: 34, fontSize: 12, marginLeft: 10 }} onClick={exportCsv}>
+              <Download size={14} /> 안전보건공단 엑셀 내보내기
+            </button>
+          </div>
         </div>
+
+        {/* [100] 공단 엑셀과 같은 배치의 자동 미리보기 (읽기 전용) — 판정은 공단 엑셀 수식과 동일 기준의 앱 계산 */}
+        <div className="twrap" style={{ marginBottom: 14 }}>
+          <table className="mur-roster">
+            <thead>
+              <tr>
+                <th className="c" style={{ width: 36 }}>#</th>
+                <th style={{ width: 110 }}>성명</th>
+                <th className="c" style={{ width: 52 }}>연령</th>
+                <th className="c" style={{ width: 92 }}>성별(남1/여2)</th>
+                <th>부서 · 작업</th>
+                {BODY.map((b) => <th className="c" key={b}>{b} 결과</th>)}
+                <th className="c">전체 결과</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roster.length === 0 && (
+                <tr><td colSpan={6 + BODY.length}><div className="mur-noitem">명단이 없습니다. 4단계에서 조사표를 작성하세요.</div></td></tr>
+              )}
+              {roster.map((p, i) => {
+                const per: (Judgment | null)[] = p.st === 'done' && p.form
+                  ? BODY.map((b) => (p.form!.pain === 2 ? judge(p.form!.parts[b]) : '정상'))
+                  : BODY.map((_, j) => p.res?.[j] ?? null)
+                const ov = per.every((x) => x !== null) ? overall(per as Judgment[]) : null
+                return (
+                  <tr key={i}>
+                    <td className="c" style={{ color: 'var(--muted)' }}>{i + 1}</td>
+                    <td className="who">{p.n || '—'}</td>
+                    <td className="c">{p.a || '—'}</td>
+                    <td className="c">{p.g === '남' ? 1 : p.g === '여' ? 2 : '—'}</td>
+                    <td style={{ color: 'var(--ink-2)' }}>{p.d || '—'}</td>
+                    {BODY.map((b, j) => {
+                      const r = per[j]
+                      return <td className="c" key={b}>{r ? <span className={'mur-jd ' + JD[r]}>{r}</span> : <span className="mur-jd no">—</span>}</td>
+                    })}
+                    <td className="c">{ov ? <span className={'mur-jd ' + JD[ov]}>{ov}</span> : <span className="mur-jd no">—</span>}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <details>
+          <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginBottom: 10 }}>열 매핑 안내 (공단 엑셀 어느 칸에 들어가는지)</summary>
         <div className="mur-xlmap">
           <table>
             <thead><tr><th style={{ width: 96 }}>열</th><th style={{ width: 180 }}>구간</th><th>조사표 입력값 → 엑셀 값</th></tr></thead>
@@ -991,12 +1124,18 @@ export function MusculoReport() {
           <b> 결과</b> 시트는 <b>데이터</b> 시트를 참조하는 수식이라 값만 채우면 부서별 통계와 판정이 자동으로 갱신됩니다.<br />
           판정 기준 — <b>관리대상자</b>: 통증기간 1주일 이상(2번) 또는 1달 1회 이상 발생(4번)이면서 강도가 '중간 통증'(3번) ·{' '}
           <b>통증호소자</b>: 통증기간 1주일 이상 <i>그리고</i> 1달 1회 이상 <i>그리고</i> '심한' 또는 '매우 심한 통증'<br />
-          <b>공단 엑셀 제출용</b> CSV 다운로드는 위 열 순서(T~BA 숫자 코드 + 판정 미리보기)로 내보냅니다 — 4번 섹션의 「안전보건공단 엑셀 내보내기」.
+          <b>공단 엑셀 제출용</b> CSV 다운로드는 위 열 순서(T~BA 숫자 코드 + 판정 미리보기)로 내보냅니다 — 상단 「안전보건공단 엑셀 내보내기」.
+        </div>
+        </details>
+
+        {/* [090] 다음 버튼 — 섹션 카드 내부 하단 (위험성평가와 동일) */}
+        <div style={{ display: 'flex', marginTop: 14 }}>
+          <button className="btn" style={{ marginLeft: 'auto', fontWeight: 800 }} onClick={() => goStep(6)}>다음 →</button>
         </div>
       </div>
 
       {/* ---- 6. 작업환경 개선계획서 ---- */}
-      <div className="mur-sec" id="mur-s6">
+      <div className="mur-sec" id="mur-s6" style={{ display: step === 6 ? undefined : 'none' }}>
         <div className="mur-ch">
           <span className="num">6</span><h3>작업환경 개선계획서</h3>
           <div className="r">
@@ -1039,33 +1178,11 @@ export function MusculoReport() {
             </tbody>
           </table>
         )}
-        <div className="mur-note">개선계획서는 전용 API가 없어 <b>localStorage에 보존(파사드)</b>됩니다. <span className="mur-facade">파사드</span></div>
+        <div className="mur-note">개선계획서는 전용 API가 없어 <b>localStorage에 보존(파사드)</b>됩니다. <span className="mur-facade">파사드</span> 작성이 끝나면 상단의 <b>[보고서 제출]</b>로 제출하세요.</div>
       </div>
 
       {/* ---- 7. 백엔드 제출 ---- */}
-      <div className="mur-sec" id="mur-s7">
-        <div className="mur-ch">
-          <span className="num">7</span><h3>백엔드 제출</h3>
-          <div className="r">
-            {surveyId ? <>최근 제출 조사 ID <b>{surveyId.slice(0, 8)}</b></> : '아직 제출된 조사가 없습니다'}
-            <button className="btn btn-primary" style={{ height: 34, fontSize: 12 }} onClick={submitReport} disabled={submitting || !sid}>
-              <Send size={14} /> {submitting ? '제출 중…' : '보고서 제출'}
-            </button>
-          </div>
-        </div>
-        <div className="mur-note" style={{ marginTop: 0 }}>
-          제출 시 실제 API 호출 — <b>POST /musculo</b>(조사 생성) → <b>POST /musculo/{'{sid}'}/burden</b>(파트별 1~11호 판정)
-          → <b>POST /musculo/{'{sid}'}/basic-survey</b>(작업별 부하×빈도) → <b>POST /musculo/{'{sid}'}/sheets</b>(증상조사표 · 직접 입력은 확정,
-          종이 OMR은 검수 대기 큐). 사진(파일명 메타)·개선계획서·추가 파트 체크리스트는 API 미지원으로 localStorage 보존 <span className="mur-facade">파사드</span>
-        </div>
-        {subLog.length > 0 && (
-          <div className="mur-sublog">
-            {subLog.map((m, i) => (
-              <div key={i} className={m.startsWith('✓') ? 'ok' : m.startsWith('✕') ? 'err' : ''}>{m}</div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* [101] 7단계(백엔드 제출) 섹션 제거 — 제출은 상단 헤더의 [보고서 제출] 버튼으로. 진행 로그는 헤더 아래 표시 */}
 
       {/* ===================== 증상조사표 작성 모달 (drawForm 포팅) ===================== */}
       {form && formPerson && (
@@ -1085,6 +1202,18 @@ export function MusculoReport() {
               </div>
             </div>
 
+            {/* [099] 종이 제출분 업로드 — 직접 입력 대신 스캔본을 올리면 OMR 인식 검수 대기로 전환 */}
+            {formPerson.st !== 'review' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                <label className="mur-btn-sm" htmlFor="mur-omr-modal" style={{ cursor: 'pointer' }}>
+                  <Upload size={12} /> 종이 스캔 업로드 (OMR)
+                </label>
+                <input id="mur-omr-modal" type="file" accept="image/*,.pdf" style={{ display: 'none' }}
+                  onChange={(e) => { omrUploadFor(formIdx, e.target.files); e.target.value = '' }} />
+                <span className="mur-note" style={{ margin: 0 }}>종이로 받은 경우 스캔본을 올리면 OMR로 값을 추출해 검수 대기로 등록됩니다.</span>
+              </div>
+            )}
+
             {formPerson.st === 'review' && (
               <div className="mur-omrbox">
                 <b>종이 조사표 OMR 인식값</b>{' '}
@@ -1096,16 +1225,20 @@ export function MusculoReport() {
             <div className="mur-part1">
               <div className="mur-ph"><span className="rn">Ⅰ</span>기본 정보 · 작업 이력<span className="mur-colhint" style={{ marginLeft: 'auto' }}>A~S</span></div>
               <div className="mur-f2">
-                <div className="mur-fld"><label>성명</label><input defaultValue={formPerson.n} /></div>
-                <div className="mur-fld"><label>연령 (만)</label><input defaultValue={formPerson.a || ''} /></div>
+                {/* [098] 성명·연령·성별·작업부서는 명단 행과 실시간 동기화 */}
+                <div className="mur-fld"><label>성명</label><input value={formPerson.n} placeholder="성명 입력" onChange={(e) => patchPerson({ n: e.target.value })} /></div>
+                <div className="mur-fld"><label>연령 (만)</label><input value={formPerson.a || ''} placeholder="예: 45" onChange={(e) => patchPerson({ a: +e.target.value.replace(/\D/g, '') || 0 })} /></div>
                 <div className="mur-fld">
                   <label>성별</label>
-                  <select defaultValue={formPerson.g === '남' ? '남 (1)' : '여 (2)'}><option>남 (1)</option><option>여 (2)</option></select>
+                  <select value={formPerson.g === '남' ? '남 (1)' : '여 (2)'} onChange={(e) => patchPerson({ g: e.target.value.startsWith('남') ? '남' : '여' })}><option>남 (1)</option><option>여 (2)</option></select>
                 </div>
                 <div className="mur-fld"><label>현 직장경력</label><input placeholder="예: 8년 2개월" /></div>
                 <div className="mur-fld">
                   <label>작업부서</label>
-                  <select><option>급식</option><option>당직</option><option>미화</option><option>시설관리</option><option>통학 차량</option></select>
+                  <select value={['급식', '당직', '미화', '시설관리', '통학 차량'].find((o) => (formPerson.d || '').startsWith(o.slice(0, 2))) ?? '급식'}
+                    onChange={(e) => patchPerson({ d: e.target.value })}>
+                    <option>급식</option><option>당직</option><option>미화</option><option>시설관리</option><option>통학 차량</option>
+                  </select>
                 </div>
                 <div className="mur-fld"><label>결혼여부</label><select><option>기혼 (1)</option><option>미혼 (2)</option></select></div>
                 <div className="mur-fld"><label>현재 작업내용</label><input placeholder="예: 조리, 배식" /></div>

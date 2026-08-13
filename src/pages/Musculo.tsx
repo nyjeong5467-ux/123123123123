@@ -1,7 +1,7 @@
 // 근골격계 — 학교 목록 → 학교별 조사 이력(연도별) 위계 뷰. Risk.tsx(rkh-) 패턴 준용.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Activity, ArrowLeft, ChevronRight, ClipboardCheck, FileText, Plus } from 'lucide-react'
+import { Activity, ArrowLeft, ChevronRight, ClipboardCheck } from 'lucide-react'
 import { api } from '../lib/api'
 import { useTableQuery, type FilterDef, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
@@ -578,20 +578,13 @@ export function Musculo() {
       <div className="bar">
         <h2><Activity size={20} /> 근골격계 부담작업</h2>
         <div className="sp" />
+        {/* [083] 상단 탭(조사 목록/부담작업 판정)·[근골격계 조사 생성] 버튼 제거 — 화면은 조사 현황 표 단일 흐름,
+            조사 생성은 보고서 작성 플로우에서 수행 (구 JSX는 이 주석 아래 코드로 복원 가능 — createSurvey·tab state 잔존) */}
+        {/* [084] 보고서 작성 버튼 — 안전점검의 [점검표 작성]과 동일한 위치(상단 바 우측)·색(btn-primary) */}
         {sel && (
-          <div className="tabs">
-            <button className={'tab' + (tab === 'list' ? ' active' : '')} onClick={() => setTab('list')}>
-              조사 목록<span className="n">{selItems.length}</span>
-            </button>
-            <button className={'tab' + (tab === 'burden' ? ' active' : '')} onClick={() => setTab('burden')}>
-              부담작업 판정
-            </button>
-          </div>
-        )}
-        {sel && tab === 'list' && (
-          <button className="btn btn-primary" onClick={createSurvey} disabled={creating}>
-            <Plus size={15} /> 근골격계 조사 생성
-          </button>
+          <Link className="btn btn-primary" to={'/musculo/report?school=' + sel.id}>
+            보고서 작성
+          </Link>
         )}
       </div>
 
@@ -638,7 +631,7 @@ export function Musculo() {
                       : (r.sv.basic_surveys > 0 || r.sv.sheets > 0) ? ['작성 완료', 'ok'] : ['작성중', 'doing']
                     const tip = `기본조사 ${r.sv.basic_surveys} · 증상조사표 ${r.sv.sheets} · 부담작업 ${r.sv.has_burden ? '있음' : '없음'}`
                     return (
-                    <tr key={r.sv.id} onClick={() => openSchool(r.school)} style={{ cursor: 'pointer' }}>
+                    <tr key={r.sv.id} onClick={() => { /* [087] 행 클릭 = 보고서 작성 화면 직행 (안전점검 [080]과 동일 원칙 — 초안 자동 복원) */ nav(`/musculo/report?school=${r.school.id}`) }} style={{ cursor: 'pointer' }}>
                       <td>{(r.sv.created_at ?? '').slice(0, 10) || '—'}</td>
                       <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
                       <td><b>{r.school.name}</b></td>
@@ -647,7 +640,7 @@ export function Musculo() {
                       <td className="c"><span className={'pillx ' + st[1]} title={tip}>{st[0]}</span></td>
                       <td className="c">
                         <button className="btn" style={{ fontSize: 12, padding: '5px 12px' }}
-                          onClick={(e) => { e.stopPropagation(); openSchool(r.school) }}>
+                          onClick={(e) => { e.stopPropagation(); nav(`/musculo/report?school=${r.school.id}`) }}>
                           보기
                         </button>
                       </td>
@@ -677,92 +670,76 @@ export function Musculo() {
             <span className="muh-schoolname">{sel.name}</span>
             <span className="muh-schoolmgr">담당자 {sel.manager || '—'}</span>
             <div className="muh-sp" />
-            <Link className="btn btn-ghost" to={'/musculo/report?school=' + sel.id}>
-              <FileText size={15} /> 보고서 작성
-            </Link>
+            {/* [084] 구 보고서 작성 ghost 링크 제거 — 상단 바의 btn-primary 버튼으로 이동 */}
           </div>
 
           {actionErr && <div className="login-err" style={{ marginBottom: 12 }}>{actionErr}</div>}
 
           {tab === 'list' && (
             <>
-              <div className="kpis">
-                <div className="kpi">
-                  <div className="l">조사 수</div>
-                  <div className="v">{selItems.length}<small> 건</small></div>
-                  <div className="d">연도별 근골격계 조사</div>
-                </div>
-                <div className="kpi">
-                  <div className="l">부담작업 있음</div>
-                  <div className="v">{selBurden}<small> 건</small></div>
-                  <div className="d">11개 호 판정 결과</div>
-                </div>
-                <div className={'kpi ' + (selNeeds ? 'red' : '')}>
-                  <div className="l">검수 대기</div>
-                  <div className="v">{selNeeds}<small> 건</small></div>
-                  <div className="d">증상조사표 OMR 검수 필요</div>
-                </div>
-              </div>
-
-              <div className="ledger" style={{ background: 'transparent', border: 0, boxShadow: 'none' }}>
-                <div className="lh" style={{ paddingLeft: 0, paddingRight: 0 }}>
-                  <h2><Activity size={18} /> 연도별 조사 이력</h2>
+              {/* [082] 조사 현황 — 안전점검 학교 컨텍스트([055])와 동일한 통합 표 (구 KPI 카드·연도별 그룹 대체) */}
+              <div className="ledger">
+                <div className="lh">
+                  <h2><Activity size={18} /> 조사 현황</h2>
+                  <span className="pillx doing">{flatQ.total}건</span>
                   <div className="sp" />
                   <FilterBar q={flatQ} />
                   <ExportButton q={flatQ} columns={MUS_EXPORT} filename={`근골격계_${sel.name}`} />
                 </div>
-                {sumLoading && selItems.length === 0 && <div className="tstate">불러오는 중…</div>}
-                {!sumLoading && selItems.length === 0 && (
-                  <div className="tstate">생성된 근골격계 조사가 없습니다. '근골격계 조사 생성'으로 추가하세요.</div>
-                )}
-                {selItems.length > 0 && yearGroups.length === 0 && (
-                  <div className="tstate">조건에 맞는 조사가 없습니다.</div>
-                )}
-                {yearGroups.map((g) => (
-                  <div className="muh-year" key={g.year}>
-                    <div className="muh-yearlab">
-                      {g.year !== '연도 미상' ? `${g.year}년` : g.year}
-                      <span className="muh-yearcount">조사 {g.rows.length}건</span>
-                    </div>
-                    {renderGroup(g)}
-                  </div>
-                ))}
+                <div className="twrap">
+                  <table className="tbl">
+                    <thead>
+                      <tr>
+                        <th>조사일</th>
+                        <th>학교</th>
+                        <th>담당자</th>
+                        <th className="c">평가 구분</th>
+                        <th className="c">작성현황</th>
+                        <th className="c">작업</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sumLoading && selItems.length === 0 && <tr><td colSpan={6}><div className="tstate">불러오는 중…</div></td></tr>}
+                      {!sumLoading && selItems.length === 0 && (
+                        <tr><td colSpan={6}><div className="tstate">생성된 근골격계 조사가 없습니다. '근골격계 조사 생성'으로 추가하세요.</div></td></tr>
+                      )}
+                      {selItems.length > 0 && flatQ.view.length === 0 && (
+                        <tr><td colSpan={6}><div className="tstate">조건에 맞는 조사가 없습니다.</div></td></tr>
+                      )}
+                      {flatQ.view.map((s) => {
+                        const st: [string, string] = s.needs_review > 0
+                          ? [`검수 대기 ${s.needs_review}건`, 'warn']
+                          : (s.basic_surveys > 0 || s.sheets > 0) ? ['작성 완료', 'ok'] : ['작성중', 'doing']
+                        const tip = `기본조사 ${s.basic_surveys} · 증상조사표 ${s.sheets} · 부담작업 ${s.has_burden ? '있음' : '없음'}`
+                        return (
+                          <tr key={s.id} onClick={() => { setStats(null); setSurveyId(s.id) }} style={{ cursor: 'pointer' }}>
+                            <td>{(s.created_at ?? '').slice(0, 10) || '—'}</td>
+                            <td><b>{sel.name}</b></td>
+                            <td>{sel.manager || '—'}</td>
+                            <td className="c"><span className={'pillx ' + (s.category === 'adhoc' ? 'warn' : 'doing')}>{s.category === 'adhoc' ? '수시' : '정기'}</span></td>
+                            <td className="c"><span className={'pillx ' + st[1]} title={tip}>{st[0]}</span></td>
+                            <td className="c">
+                              {s.sheets > 0 ? (
+                                <button className="btn btn-ghost" style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                                  onClick={(e) => { e.stopPropagation(); openReview(s.id) }}>
+                                  {s.needs_review > 0 ? '검수' : '조사표 보기'}
+                                </button>
+                              ) : (
+                                <button className="btn btn-ghost" style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                                  onClick={(e) => { e.stopPropagation(); setStats(null); setSurveyId(s.id) }}>
+                                  상세
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              {surveyId && statsErr && (
-                <div className="ledger">
-                  <div className="tstate">오류: {statsErr}</div>
-                </div>
-              )}
-
-              {surveyId && !statsErr && statsLoading && (
-                <div className="ledger">
-                  <div className="tstate">불러오는 중…</div>
-                </div>
-              )}
-
-              {surveyId && !statsErr && !statsLoading && (
-                <>
-                  {numericEntries.length > 0 ? (
-                    <div className="kpis">
-                      {numericEntries.map(([k, v]) => (
-                        <div className="kpi" key={k}>
-                          <div className="l">{STAT_LABEL[k] ?? k}</div>
-                          <div className="v">{String(v)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="ledger">
-                      <div className="tstate">표시할 통계가 없습니다.</div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-                증상조사표 OMR 인식/검수는 현장 태블릿·후속. 여기서는 조사 생성·통계.
-              </div>
+              {/* [085] 조사 통계 카드(TOTAL~NORMAL)·하단 안내 문구 제거 — 통계 로드 로직(surveyId·stats)은 잔존(미노출) */}
             </>
           )}
 
