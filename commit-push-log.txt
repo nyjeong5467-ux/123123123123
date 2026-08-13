@@ -1,10 +1,2 @@
-==== ½ÇÇà ½ÃÀÛ ==== 
+==== commit log ==== 
 git = git 
-warning: in the working copy of 'mock-server.mjs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/features/risk/AdhocAssessment.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/pages/MusculoReport.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/styles/musculoreport.css', LF will be replaced by CRLF the next time Git touches it
-[main 6a573b9] [067]~[074] 2026-08-11 ì‘ì—…ë¶„
- 11 files changed, 869 insertions(+), 243 deletions(-)
-To https://github.com/nyjeong5467-ux/123123123123.git
-   9510593..6a573b9  main -> main

@@ -53,6 +53,7 @@ export function TodayHero(p: {
   const { today, items, schools } = p
   const YM = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`
   const doneCount = items.filter((i) => i.done).length
+  const pending = items.filter((i) => !i.done) // [103] 완료된 방문은 오늘의 할 일 리스트에서 제외 (건수 집계에는 포함)
 
   const schoolById = useMemo(() => {
     const m = new Map<string, SchoolLite>()
@@ -114,8 +115,15 @@ export function TodayHero(p: {
               {p.unvisited > 0 && <> · 이번 달 미방문 <em>{p.unvisited}개교</em></>}
             </span>
           </div>
+        ) : pending.length === 0 ? (
+          /* [103] 전부 완료 시 리스트 대신 완료 안내 */
+          <div className="hm-td-empty">
+            <ListTodo size={26} strokeWidth={1.6} />
+            <b>오늘 방문을 모두 완료했습니다</b>
+            <span>업무 기록은 각 학교 상세에서 확인하세요</span>
+          </div>
         ) : (
-          items.map((it, idx) => {
+          pending.map((it, idx) => {
             const sc = it.school_id ? schoolById.get(it.school_id) : undefined
             const st = it.school_id ? tasks[it.school_id] : undefined
             const chips = st?.chips
@@ -132,7 +140,7 @@ export function TodayHero(p: {
                 onKeyDown={(e) => { if (e.key === 'Enter' && it.school_id) setOpenKey((k) => (k === it.key ? null : it.key)) }}
               >
                 <span className={'hm-td-st' + (it.done ? ' ok' : '')}>
-                  {it.done ? <CheckCircle2 size={17} strokeWidth={2.2} /> : idx + 1 - doneCount}
+                  {it.done ? <CheckCircle2 size={17} strokeWidth={2.2} /> : idx + 1}
                 </span>
                 <div className="hm-td-main">
                   <div className="t">
