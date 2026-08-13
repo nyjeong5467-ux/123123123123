@@ -176,6 +176,13 @@
   color: var(--violet);
   transform: translateY(-1px);
 }
+/* [086] 목록 배지: 점 없이 완료 칩만 연초록 (i 점 규칙은 배너 칩용으로 유지) */
+.shub-w.done {
+  background: color-mix(in srgb, var(--green, #2eaf7d) 13%, var(--card));
+  border-color: color-mix(in srgb, var(--green, #2eaf7d) 45%, var(--line));
+  color: var(--ok-ink, #1d7a57);
+}
+.shub-w.done:hover { color: var(--ok-ink, #1d7a57); border-color: var(--green, #2eaf7d); }
 .shub-w.ok i { background: var(--green, #2eaf7d); }
 .shub-w.warn i { background: var(--orange, #f5a524); }
 .shub-w.warn { border-color: color-mix(in srgb, var(--orange, #f5a524) 45%, var(--line)); }

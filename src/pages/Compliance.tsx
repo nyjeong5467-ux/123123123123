@@ -299,7 +299,7 @@ export function Compliance() {
                   // [079] 결과 기입·제출일은 툴팁으로 (안전점검 리스트와 동일 컬럼 구성)
                   const tip = `결과 기입 ${pg.done}/${pg.total}` + (r.sheet.submitted_date ? ` · 제출일 ${r.sheet.submitted_date}` : '')
                   return (
-                    <tr key={r.school.id + r.periodKey} onClick={() => { setSel(r.school); setEditKey('') }}>
+                    <tr key={r.school.id + r.periodKey} onClick={() => { /* [081] 행 클릭 = 해당 조사지 편집 화면 바로 열기 */ setSel(r.school); setEditKey(r.periodKey) }}>
                       <td><b>{periodLabel(r.periodKey)}</b></td>
                       <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
                       <td><b>{r.school.name}</b></td>
@@ -307,7 +307,7 @@ export function Compliance() {
                       <td className="c"><span className={'pillx ' + st[1]} title={tip}>{st[0]}</span></td>
                       <td className="c">
                         <button className="btn" style={{ fontSize: 12, padding: '5px 12px' }}
-                          onClick={(e) => { e.stopPropagation(); setSel(r.school); setEditKey('') }}>
+                          onClick={(e) => { e.stopPropagation(); setSel(r.school); setEditKey(r.periodKey) }}>
                           보기
                         </button>
                       </td>

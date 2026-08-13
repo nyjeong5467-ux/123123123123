@@ -62,22 +62,36 @@
   flex-wrap: wrap;
   margin-bottom: 14px;
 }
-.mur-toc a {
+.mur-toc a,
+.mur-toc button {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   font-size: 12px;
   font-weight: 700;
+  font-family: inherit;
   color: var(--ink-2);
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 7px 14px 7px 8px;
   text-decoration: none;
+  cursor: pointer;
 }
-.mur-toc a:hover {
+.mur-toc a:hover,
+.mur-toc button:hover {
   border-color: var(--violet);
   color: var(--violet);
+}
+/* [089] 단계 탭 활성 상태 — 위험성평가 보고서 탭([088])과 동일한 강조 */
+.mur-toc button.on {
+  border-color: var(--violet);
+  color: var(--violet);
+  box-shadow: var(--sh-soft);
+}
+.mur-toc button.on .n {
+  background: var(--violet);
+  color: #fff;
 }
 .mur-toc .n {
   width: 20px;
@@ -318,6 +332,12 @@
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   overflow: hidden;
+  /* [093] 좌측 쏠림 해소 — 범례 표 2개가 카드 폭을 절반씩 나눠 사용 (좁은 화면에선 줄바꿈) */
+  flex: 1 1 0;
+  min-width: 320px;
+}
+.mur-scale td.sc {
+  width: 56px;
 }
 .mur-scale th {
   background: var(--card-2);
@@ -423,10 +443,22 @@
 }
 .mur-riskrow {
   display: grid;
-  grid-template-columns: 130px 1.3fr 1fr;
+  /* [096] 세트(사진·설명·유해위험요인) 반복 구조로 변경 — 우측 고정 컬럼 제거 */
+  grid-template-columns: 130px 1fr;
   gap: 14px;
   padding: 12px 4px;
   border-bottom: 1px solid var(--line-2);
+}
+/* [096] 사진·설명 | 유해위험요인 2컬럼 세트 — 세트 사이 점선 구분 */
+.mur-cutset {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 14px;
+}
+.mur-cutset + .mur-cutset {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
 }
 .mur-riskrow .wn {
   font-size: 12.5px;
@@ -438,6 +470,41 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+/* [094] 사진+설명 세트 래퍼 · 사진별 설명 입력 · 기타 요인 입력줄 */
+.mur-shotwrap {
+  width: 118px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mur-shotcap {
+  width: 100%;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-family: inherit;
+  background: var(--card);
+  color: var(--ink);
+}
+.mur-hazadd {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.mur-hazadd input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--card);
+  color: var(--ink);
 }
 .mur-shot {
   width: 118px;
@@ -622,6 +689,8 @@
 }
 .mur-roster tr.row {
   cursor: pointer;
+  /* [091] components.css의 범용 .row(display:flex)가 tr에 적용돼 표 정렬이 깨지는 문제 차단 */
+  display: table-row;
 }
 .mur-roster tr.row:hover td {
   background: var(--card-2);

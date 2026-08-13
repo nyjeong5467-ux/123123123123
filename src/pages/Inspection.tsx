@@ -577,7 +577,15 @@ export function Inspection() {
                     const eo = EDUOFFICE[r.eduoffice] ?? { label: '—', cls: 'na' }
                     const partNames = r.parts.map((p) => PART_LABEL[p.part] || p.part).join(' · ')
                     return (
-                      <tr key={r.school.id + '|' + r.date} onClick={() => openSchool(r.school)} title={`포함 공정: ${partNames}`}>
+                      <tr
+                        key={r.school.id + '|' + r.date}
+                        // [080] 행 클릭 = 해당 점검표 작성 화면 바로 열기 (작성중=이어서, 완료=수정 모드 — 학교 컨텍스트 [068][069]와 동일 규칙)
+                        onClick={() => {
+                          if (r.status === 'draft') nav(`/inspection/new?school=${r.school.id}&resumeall=1`)
+                          else nav(`/inspection/new?school=${r.school.id}&edit=${r.parts.map((p) => p.id).join(',')}`)
+                        }}
+                        title={`포함 공정: ${partNames}`}
+                      >
                         <td>{r.date || '—'}</td>
                         <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
                         <td><b>{r.school.name}</b></td>
@@ -607,7 +615,7 @@ export function Inspection() {
           </div>
 
           <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-            행을 클릭하면 해당 학교의 월별 안전점검 이력으로 이동합니다. 새 점검표 작성은 학교 탭의 [안전점검] 바로가기에서 시작하세요.
+            행을 클릭하면 해당 점검표의 작성 화면이 바로 열립니다(작성중은 이어서 작성, 완료 건은 수정). [보기]는 실물 양식으로 표시합니다. 새 점검표 작성은 학교 탭의 [안전점검] 바로가기에서 시작하세요.
           </div>
         </>
       )}

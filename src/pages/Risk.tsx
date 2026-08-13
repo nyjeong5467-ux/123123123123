@@ -204,12 +204,13 @@ type SurveyGetResp = { school_id: string; sections: Partial<SurveyData>; updated
 type SurveyPutResp = { ok: boolean; updated_at: string }
 
 // 보고서(정기 위험성평가 결과보고서) 목차 순서 그대로 — 탭을 채우면 보고서가 채워진다
-const SURVEY_TABS: { key: SurveyTabKey; label: string }[] = [
-  { key: 'info', label: '① 학교 현황' },
-  { key: 'dept', label: '② 유해위험정보' },
-  { key: 'hearing', label: '③ 청취조사' },
-  { key: 'assess', label: '④ 평가표·감소대책' },
-  { key: 'participants', label: '⑤ 참여자 명단' },
+// [088] 근골격계 보고서 목차와 동일한 숫자 칩 구성 (번호 원 + 라벨)
+const SURVEY_TABS: { key: SurveyTabKey; num: string; label: string }[] = [
+  { key: 'info', num: '1', label: '학교 현황' },
+  { key: 'dept', num: '2', label: '유해위험정보' },
+  { key: 'hearing', num: '3', label: '청취조사' },
+  { key: 'assess', num: '4', label: '평가표·감소대책' },
+  { key: 'participants', num: '5', label: '참여자 명단' },
 ]
 const SAFETY_CHECKS = ['안전보건 방침 게시', '안전보건 목표 수립', '안전보건관리책임자 지정', '안전보건 예산 편성']
 const MATERIAL_CHECKS = ['물질안전보건자료(MSDS) 비치', '작업환경측정 결과', '건강검진 결과 기록', '안전보건교육 일지']
@@ -241,6 +242,7 @@ type RiskReportRow = {
   statusCls: string
   progress: string
   date: string
+  caseId?: string // [081] 수시 케이스 직접 열기용
 }
 // 정기 보고서 요약 — 학교 컨텍스트 카드와 동일한 섹션 완성 판정
 function regularSummary(d: SurveyData) {
@@ -297,15 +299,27 @@ const RISK_REPORT_EXPORT: ExportColumn<RiskReportRow>[] = [
 ]
 
 // 신규 UI(서브탭 바 · 폼) 전용 인라인 스타일
-const SUBTAB_BAR: CSSProperties = { display: 'flex', gap: 4, flexWrap: 'wrap', background: 'var(--bg)', padding: 4, borderRadius: 13, marginBottom: 18 }
+// [088] 근골격계 보고서 목차(mur-toc)와 동일한 알약형 숫자 칩 스타일
+const SUBTAB_BAR: CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }
+function subTabNumStyle(active: boolean): CSSProperties {
+  return {
+    width: 20, height: 20, borderRadius: '50%', fontSize: 11, fontWeight: 700, flex: 'none',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    background: active ? 'var(--violet)' : 'var(--violet-soft)',
+    color: active ? '#fff' : 'var(--violet)',
+  }
+}
 const TEXTAREA_STYLE: CSSProperties = { height: 'auto', minHeight: 92, padding: '10px 13px', resize: 'vertical', lineHeight: 1.6, width: '100%', fontFamily: 'inherit' }
 const CHECK_ROW: CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, padding: '6px 0', fontSize: 13, cursor: 'pointer' }
 const SECTION_LABEL: CSSProperties = { fontSize: 12.5, fontWeight: 700, color: 'var(--ink-2)', margin: '2px 0 8px' }
 const CELL_INPUT: CSSProperties = { height: 36, width: '100%', borderRadius: 9, padding: '0 10px', fontSize: 13 }
 function subTabStyle(active: boolean): CSSProperties {
   return {
-    border: 0, borderRadius: 10, padding: '8px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
-    background: active ? 'var(--card)' : 'transparent',
+    display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer',
+    fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+    background: 'var(--card)',
+    border: '1px solid ' + (active ? 'var(--violet)' : 'var(--line)'),
+    borderRadius: 999, padding: '7px 14px 7px 8px',
     color: active ? 'var(--violet)' : 'var(--ink-2)',
     boxShadow: active ? 'var(--sh-soft)' : 'none',
   }
@@ -372,6 +386,7 @@ export function Risk() {
           statusCls: doneCnt === 4 ? 'ok' : 'doing',
           progress: `단계 ${doneCnt}/4`,
           date: (c.created || '').slice(0, 10),
+          caseId: c.id, // [081]
         })
       }
     }
@@ -424,8 +439,12 @@ export function Risk() {
   // 정기/수시 전환 탭 + 미착수 사고 배지용 산재 목록
   const [ctxTab, setCtxTab] = useState<'regular' | 'adhoc'>('regular')
   const [ctxAccidents, setCtxAccidents] = useState<{ id: string }[]>([])
+  // [081] 리스트 행 클릭 → 작성 화면 직행용: 수시 케이스 자동 열기 id + 학교 변경 시 편집모드 해제 스킵 플래그
+  const [adhocOpenId, setAdhocOpenId] = useState('')
+  const directEditRef = useRef(false)
   useEffect(() => {
-    setRegularEdit(false)
+    if (directEditRef.current) directEditRef.current = false // 직행 진입은 편집모드 해제를 건너뜀 [081]
+    else setRegularEdit(false)
     if (!sel) { setCtxTab('regular'); setCtxAccidents([]); return }
     let alive = true
     api<{ id: string; school_id: string; kind: string }[]>('/accidents')
@@ -637,8 +656,22 @@ export function Risk() {
     setSel(s)
     setSid(s.id) // 조사표 탭도 같은 학교로 동기화
     setCtxTab('regular') // 기본 정기 탭 (리스트에서 수시 행 클릭 시 호출측에서 'adhoc'으로 재지정)
+    setAdhocOpenId('') // [081] 이전 직행 대상 초기화 (수시 행 클릭 시 호출측에서 재지정)
     setCollapsed({})
     refetchSchool(s.id)
+  }
+
+  // [081] 작성된 보고서 행 클릭 → 작성 화면 직행 (정기=①~⑤ 편집, 수시=해당 케이스 에디터)
+  function openReportRow(r: RiskReportRow) {
+    if (r.kind === '수시') {
+      openSchool(r.school)
+      setCtxTab('adhoc')
+      setAdhocOpenId(r.caseId ?? '')
+    } else {
+      directEditRef.current = true
+      openSchool(r.school)
+      setRegularEdit(true)
+    }
   }
 
   // 학교 탭 바로가기(?school=id) — 학교 목록 로드 후 해당 학교 컨텍스트 자동 진입
@@ -883,7 +916,7 @@ export function Risk() {
                   {(loading || docLoading) && <tr><td colSpan={7}><div className="tstate">불러오는 중…</div></td></tr>}
                   {!loading && error && <tr><td colSpan={7}><div className="tstate">오류: {error}</div></td></tr>}
                   {!loading && !docLoading && !error && rq.view.map((r, i) => (
-                    <tr key={r.school.id + r.kind + i} onClick={() => { openSchool(r.school); if (r.kind === '수시') setCtxTab('adhoc') }}>
+                    <tr key={r.school.id + r.kind + i} onClick={() => openReportRow(r)}>
                       <td>{r.date || '—'}</td>
                       <td className="c">{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
                       <td><b>{r.school.name}</b></td>
@@ -893,7 +926,7 @@ export function Risk() {
                       <td className="c"><span className={'pillx ' + r.statusCls} title={r.title + (r.progress ? ' · ' + r.progress : '')}>{r.statusLabel}</span></td>
                       <td className="c">
                         <button className="btn" style={{ fontSize: 12, padding: '5px 12px' }}
-                          onClick={(e) => { e.stopPropagation(); openSchool(r.school); if (r.kind === '수시') setCtxTab('adhoc') }}>
+                          onClick={(e) => { e.stopPropagation(); openReportRow(r) }}>
                           보기
                         </button>
                       </td>
@@ -909,7 +942,7 @@ export function Risk() {
           </div>
 
           <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-            학교를 선택하면 연도별 정기·수시 위험성평가 목록이 표시됩니다. 산업재해 발생 시 생성된 수시 평가도 함께 관리됩니다.
+            행을 클릭하면 해당 보고서의 작성 화면이 바로 열립니다(정기=①~⑤ 작성 화면, 수시=케이스 에디터). 학교별 관리 화면은 학교 탭의 [위험성평가] 바로가기로 진입하세요.
           </div>
         </>
       )}
@@ -926,7 +959,7 @@ export function Risk() {
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               <button
                 className={'btn ' + (ctxTab === 'regular' ? 'btn-primary' : 'btn-ghost')}
-                onClick={() => { setCtxTab('regular'); setRegularEdit(false) }}
+                onClick={() => { setCtxTab('regular'); setRegularEdit(false); setAdhocOpenId('') }}
               >
                 정기 위험성평가
               </button>
@@ -1042,6 +1075,7 @@ export function Risk() {
               onChange={setCtxCases}
               onSave={() => { void saveCtxDoc() }}
               busy={ctxBusy}
+              initialCaseId={adhocOpenId} // [081] 리스트에서 수시 행 클릭 시 해당 케이스 바로 열기
             />
           )}
         </>
@@ -1069,7 +1103,7 @@ export function Risk() {
             <div style={SUBTAB_BAR}>
               {SURVEY_TABS.map((t) => (
                 <button key={t.key} style={subTabStyle(surveyTab === t.key)} onClick={() => { setSurveyTab(t.key); setSurveyMsg('') }}>
-                  {t.label}
+                  <span style={subTabNumStyle(surveyTab === t.key)}>{t.num}</span>{t.label}
                 </button>
               ))}
             </div>

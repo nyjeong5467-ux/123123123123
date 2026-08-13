@@ -42,9 +42,15 @@ const schools = [
 ]
 
 // 학교별 종사자 구성(대장) — 일부 학교는 인원대조 불일치(headcount_mismatch)
-function makeWorkers(counts) {
+// [097] 대장 종사자 개인 명단 — 증상조사표 성명·부서 자동 매핑용 (실백엔드도 동일 필드 필요)
+const KO_NAMES = ['김민정', '이수현', '박지영', '최은주', '정미란', '한상희', '조윤아', '장선미', '오경숙', '신현정',
+  '유재순', '문소희', '임정옥', '강다혜', '윤보라', '서지훈', '권오성', '황인석', '안창수', '송기범',
+  '전영호', '노승철', '백진우', '허남일', '구자윤', '민경태', '심재원', '태현수', '하동훈', '남궁석']
+function makeWorkers(counts, sid) {
+  let seq = sid ? (sid.charCodeAt(1) * 3 + sid.charCodeAt(2)) % KO_NAMES.length : 0
   return PARTS.map((part, i) => ({ id: uid(), part, count: counts[i] ?? 0, contact: '010-1234-56' + pad(i), is_nutrition_teacher: part === 'catering' && i === 0 }))
     .filter((w) => w.count > 0)
+    .map((w) => ({ ...w, names: Array.from({ length: w.count }, () => KO_NAMES[seq++ % KO_NAMES.length]) })) // [097]
 }
 const LEDGER_BASE = {
   s01: [3, 1, 1, 2, 1], s02: [5, 2, 2, 0, 1], s03: [7, 2, 3, 0, 2], s04: [2, 0, 1, 1, 0],
@@ -54,7 +60,7 @@ const LEDGER_BASE = {
 const MISMATCH = new Set(['s02', 's09'])
 const ledgers = {}
 for (const s of schools) {
-  const workers = makeWorkers(LEDGER_BASE[s.id])
+  const workers = makeWorkers(LEDGER_BASE[s.id], s.id)
   ledgers[s.id] = {
     school: { id: s.id, name: s.name, is_private: s.is_private, education_count: s.education_count, special_notes: s.id === 's07' ? '실습실 위험설비 다수 · 통학차량 1대' : '', address: s.address },
     workers,
