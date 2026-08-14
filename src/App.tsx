@@ -12,7 +12,9 @@ import { Inspection } from './pages/Inspection'
 import { InspectionForm } from './pages/InspectionForm'
 import { Risk } from './pages/Risk'
 import { Musculo } from './pages/Musculo'
+import { MusculoPhotos } from './pages/MusculoPhotos'
 import { MusculoReport } from './pages/MusculoReport'
+import { MusculoStats } from './pages/MusculoStats'
 import { Education } from './pages/Education'
 import { Compliance } from './pages/Compliance'
 import { Billing } from './pages/Billing'
@@ -54,6 +56,8 @@ export default function App() {
           <Route path="/inspection/new" element={<InspectionForm />} />
           <Route path="/risk" element={<Risk />} />
           <Route path="/musculo" element={<Musculo />} />
+          <Route path="/musculo/photos" element={<MusculoPhotos />} />
+          <Route path="/musculo/stats" element={<MusculoStats />} />
           <Route path="/musculo/report" element={<MusculoReport />} />
           <Route path="/education" element={<Education />} />
           <Route path="/compliance" element={<Compliance />} />

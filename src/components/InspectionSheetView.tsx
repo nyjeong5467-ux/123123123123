@@ -1,16 +1,19 @@
 // 종사자 안전·보건 점검표 — 실물 양식 보기 [054]
 // 점검표 1장(학교×점검일, 공정별 점검 묶음)을 제출 PDF와 같은 서식으로 표시.
 // [인쇄 / PDF 저장]으로 브라우저 인쇄 → PDF 생성 가능. 조회 전용(수정은 이어서 작성에서).
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
 import { PARTDEF, type InspExtra } from '../pages/InspectionForm'
+import { getToken } from '../lib/api'
 import '../styles/inspectsheet.css'
 
 export type SheetItem = { code: string; label: string; result?: string | null; remark?: string | null }
 export type SheetPart = {
   part: string
   items: SheetItem[]
-  signatures: { signer: string; signed_at?: string | null }[]
+  // image_ref: 손글씨 서명 이미지 저장경로(01_안전점검/YYYY-MM/sign_*.png). 없으면 텍스트 서명. [054]
+  signatures: { signer: string; signed_at?: string | null; image_ref?: string | null }[]
 }
 export type SheetData = {
   schoolName: string
@@ -27,12 +30,45 @@ const PART_ORDER = ['catering', 'night_duty', 'commute', 'facility', 'cleaning']
 // 저장값 → 표시 컬럼 (구 시드 ok/fix 값도 방어적으로 수용)
 const RES_COL: Record<string, 0 | 1 | 2> = { good: 0, ok: 0, poor: 1, fix: 1, na: 2 }
 
+// 손글씨 서명 이미지 — 보호 파일이라 토큰 실어 자체 fetch → objectURL로 <img> 표시.
+// api.ts는 JSON 전용(수정 금지)이므로 여기서 직접 fetch. (MusculoPhotos와 동일 패턴) [054]
+function SignImage({ refPath }: { refPath: string }) {
+  const [url, setUrl] = useState('')
+  const [err, setErr] = useState(false)
+  useEffect(() => {
+    let alive = true
+    let made = ''
+    fetch(`/api/v1/files/inspection/download?path=${encodeURIComponent(refPath)}`, {
+      headers: { Authorization: `Bearer ${getToken()}`, 'ngrok-skip-browser-warning': 'true' },
+    })
+      .then((res) => { if (!res.ok) throw new Error(String(res.status)); return res.blob() })
+      .then((b) => { const u = URL.createObjectURL(b); if (alive) { made = u; setUrl(u) } else URL.revokeObjectURL(u) })
+      .catch(() => { if (alive) setErr(true) })
+    return () => { alive = false; if (made) URL.revokeObjectURL(made) }
+  }, [refPath])
+  // 이미지 로드 실패 시엔 서명은 있으므로 '(서명)' 텍스트로 폴백.
+  if (err) return <span className="st">(서명)</span>
+  if (!url) return <span className="st">불러오는 중…</span>
+  return (
+    <img
+      src={url}
+      alt="서명"
+      style={{ maxHeight: 48, maxWidth: 200, objectFit: 'contain', alignSelf: 'center' }}
+    />
+  )
+}
+
 // 양식 본문 — 오버레이 보기와 메일 PDF 캡처([062])가 공용으로 사용
 export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
   const signer = sheet.parts.flatMap((p) => p.signatures).find((s) => s.signer)?.signer || ''
   const signedAt = sheet.parts
     .flatMap((p) => p.signatures)
     .map((s) => (s.signed_at || '').slice(0, 10))
+    .find(Boolean) || ''
+  // 손글씨 서명 이미지 저장경로 — 있으면 이미지로, 없으면 '(서명)' 텍스트로 표시. [054]
+  const signImageRef = sheet.parts
+    .flatMap((p) => p.signatures)
+    .map((s) => s.image_ref || '')
     .find(Boolean) || ''
   const included = new Set(sheet.parts.map((p) => p.part))
   const ordered = PART_ORDER.filter((k) => included.has(k)).map((k) => sheet.parts.find((p) => p.part === k)!)
@@ -174,7 +210,9 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
         <div className="inss-signer">
           <span className="lab">확인자(담당자)</span>
           <span className="nm">{finalSigner || ''}</span>
-          <span className="st">{finalSigner ? '(서명)' : '(미서명)'}</span>
+          {signImageRef
+            ? <SignImage refPath={signImageRef} />
+            : <span className="st">{finalSigner ? '(서명)' : '(미서명)'}</span>}
           {signedAt && <span className="dt">서명일 {signedAt}</span>}
         </div>
       </div>

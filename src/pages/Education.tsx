@@ -28,6 +28,9 @@ type EduSession = {
   kind: string
   accident_type: string
   headcount: number
+  topic: string      // 교육 주제·내용(현장 입력)
+  target: number     // 대상 인원(현장 입력)
+  note: string       // 특이사항(현장 입력)
   created_at: string
 }
 // 종사자별 이수현황(C-4) — GET /education/{sid}/records (progress: 0.0~1.0)
@@ -46,7 +49,7 @@ type Supervisor = {
   completed: boolean
 }
 
-const SESSION_KINDS = ['정기안전교육', '채용시 안전교육']
+const SESSION_KINDS = ['정기안전교육', '채용시 안전교육', '수시교육']
 const ACCIDENT_TYPES = ['넘어짐', '끼임', '부딪힘', '떨어짐', '화상', '근골격계', '기타']
 
 // ===== 1단계: 학교 목록 (학교별 진도 요약) =====
@@ -98,8 +101,11 @@ const SESSION_SORTS = {
 const SESSION_EXPORT: ExportColumn<EduSession>[] = [
   { header: '교육일', value: (r) => r.date },
   { header: '구분', value: (r) => r.kind },
+  { header: '교육 주제', value: (r) => r.topic },
   { header: '재해형태', value: (r) => r.accident_type },
+  { header: '대상 인원', value: (r) => r.target },
   { header: '교육 실시 인원', value: (r) => r.headcount },
+  { header: '특이사항', value: (r) => r.note },
   { header: '작성일', value: (r) => r.created_at },
 ]
 
@@ -240,6 +246,9 @@ export function Education() {
   const [sKind, setSKind] = useState(SESSION_KINDS[0])
   const [sAcc, setSAcc] = useState(ACCIDENT_TYPES[0])
   const [sHead, setSHead] = useState('')
+  const [sTopic, setSTopic] = useState('')
+  const [sTarget, setSTarget] = useState('')
+  const [sNote, setSNote] = useState('')
   const [sBusy, setSBusy] = useState(false)
   const [sErr, setSErr] = useState('')
 
@@ -414,7 +423,7 @@ export function Education() {
 
   function openSession() {
     setSDate(today()); setSKind(SESSION_KINDS[0]); setSAcc(ACCIDENT_TYPES[0])
-    setSHead(''); setSErr(''); setSOpen(true)
+    setSHead(''); setSTopic(''); setSTarget(''); setSNote(''); setSErr(''); setSOpen(true)
   }
   async function addSession() {
     if (!sid || sBusy) return
@@ -426,7 +435,10 @@ export function Education() {
     try {
       await api<EduSession>(`/education/${sid}/sessions`, {
         method: 'POST',
-        body: JSON.stringify({ date: sDate, kind: sKind, accident_type: sAcc, headcount: n }),
+        body: JSON.stringify({
+          date: sDate, kind: sKind, accident_type: sAcc, headcount: n,
+          topic: sTopic.trim(), target: Number(sTarget) || 0, note: sNote.trim(),
+        }),
       })
       setSOpen(false)
       setLedgerReload((x) => x + 1)
@@ -688,26 +700,32 @@ export function Education() {
                       <th>No</th>
                       <SortableTh q={sessionQ} col="date">교육일</SortableTh>
                       <th>구분</th>
+                      <th>교육 주제</th>
                       <th>재해형태</th>
+                      <th>대상 인원</th>
                       <SortableTh q={sessionQ} col="headcount">교육 실시 인원</SortableTh>
+                      <th>특이사항</th>
                       <th>작성일</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {ledgerLoading && <tr><td colSpan={6}><div className="tstate">불러오는 중…</div></td></tr>}
-                    {!ledgerLoading && ledgerError && <tr><td colSpan={6}><div className="tstate">오류: {ledgerError}</div></td></tr>}
+                    {ledgerLoading && <tr><td colSpan={9}><div className="tstate">불러오는 중…</div></td></tr>}
+                    {!ledgerLoading && ledgerError && <tr><td colSpan={9}><div className="tstate">오류: {ledgerError}</div></td></tr>}
                     {!ledgerLoading && !ledgerError && sessionQ.view.map((r, i) => (
                       <tr key={r.id}>
                         <td>{(sessionQ.page - 1) * sessionQ.pageSize + i + 1}</td>
                         <td><b>{r.date}</b></td>
                         <td><span className="pillx doing">{r.kind}</span></td>
+                        <td>{r.topic || '—'}</td>
                         <td>{r.accident_type || '—'}</td>
+                        <td className="c">{r.target ? `${r.target}명` : '—'}</td>
                         <td>{r.headcount}명</td>
+                        <td className="muted">{r.note || '—'}</td>
                         <td className="muted">{r.created_at}</td>
                       </tr>
                     ))}
                     {!ledgerLoading && !ledgerError && sessionQ.view.length === 0 && (
-                      <tr><td colSpan={6}><div className="tstate">등록된 교육 회차가 없습니다. '회차 등록'으로 추가하세요.</div></td></tr>
+                      <tr><td colSpan={9}><div className="tstate">등록된 교육 회차가 없습니다. '회차 등록'으로 추가하세요.</div></td></tr>
                     )}
                   </tbody>
                 </table>
@@ -885,6 +903,17 @@ export function Education() {
               <input className="input" type="number" value={sHead} onChange={(e) => setSHead(e.target.value)} placeholder="0" />
             </label>
           </div>
+          <div className="formrow" style={{ marginTop: 12 }}>
+            <label className="field" style={{ flex: 2 }}><span>교육 주제</span>
+              <input className="input" value={sTopic} onChange={(e) => setSTopic(e.target.value)} placeholder="예: 급식실 화상·미끄러짐 예방 교육" />
+            </label>
+            <label className="field"><span>대상 인원</span>
+              <input className="input" type="number" value={sTarget} onChange={(e) => setSTarget(e.target.value)} placeholder="0" />
+            </label>
+          </div>
+          <label className="field" style={{ marginTop: 12, display: 'block' }}><span>특이사항</span>
+            <input className="input" value={sNote} onChange={(e) => setSNote(e.target.value)} placeholder="결석자·보충교육 등" />
+          </label>
         </Modal>
       )}
     </div>

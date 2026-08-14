@@ -1,8 +1,8 @@
 // 근골격계 — 학교 목록 → 학교별 조사 이력(연도별) 위계 뷰. Risk.tsx(rkh-) 패턴 준용.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Activity, ArrowLeft, ChevronRight, ClipboardCheck } from 'lucide-react'
-import { api } from '../lib/api'
+import { Activity, ArrowLeft, Camera, ChevronRight, ClipboardCheck, ClipboardList } from 'lucide-react'
+import { api, getToken } from '../lib/api'
 import { useTableQuery, type FilterDef, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
@@ -18,6 +18,7 @@ type Sheet = {
   id: string
   person_name: string
   image_ref: string
+  marks: (number | null)[]   // 부위별 마킹(0/1). 앱 _bodyParts 순서.
   confidence: number
   review_status: string   // auto | needs_review | confirmed
 }
@@ -25,6 +26,39 @@ const SHEET_ST: Record<string, { label: string; cls: string }> = {
   auto: { label: '자동 인식', cls: 'ok' },
   needs_review: { label: '검수 대기', cls: 'warn' },
   confirmed: { label: '확정', cls: 'doing' },
+}
+// 앱 musculo_screen.dart _bodyParts와 동일 순서. SYNC: app-field musculo_screen.dart.
+const BODY_PARTS = ['목', '어깨', '팔/팔꿈치', '손/손목', '허리', '다리/무릎']
+
+function scanDownloadUrl(ref: string): string {
+  return `/api/v1/files/musculo/download?path=${encodeURIComponent(ref)}`
+}
+// api.ts는 JSON 전용이라(수정 금지) 스캔 이미지 blob은 토큰 실어 자체 fetch → objectURL.
+function ScanCell({ imageRef }: { imageRef: string }) {
+  const [url, setUrl] = useState('')
+  const [err, setErr] = useState(false)
+  const isStored = !!imageRef && imageRef.includes('/') // 저장 경로(구 데이터는 파일명만)
+  useEffect(() => {
+    if (!isStored) return
+    let alive = true
+    let made = ''
+    fetch(scanDownloadUrl(imageRef), {
+      headers: { Authorization: `Bearer ${getToken()}`, 'ngrok-skip-browser-warning': 'true' },
+    })
+      .then((res) => { if (!res.ok) throw new Error(String(res.status)); return res.blob() })
+      .then((b) => { const u = URL.createObjectURL(b); if (alive) { made = u; setUrl(u) } else URL.revokeObjectURL(u) })
+      .catch(() => alive && setErr(true))
+    return () => { alive = false; if (made) URL.revokeObjectURL(made) }
+  }, [imageRef, isStored])
+  if (!imageRef) return <>—</>
+  if (!isStored) return <span className="muted">{imageRef}</span>
+  if (err) return <span className="muted">불러오기 실패</span>
+  if (!url) return <span className="muted">불러오는 중…</span>
+  return (
+    <a href={scanDownloadUrl(imageRef)} target="_blank" rel="noreferrer" title="원본 스캔 열기">
+      <img src={url} alt="scan" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
+    </a>
+  )
 }
 
 type School = {
@@ -578,6 +612,9 @@ export function Musculo() {
       <div className="bar">
         <h2><Activity size={20} /> 근골격계 부담작업</h2>
         <div className="sp" />
+        {/* 근골 하위 기능 진입 — 공정별 작업사진 · 증상조사표 통계(현장앱 연동 페이지) */}
+        <Link className="btn btn-ghost" to="/musculo/photos"><Camera size={15} /> 공정별 작업사진</Link>
+        <Link className="btn btn-ghost" to="/musculo/stats"><ClipboardList size={15} /> 증상조사표 통계</Link>
         {/* [083] 상단 탭(조사 목록/부담작업 판정)·[근골격계 조사 생성] 버튼 제거 — 화면은 조사 현황 표 단일 흐름,
             조사 생성은 보고서 작성 플로우에서 수행 (구 JSX는 이 주석 아래 코드로 복원 가능 — createSurvey·tab state 잔존) */}
         {/* [084] 보고서 작성 버튼 — 안전점검의 [점검표 작성]과 동일한 위치(상단 바 우측)·색(btn-primary) */}
@@ -872,15 +909,24 @@ export function Musculo() {
           {reviewErr && <div className="muted" style={{ color: 'var(--red-ink)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>{reviewErr}</div>}
           <div className="twrap">
             <table className="tbl">
-              <thead><tr><th>성명</th><th>스캔 파일</th><th className="c">인식 신뢰도</th><th className="c">상태</th><th className="c">처리</th></tr></thead>
+              <thead><tr><th>성명</th><th>스캔</th><th>통증 부위</th><th className="c">인식 신뢰도</th><th className="c">상태</th><th className="c">처리</th></tr></thead>
               <tbody>
-                {sheetsLoading && <tr><td colSpan={5}><div className="tstate">불러오는 중…</div></td></tr>}
+                {sheetsLoading && <tr><td colSpan={6}><div className="tstate">불러오는 중…</div></td></tr>}
                 {!sheetsLoading && sheetsList.map((sh) => {
                   const st = SHEET_ST[sh.review_status] || { label: sh.review_status, cls: 'todo' }
                   return (
                     <tr key={sh.id}>
                       <td><b>{sh.person_name}</b></td>
-                      <td>{sh.image_ref || '—'}</td>
+                      <td><ScanCell imageRef={sh.image_ref} /></td>
+                      <td style={{ maxWidth: 220 }}>
+                        {(sh.marks || []).some((m) => m === 1) ? (
+                          <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {sh.marks.map((m, i) => (m === 1
+                              ? <span key={i} className="pillx warn">{BODY_PARTS[i] ?? `문항${i + 1}`}</span>
+                              : null))}
+                          </span>
+                        ) : <span className="muted">—</span>}
+                      </td>
                       <td className="c">{Math.round((sh.confidence || 0) * 100)}%</td>
                       <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
                       <td className="c">
@@ -895,7 +941,7 @@ export function Musculo() {
                   )
                 })}
                 {!sheetsLoading && sheetsList.length === 0 && (
-                  <tr><td colSpan={5}><div className="tstate">증상조사표가 없습니다.</div></td></tr>
+                  <tr><td colSpan={6}><div className="tstate">증상조사표가 없습니다.</div></td></tr>
                 )}
               </tbody>
             </table>
