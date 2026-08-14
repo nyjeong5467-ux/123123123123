@@ -91,6 +91,8 @@ export type InspExtra = {
   etc: string
   photos: Record<string, Slot[]>
   signer: string
+  // 현장앱 다중 결재란 — {직책, 서명자, 서명이미지 저장경로}. 백엔드 _persist_approval_lines(/ops/docs/inspection-extras).
+  approval_lines?: { title: string; signer: string; image_ref?: string | null }[]
 }
 type PartStatus = { st: 'idle' | 'run' | 'done' | 'err'; note: string }
 

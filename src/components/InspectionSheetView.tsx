@@ -77,6 +77,8 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
   // 점검대상 체크 — 부가정보(당직 등 점검표 없는 공정 포함)가 있으면 그것을, 없으면 저장된 공정 기준
   const targets = extra?.targets?.length ? new Set(extra.targets) : included
   const finalSigner = extra?.signer || signer
+  // 현장앱 다중 결재란(있으면 우선) — {직책, 서명자, 서명이미지 저장경로}
+  const approvalLines = extra?.approval_lines ?? []
 
   return (
       <div className="inss-page">
@@ -85,13 +87,31 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
           <h1>종사자 안전·보건 점검표</h1>
           <table className="inss-approve">
             <tbody>
-              <tr>
-                <td className="lab" rowSpan={2}>결<br />재</td>
-                <td className="t">담당자</td>
-              </tr>
-              <tr>
-                <td className="sign">{finalSigner}</td>
-              </tr>
+              {approvalLines.length > 0 ? (
+                <>
+                  <tr>
+                    <td className="lab" rowSpan={2}>결<br />재</td>
+                    {approvalLines.map((ln, i) => (
+                      <td className="t" key={i}>{ln.title || '확인자'}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    {approvalLines.map((ln, i) => (
+                      <td className="sign" key={i}>{ln.signer || ''}</td>
+                    ))}
+                  </tr>
+                </>
+              ) : (
+                <>
+                  <tr>
+                    <td className="lab" rowSpan={2}>결<br />재</td>
+                    <td className="t">담당자</td>
+                  </tr>
+                  <tr>
+                    <td className="sign">{finalSigner}</td>
+                  </tr>
+                </>
+              )}
             </tbody>
           </table>
         </div>
@@ -205,16 +225,28 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
           ))
         })()}
 
-        {/* 확인자 [057] */}
+        {/* 확인자 [057] — 현장앱 다중 결재란(approval_lines) 우선, 없으면 단일 확인자 */}
         <div className="inss-sec"><i />확인자</div>
-        <div className="inss-signer">
-          <span className="lab">확인자(담당자)</span>
-          <span className="nm">{finalSigner || ''}</span>
-          {signImageRef
-            ? <SignImage refPath={signImageRef} />
-            : <span className="st">{finalSigner ? '(서명)' : '(미서명)'}</span>}
-          {signedAt && <span className="dt">서명일 {signedAt}</span>}
-        </div>
+        {approvalLines.length > 0 ? (
+          approvalLines.map((ln, i) => (
+            <div className="inss-signer" key={i}>
+              <span className="lab">{ln.title || '확인자'}</span>
+              <span className="nm">{ln.signer || ''}</span>
+              {ln.image_ref
+                ? <SignImage refPath={ln.image_ref} />
+                : <span className="st">{ln.signer ? '(서명)' : '(미서명)'}</span>}
+            </div>
+          ))
+        ) : (
+          <div className="inss-signer">
+            <span className="lab">확인자(담당자)</span>
+            <span className="nm">{finalSigner || ''}</span>
+            {signImageRef
+              ? <SignImage refPath={signImageRef} />
+              : <span className="st">{finalSigner ? '(서명)' : '(미서명)'}</span>}
+            {signedAt && <span className="dt">서명일 {signedAt}</span>}
+          </div>
+        )}
       </div>
   )
 }
