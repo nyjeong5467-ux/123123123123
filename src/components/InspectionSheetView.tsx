@@ -18,6 +18,7 @@ export type SheetData = {
   date: string // 점검일 ('' = 작성중)
   parts: SheetPart[]
   extra?: InspExtra // 부가정보 — 기본정보·점검대상·기타의견·사진대지·확인자 [057]
+  approval?: { title: string; name: string }[] // [104] 대장 결재선 — 결재란 칸 구성 (없으면 담당자 1칸)
 }
 
 const PART_NAME: Record<string, string> = {
@@ -47,14 +48,19 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
         {/* 제목 + 결재란 */}
         <div className="inss-head">
           <h1>종사자 안전·보건 점검표</h1>
+          {/* [104] 결재란 — 대장 결재선(steps)만큼 칸 생성. 담당(자) 칸에는 서명자 표기, 나머지는 수기 결재용 공란 */}
           <table className="inss-approve">
             <tbody>
               <tr>
                 <td className="lab" rowSpan={2}>결<br />재</td>
-                <td className="t">담당자</td>
+                {(sheet.approval?.length ? sheet.approval : [{ title: '담당자', name: '' }]).map((s) => (
+                  <td className="t" key={s.title}>{s.title}</td>
+                ))}
               </tr>
               <tr>
-                <td className="sign">{finalSigner}</td>
+                {(sheet.approval?.length ? sheet.approval : [{ title: '담당자', name: '' }]).map((s, i) => (
+                  <td className="sign" key={i}>{s.title.includes('담당') ? finalSigner : ''}</td>
+                ))}
               </tr>
             </tbody>
           </table>

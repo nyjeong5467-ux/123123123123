@@ -1,8 +1,10 @@
 // 정기 위험성평가 결과보고서 — 인쇄용 출력 (0806 요청).
 // ①~⑤ 탭에서 작성한 데이터 + 표지·경영방침·PART 2 고정 텍스트를 실물 보고서(A4 가로) 형태로 조립.
 // 브라우저 인쇄(Ctrl+P) → "PDF로 저장"으로 최종 산출물 생성. document.body 포탈로 렌더(인쇄 시 앱 UI 숨김).
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
+import { api } from '../../lib/api'
 import type { DeptInfoDoc, DeptInfo } from './DeptHazardInfo'
 import type { AssessDoc, BehaviorDoc, StateDoc } from './AssessmentTable'
 import { riskLabel } from './AssessmentTable'
@@ -26,7 +28,20 @@ export type ReportData = {
   participants?: ParticipantRow[]
 }
 
-export function RiskReport(p: { schoolName: string; data: ReportData; onClose: () => void }) {
+export function RiskReport(p: { schoolName: string; data: ReportData; onClose: () => void; sid?: string }) {
+  // [104] 표지 결재란 — 대장 결재선(GET /approval-line) 기준으로 칸 구성 (미조회 시 기본 3칸)
+  const [appr, setAppr] = useState<{ title: string; name: string }[]>([
+    { title: '담 당', name: '' }, { title: '행정실장', name: '' }, { title: '교 장', name: '' },
+  ])
+  useEffect(() => {
+    if (!p.sid) return
+    let alive = true
+    api<{ steps: { title: string; name: string }[] }>(`/schools/${p.sid}/approval-line`)
+      .then((r) => { if (alive && r?.steps?.length) setAppr(r.steps) })
+      .catch(() => { /* 기본 3칸 유지 */ })
+    return () => { alive = false }
+  }, [p.sid])
+
   const info = p.data.report_info ?? emptyReportInfo()
   const year = info.report_ym.slice(0, 4) || String(new Date().getFullYear())
   const ym = info.report_ym
@@ -51,8 +66,8 @@ export function RiskReport(p: { schoolName: string; data: ReportData; onClose: (
       <div className="rr-page rr-cover">
         <table className="rr-approve">
           <tbody>
-            <tr><td className="g" rowSpan={2}>결재</td><th>담 당</th><th>행정실장</th><th>교 장</th></tr>
-            <tr><td /><td /><td /></tr>
+            <tr><td className="g" rowSpan={2}>결재</td>{appr.map((s) => <th key={s.title}>{s.title}</th>)}</tr>
+            <tr>{appr.map((_, i) => <td key={i} />)}</tr>
           </tbody>
         </table>
         <div className="school">{p.schoolName}</div>

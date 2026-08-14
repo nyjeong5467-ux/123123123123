@@ -468,6 +468,7 @@ export function Compliance() {
       {/* 인쇄 미리보기 */}
       {sel && printKey && doc[sel.id]?.[printKey] && (
         <ComplianceSheetPrint
+          sid={sel.id} // [104] 대장 결재선 → 결재란
           schoolName={sel.name}
           periodKey={printKey}
           sheet={doc[sel.id][printKey]}

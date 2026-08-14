@@ -360,6 +360,7 @@ export function InspectionForm() {
     return {
       schoolName,
       date: inspectDate,
+      approval: approval.length ? approval : undefined, // [104] 대장 결재선 → 메일 PDF 결재란
       parts: activeDefs.map((d) => ({
         part: d.key,
         items: d.q!.map((question, i) => {

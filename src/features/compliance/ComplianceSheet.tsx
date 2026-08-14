@@ -1,9 +1,10 @@
 // 중대재해예방 의무이행사항 점검 조사지 — 이행점검 핵심 양식 (0806 요청, 실물 조사지 기반).
 // 내용 컬럼: 점검자가 직접 작성(표준 문구 기본값 프리필) · 결과 컬럼: 학교 행정선생님 면담 후 체크.
 // 반기(상·하반기)당 1부, 작성 완료 후 학교 메일로 제출. 저장은 /ops/docs/compliance-sheets 문서(페이지에서 처리).
-import { type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
+import { api } from '../../lib/api'
 import '../../styles/riskreport.css'
 
 /* ===================== 데이터 모델 ===================== */
@@ -220,9 +221,21 @@ const P_TH: CSSProperties = { border: '1px solid #444', background: '#eef0f5', f
 const P_TD: CSSProperties = { border: '1px solid #444', fontSize: 10.5, padding: '5px 8px', verticalAlign: 'top', whiteSpace: 'pre-wrap' }
 const P_IT: CSSProperties = { ...P_TD, fontWeight: 800, textAlign: 'center', verticalAlign: 'middle', width: 96 }
 
-export function ComplianceSheetPrint(p: { schoolName: string; periodKey: string; sheet: CxSheet; onClose: () => void }) {
+export function ComplianceSheetPrint(p: { schoolName: string; periodKey: string; sheet: CxSheet; onClose: () => void; sid?: string }) {
   const s = p.sheet
   const ox = (v: OX) => (v ? `( ${v} )` : '( O , X )')
+  // [104] 결재란 — 대장 결재선 기준 칸 구성
+  const [appr, setAppr] = useState<{ title: string; name: string }[]>([
+    { title: '담 당', name: '' }, { title: '행정실장', name: '' }, { title: '교 장', name: '' },
+  ])
+  useEffect(() => {
+    if (!p.sid) return
+    let alive = true
+    api<{ steps: { title: string; name: string }[] }>(`/schools/${p.sid}/approval-line`)
+      .then((r) => { if (alive && r?.steps?.length) setAppr(r.steps) })
+      .catch(() => { /* 기본 3칸 유지 */ })
+    return () => { alive = false }
+  }, [p.sid])
   return createPortal(
     <div className="rr-overlay">
       <style>{'@media print { @page { size: A4 portrait; margin: 0 } }'}</style>
@@ -233,7 +246,15 @@ export function ComplianceSheetPrint(p: { schoolName: string; periodKey: string;
         <button className="print" onClick={() => window.print()}><Printer size={14} style={{ verticalAlign: -2 }} /> 인쇄 / PDF 저장</button>
         <button className="close" onClick={p.onClose}><X size={14} style={{ verticalAlign: -2 }} /> 닫기</button>
       </div>
-      <div className="rr-page" style={{ width: 794, minHeight: 1123, padding: '44px 46px' }}>
+      <div className="rr-page" style={{ width: 794, minHeight: 1123, padding: '44px 46px', position: 'relative' }}>
+        {/* [104] 결재란 — 대장 결재선 칸 (우측 상단) */}
+        <table className="rr-approve" style={{ top: 40, right: 46 }}>
+          <tbody>
+            <tr><td className="g" rowSpan={2}>결재</td>{appr.map((st) => <th key={st.title}>{st.title}</th>)}</tr>
+            <tr>{appr.map((_, i) => <td key={i} />)}</tr>
+          </tbody>
+        </table>
+        <div style={{ height: 96 }} />
         <div style={{ textAlign: 'center', fontSize: 17, fontWeight: 900, marginBottom: 4 }}>
           {periodLabel(p.periodKey)} 중대재해예방 의무이행사항 점검 조사지
         </div>
