@@ -1195,6 +1195,7 @@ export function Risk() {
 
       {reportOpen && (
         <RiskReport
+          sid={sid} // [104] 대장 결재선 → 표지 결재란
           schoolName={schools.find((s) => s.id === sid)?.name ?? '학교'}
           data={{
             report_info: survey.report_info,

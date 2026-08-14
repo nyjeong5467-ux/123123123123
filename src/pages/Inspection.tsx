@@ -255,7 +255,13 @@ export function Inspection() {
       const ids = new Set(parts.map((p) => p.id))
       extra = (r.doc?.[school.id] ?? []).find((e) => Array.isArray(e.ids) && e.ids.some((id) => ids.has(id)))
     } catch { /* 부가정보 없으면 기본 표시 */ }
-    setSheetView({ schoolName: school.name, manager: school.manager, date, parts, extra })
+    // [104] 대장 결재선 → 양식 결재란 칸 구성
+    let approval: { title: string; name: string }[] | undefined
+    try {
+      const a = await api<{ steps: { title: string; name: string }[] }>(`/schools/${school.id}/approval-line`)
+      if (a?.steps?.length) approval = a.steps
+    } catch { /* 결재선 없으면 담당자 1칸 */ }
+    setSheetView({ schoolName: school.name, manager: school.manager, date, parts, extra, approval })
   }
 
   // 학교 목록 로드 — 세션 캐시 적중 시 재조회 없이 복원 [073]
