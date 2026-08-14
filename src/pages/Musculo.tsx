@@ -55,7 +55,8 @@ function ScanCell({ imageRef }: { imageRef: string }) {
   if (err) return <span className="muted">불러오기 실패</span>
   if (!url) return <span className="muted">불러오는 중…</span>
   return (
-    <a href={scanDownloadUrl(imageRef)} target="_blank" rel="noreferrer" title="원본 스캔 열기">
+    // 브라우저 네비게이션은 Bearer 토큰을 못 실어 401 → 이미 토큰으로 받아둔 blob objectURL을 열기/다운로드.
+    <a href={url} download={imageRef.split('/').pop() || 'scan.png'} target="_blank" rel="noreferrer" title="원본 스캔 열기">
       <img src={url} alt="scan" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
     </a>
   )

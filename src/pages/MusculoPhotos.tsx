@@ -62,7 +62,8 @@ function Thumb({ photo }: { photo: Photo }) {
 
   return (
     <div style={{ width: 132 }}>
-      <a href={downloadUrl(photo.ref)} target="_blank" rel="noreferrer" title="원본 열기/다운로드"
+      {/* 브라우저 네비게이션은 Bearer 토큰을 못 실어 401 → 이미 받아둔 blob objectURL을 열기/다운로드. 로드 전엔 링크 비활성. */}
+      <a href={url || undefined} download={url ? photo.name : undefined} target="_blank" rel="noreferrer" title="원본 열기/다운로드"
         style={{ display: 'block', width: 132, height: 132, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)', background: 'var(--card-2)' }}>
         {err ? (
           <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--muted)', fontSize: 11 }}>불러오기 실패</div>
@@ -74,7 +75,7 @@ function Thumb({ photo }: { photo: Photo }) {
       </a>
       <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: 'var(--muted)' }}>
         <Download size={11} />
-        <a href={downloadUrl(photo.ref)} target="_blank" rel="noreferrer" style={{ color: 'var(--muted)', textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <a href={url || undefined} download={url ? photo.name : undefined} target="_blank" rel="noreferrer" style={{ color: 'var(--muted)', textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {(photo.ts || '').slice(0, 10) || photo.name}
         </a>
       </div>

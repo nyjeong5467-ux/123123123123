@@ -108,8 +108,8 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
                 <>
                   <tr>
                     <td className="lab" rowSpan={2}>결<br />재</td>
-                    {(sheet.approval?.length ? sheet.approval : [{ title: '담당자', name: '' }]).map((s) => (
-                      <td className="t" key={s.title}>{s.title}</td>
+                    {(sheet.approval?.length ? sheet.approval : [{ title: '담당자', name: '' }]).map((s, i) => (
+                      <td className="t" key={i}>{s.title}</td>
                     ))}
                   </tr>
                   <tr>
