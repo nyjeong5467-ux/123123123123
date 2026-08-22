@@ -3,7 +3,6 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   type LucideIcon,
   Activity,
-  BarChart3,
   Bell,
   Building2,
   ChevronDown,
@@ -12,19 +11,16 @@ import {
   FolderOpen,
   GraduationCap,
   Home,
-  KeyRound,
   LayoutDashboard,
   LogOut,
   Mail,
   Moon,
-  Receipt,
   Search,
   Settings,
   ShieldCheck,
   Siren,
   Sun,
   TriangleAlert,
-  Users,
 } from 'lucide-react'
 import { useTheme } from '../lib/theme'
 import { useAuth } from '../lib/auth'
@@ -59,23 +55,21 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { Icon: GraduationCap, label: '교육 진도표', to: '/education', sub: true, module: 'education' },
       { Icon: FileCheck2, label: '이행점검', to: '/compliance', sub: true, module: 'compliance' },
       { Icon: Siren, label: '산업재해', to: '/accidents', module: 'accidents' },
+      { Icon: FolderOpen, label: '자료실', to: '/resources', module: 'resources' },
     ],
   },
   {
+    // 본사 관리 기능은 경영 대시보드(회사 관리자 콘솔) 한 곳으로 통합 —
+    // 종합관리·세금계산서·세션코드·계정 등은 콘솔 탭으로 이동(기존 라우트는 딥링크 호환 유지).
     title: '본사',
     items: [
-      { Icon: LayoutDashboard, label: '경영 대시보드', to: '/ledger', module: 'ledger' },
-      { Icon: BarChart3, label: '종합관리', to: '/ops', module: 'ops' },
-      { Icon: Receipt, label: '세금계산서 발행', to: '/billing', module: 'billing' },
-      { Icon: FolderOpen, label: '자료실', to: '/resources', module: 'resources' },
-      { Icon: KeyRound, label: '세션코드 발급', to: '/sessions', module: 'sessions' },
+      { Icon: LayoutDashboard, label: '경영 대시보드', to: '/ledger', hqOnly: true },
       { Icon: Mail, label: '메일함', to: '/mail', hqOnly: true },
     ],
   },
   {
     title: '시스템',
     items: [
-      { Icon: Users, label: '계정 관리', to: '/accounts', hqOnly: true },
       { Icon: Settings, label: '설정', to: '/settings' },
     ],
   },

@@ -65,7 +65,8 @@ function parseBulkCsv(text: string): BulkRow[] {
     .filter((r) => r.school && !/^(학교|school)/i.test(r.school) && !Number.isNaN(r.amount))
 }
 
-export function Billing() {
+// embedded: 경영 콘솔(청구·정산 탭) 임베드용 — 페이지 헤더만 숨기고 본문(탭 포함) 동일.
+export function Billing({ embedded = false }: { embedded?: boolean } = {}) {
   const [tab, setTab] = useState<'invoices' | 'settings'>('invoices')
   const [schools, setSchools] = useState<School[]>([])
   const [sid, setSid] = useState('')          // ''=전체 학교
@@ -258,10 +259,10 @@ export function Billing() {
   const failedCount = invoices.filter((v) => v.status === 'failed').length
 
   return (
-    <div className="page rv">
-      <div className="breadcrumb"><Link to="/">홈</Link> / <b>세금계산서</b></div>
+    <div className={embedded ? '' : 'page rv'}>
+      {!embedded && <div className="breadcrumb"><Link to="/">홈</Link> / <b>세금계산서</b></div>}
       <div className="bar">
-        <h2>세금계산서</h2>
+        {!embedded && <h2>세금계산서</h2>}
         <div className="sp" />
         <div className="tabs">
           <button className={'tab' + (tab === 'invoices' ? ' active' : '')} onClick={() => setTab('invoices')}>

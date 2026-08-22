@@ -61,7 +61,8 @@ type Issued = {
   until: string
 }
 
-export function Sessions() {
+// embedded: 경영 콘솔(현장 앱 관리 탭) 임베드용 — 페이지 헤더만 숨기고 본문 동일.
+export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
   const [schools, setSchools] = useState<School[]>([])
   const [inspectorId, setInspectorId] = useState('')
   const [schoolIds, setSchoolIds] = useState<string[]>([])
@@ -174,13 +175,15 @@ export function Sessions() {
   }
 
   return (
-    <div className="page rv">
-      <div className="breadcrumb"><Link to="/">홈</Link> / <b>세션코드 발급</b></div>
-      <div className="bar">
-        <h2>세션코드 발급</h2>
-        <div className="sp" />
-        <span className="pillx doing">선택 학교 {schoolIds.length}개</span>
-      </div>
+    <div className={embedded ? '' : 'page rv'}>
+      {!embedded && <div className="breadcrumb"><Link to="/">홈</Link> / <b>세션코드 발급</b></div>}
+      {!embedded && (
+        <div className="bar">
+          <h2>세션코드 발급</h2>
+          <div className="sp" />
+          <span className="pillx doing">선택 학교 {schoolIds.length}개</span>
+        </div>
+      )}
 
       <div className="ledger" style={{ marginBottom: 24 }}>
         <div className="lh"><h2><KeyRound size={18} /> 외근 정보</h2></div>

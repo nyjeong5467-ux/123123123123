@@ -40,7 +40,8 @@ function humanSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function Resources() {
+// embedded: 경영 콘솔(홈페이지·콘텐츠 탭) 임베드용 — 페이지 헤더만 숨기고 본문(등록 버튼 포함) 동일.
+export function Resources({ embedded = false }: { embedded?: boolean } = {}) {
   const [docs, setDocs] = useState<ResourceItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -185,10 +186,10 @@ export function Resources() {
   const iconBtn = { height: 34, width: 34, padding: 0, justifyContent: 'center' } as const
 
   return (
-    <div className="page rv">
-      <div className="breadcrumb"><Link to="/">홈</Link> / <b>자료실</b></div>
+    <div className={embedded ? '' : 'page rv'}>
+      {!embedded && <div className="breadcrumb"><Link to="/">홈</Link> / <b>자료실</b></div>}
       <div className="bar">
-        <h2><FolderOpen size={20} /> 자료실</h2>
+        {!embedded && <h2><FolderOpen size={20} /> 자료실</h2>}
         <div className="sp" />
         <button className="btn btn-primary" onClick={() => setOpen(true)}>
           <Plus size={16} /> 문서 등록

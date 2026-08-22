@@ -1,0 +1,81 @@
+/* 경영 대시보드(회사 관리자 콘솔) — 탭·그리드 전용 스타일. tokens.css 변수 기반. */
+
+.console-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 18px;
+}
+
+.console-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  font: 700 12.5px var(--font);
+  padding: 9px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.console-tab:hover {
+  color: var(--ink);
+  border-color: var(--violet);
+}
+
+.console-tab.active {
+  background: var(--grad-violet);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: var(--sh-violet);
+}
+
+/* 경영 현황 2단 그리드 — 좌: 이력/표, 우: 편집형 경영 콘텐츠 */
+.console-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .console-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.console-side {
+  display: grid;
+  gap: 18px;
+}
+
+/* 기존 페이지(청구·계정 등)를 콘솔 탭 안에 임베드할 때 이중 여백 제거 */
+.console-embed > .page {
+  padding: 0;
+}
+
+.console-embed .breadcrumb {
+  display: none;
+}
+
+.console-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 12px 4px 0;
+}
+
+.console-note a {
+  color: var(--violet);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.console-note a:hover {
+  text-decoration: underline;
+}

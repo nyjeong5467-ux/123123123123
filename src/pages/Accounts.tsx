@@ -41,7 +41,8 @@ const MODULES: { key: string; label: string; group: string }[] = [
 ]
 const MODULE_LABEL = Object.fromEntries(MODULES.map((m) => [m.key, m.label]))
 
-export function Accounts() {
+// embedded: 경영 콘솔(계정·권한 탭) 임베드용 — 페이지 헤더만 숨기고 본문(생성 버튼 포함) 동일.
+export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -157,10 +158,10 @@ export function Accounts() {
   }
 
   return (
-    <div className="page rv">
-      <div className="breadcrumb"><Link to="/">홈</Link> / <b>계정 관리</b></div>
+    <div className={embedded ? '' : 'page rv'}>
+      {!embedded && <div className="breadcrumb"><Link to="/">홈</Link> / <b>계정 관리</b></div>}
       <div className="bar">
-        <h2><Users size={20} /> 계정 관리</h2>
+        {!embedded && <h2><Users size={20} /> 계정 관리</h2>}
         <div className="sp" />
         {msg && <span className={'pillx ' + (msg.ok ? 'ok' : 'late')}>{msg.text}</span>}
         <button className="btn btn-primary" onClick={() => { setNErr(''); setCreateOpen(true) }}>
