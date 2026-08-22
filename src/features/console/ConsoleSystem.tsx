@@ -96,7 +96,12 @@ export default function ConsoleSystem() {
         <div className="lh">
           <h2><HardDrive size={18} /> 문서 저장소</h2>
           <div className="sp" />
-          {storage && <span className="pillx na">{storage.root}</span>}
+          {/* 전체 로컬 경로 노출 대신 마지막 2단계만 표시(전체는 title 툴팁) — NAS 이관 시 혼란 방지 */}
+          {storage && (
+            <span className="pillx na" title={storage.root}>
+              …{storage.root.split(/[\\/]/).filter(Boolean).slice(-2).join('/')}
+            </span>
+          )}
         </div>
         <div className="twrap">
           <table className="tbl">

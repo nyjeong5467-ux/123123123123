@@ -79,3 +79,26 @@
 .console-note a:hover {
   text-decoration: underline;
 }
+
+/* ── UI/UX 감사 보완 (2026-08-22) ─────────────────────────────── */
+/* 경영 KPI 6장 — 균등 그리드(4+2 랩핑 시 카드 폭 불일치 방지) */
+.kpis.console-kpis {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 14px;
+}
+@media (max-width: 1420px) { .kpis.console-kpis { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 860px)  { .kpis.console-kpis { grid-template-columns: repeat(2, 1fr); } }
+
+/* 임베드된 기존 페이지의 잔여 헤더 바(bar) — h2 숨김 후 남은 우측 요소가
+   공중에 뜨지 않게 위 여백 제거·아래 간격만 유지 */
+.console-embed .bar {
+  margin-top: 0;
+  margin-bottom: 12px;
+  min-height: 0;
+}
+
+/* 임베드 시 h2가 숨어 스페이서가 잔여 요소(서브탭·버튼)를 우측으로 밀어내는 것 방지 —
+   좌측 정렬로 콘솔 탭 아래 서브 컨트롤처럼 보이게 */
+.console-embed .bar .sp { display: none; }
+.console-embed .bar { justify-content: flex-start; gap: 10px; }

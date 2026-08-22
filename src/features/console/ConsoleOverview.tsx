@@ -212,8 +212,8 @@ export default function ConsoleOverview() {
 
   return (
     <>
-      {/* ── 경영 KPI ── */}
-      <div className="kpis" style={{ marginBottom: 18 }}>
+      {/* ── 경영 KPI — 6장 균등 그리드(랩핑 시 폭 불일치 방지, console.css) ── */}
+      <div className="kpis console-kpis" style={{ marginBottom: 18 }}>
         <div className="kpi">
           <div className="l">계약 학교</div>
           <div className="v">{schools.length}<small> 개교</small></div>
