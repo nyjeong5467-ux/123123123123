@@ -1,10 +1,2 @@
 ==== commit log ==== 
 git = git 
-warning: in the working copy of 'commit-msg-075-102.txt', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/components/InspectionSheetView.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/features/compliance/ComplianceSheet.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/features/risk/RiskReport.tsx', LF will be replaced by CRLF the next time Git touches it
-[main 855cfd0] [075]~[104] 2026-08-12~13 작업분
- 9 files changed, 88 insertions(+), 10 deletions(-)
-To https://github.com/nyjeong5467-ux/123123123123.git
-   9a1a7a9..855cfd0  main -> main
