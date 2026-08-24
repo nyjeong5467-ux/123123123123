@@ -3,9 +3,10 @@
 // 공단 엑셀 열 매핑 + CSV·개선계획서·백엔드 제출(musculo API 재사용, 미지원분 localStorage 파사드).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Activity, Camera, Download, Plus, Save, Send, Upload, X } from 'lucide-react'
+import { Activity, Camera, Download, Plus, Printer, Save, Upload, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
+import { MusculoReportPrint } from '../components/MusculoReportPrint' // [105] 보고서 인쇄
 import '../styles/musculoreport.css'
 
 /* ===================== 프로토타입 도메인 데이터 (문구 그대로) ===================== */
@@ -271,6 +272,7 @@ export function MusculoReport() {
   const [plan, setPlan] = useState<PlanRow[]>([])
   // [089] 단계 탭 — 선택된 섹션만 표시 (위험성평가 보고서 작성 [017]과 동일 UX). display 전환이라 입력 상태·사진은 유지됨
   const [step, setStep] = useState(1)
+  const [printOpen, setPrintOpen] = useState(false) // [105] 보고서 인쇄 미리보기
   function goStep(n: number) { setStep(n); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const [surveyId, setSurveyId] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -338,20 +340,26 @@ export function MusculoReport() {
 
   function buildDraft(): Draft {
     const meta: Record<string, Shot[]> = {}
-    for (const [k, list] of Object.entries(shots)) meta[k] = list.map((s) => ({ name: s.name, cap: s.cap })) // dataURL 미보존 — 파일명·설명만 [095]
+    // [106] 축소 JPEG dataURL까지 초안에 보존 — 새로고침 후에도 사진이 화면·보고서 인쇄에 유지됨
+    for (const [k, list] of Object.entries(shots)) meta[k] = list.map((s) => ({ name: s.name, cap: s.cap, url: s.url }))
     return { parts, chk, ab, hz, caps, shots: meta, cutN, roster, plan, surveyId, date }
   }
 
   useEffect(() => {
     if (!sid || !hydrated) return
-    localStorage.setItem(DRAFT_KEY + sid, JSON.stringify(buildDraft()))
+    // [106] 사진 dataURL 포함으로 용량 초과 가능 — 초과 시 자동 저장만 생략(작업은 계속)
+    try { localStorage.setItem(DRAFT_KEY + sid, JSON.stringify(buildDraft())) } catch { /* quota 초과 */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parts, chk, ab, hz, caps, shots, roster, plan, surveyId, date, sid, hydrated])
 
   function saveDraft() {
     if (!sid) return
-    localStorage.setItem(DRAFT_KEY + sid, JSON.stringify(buildDraft()))
-    setSavedAt(new Date().toLocaleTimeString('ko-KR'))
+    try {
+      localStorage.setItem(DRAFT_KEY + sid, JSON.stringify(buildDraft()))
+      setSavedAt(new Date().toLocaleTimeString('ko-KR'))
+    } catch {
+      setToolMsg('임시저장 용량 초과 — 사진 수를 줄이거나 일부 사진을 삭제해 주세요.') // [106]
+    }
   }
 
   /* ---- 1. 체크리스트 ---- */
@@ -395,7 +403,22 @@ export function MusculoReport() {
     for (const f of Array.from(files)) {
       const reader = new FileReader()
       reader.onload = () => {
-        setShots((m) => ({ ...m, [k]: [...(m[k] || []), { name: f.name, url: String(reader.result) }] }))
+        // [106] 사진을 긴 변 900px JPEG로 축소 저장 — 초안(localStorage)에 이미지가 보존되어
+        // 새로고침 후에도 화면·보고서 인쇄에 사진이 그대로 나옴 (원본 업로드는 백엔드 연동 시)
+        const img = new Image()
+        img.onload = () => {
+          const scale = Math.min(1, 900 / Math.max(img.width, img.height))
+          const cv = document.createElement('canvas')
+          cv.width = Math.max(1, Math.round(img.width * scale))
+          cv.height = Math.max(1, Math.round(img.height * scale))
+          cv.getContext('2d')!.drawImage(img, 0, 0, cv.width, cv.height)
+          const url = cv.toDataURL('image/jpeg', 0.72)
+          setShots((m) => ({ ...m, [k]: [...(m[k] || []), { name: f.name, url }] }))
+        }
+        img.onerror = () => {
+          setShots((m) => ({ ...m, [k]: [...(m[k] || []), { name: f.name, url: String(reader.result) }] }))
+        }
+        img.src = String(reader.result)
       }
       reader.readAsDataURL(f)
     }
@@ -658,8 +681,9 @@ export function MusculoReport() {
           </div>
           <div className="mur-repacts">
             <button className="btn btn-ghost" onClick={saveDraft}><Save size={15} /> 임시저장{savedAt ? ` (${savedAt})` : ''}</button>
-            <button className="btn btn-primary" onClick={submitReport} disabled={submitting || !sid}>
-              <Send size={15} /> {submitting ? '제출 중…' : '보고서 제출'}
+            {/* [105][106] 위험성평가와 동일 — [보고서 출력] 단일 버튼 (제출 버튼 제거, submitReport 로직은 잔존) */}
+            <button className="btn btn-primary" onClick={() => setPrintOpen(true)} disabled={!sid}>
+              <Printer size={15} /> 보고서 출력
             </button>
           </div>
         </div>
@@ -1183,6 +1207,26 @@ export function MusculoReport() {
 
       {/* ---- 7. 백엔드 제출 ---- */}
       {/* [101] 7단계(백엔드 제출) 섹션 제거 — 제출은 상단 헤더의 [보고서 제출] 버튼으로. 진행 로그는 헤더 아래 표시 */}
+
+      {/* [105] 보고서 인쇄 미리보기 — 작성 데이터(체크리스트·작업조건·사진·증상·개선계획)로 완성본 자동 생성 */}
+      {printOpen && (
+        <MusculoReportPrint
+          sid={sid}
+          schoolName={schoolName}
+          date={date}
+          ho={HO}
+          parts={parts}
+          chk={chk}
+          ab={ab}
+          hz={hz}
+          caps={caps}
+          shots={shots}
+          cutN={cutN}
+          roster={roster}
+          plan={plan}
+          onClose={() => setPrintOpen(false)}
+        />
+      )}
 
       {/* ===================== 증상조사표 작성 모달 (drawForm 포팅) ===================== */}
       {form && formPerson && (
