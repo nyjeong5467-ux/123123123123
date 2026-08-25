@@ -1,0 +1,156 @@
+/* 근골격계 유해요인조사 보고서 인쇄 (A4 세로) — MusculoReportPrint.tsx 전용 (mp- 접두사) [105]
+   rr-overlay/rr-toolbar/rr-approve(riskreport.css)를 재사용하고, 페이지·표는 세로 규격으로 별도 정의 */
+
+.mp-page {
+  width: 794px; /* A4 세로 96dpi */
+  min-height: 1123px;
+  background: #fff;
+  color: #1b1b26;
+  margin: 0 auto 20px;
+  padding: 44px 46px;
+  position: relative;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------- 표지 ---------- */
+.mp-cover-body { padding-top: 110px; }
+/* [106] 완성본 표지 삽화 */
+.mp-cover-art {
+  display: block;
+  width: 430px;
+  max-width: 100%;
+  margin: 26px auto 0;
+}
+.mp-badge {
+  display: inline-block;
+  background: #1d3f8f;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  padding: 8px 22px;
+  border-radius: 8px;
+}
+.mp-title {
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  line-height: 1.5;
+  color: #14142b;
+  border-top: 4px solid #2b6cd4;
+  border-bottom: 4px solid #2b6cd4;
+  padding: 26px 0;
+  margin: 22px 0 40px;
+}
+.mp-cover-ym { font-size: 20px; font-weight: 800; margin-top: 40px; text-align: center; }
+.mp-cover-school { font-size: 22px; font-weight: 900; margin-top: 8px; text-align: center; }
+
+/* ---------- 제목 ---------- */
+.mp-h1 {
+  font-size: 16px;
+  font-weight: 900;
+  color: #1d3f8f;
+  border-bottom: 2px solid #c9cede;
+  padding-bottom: 6px;
+  margin-bottom: 14px;
+}
+.mp-h2 { font-size: 12.5px; font-weight: 800; margin: 14px 0 6px; }
+.mp-p { font-size: 11.5px; line-height: 1.9; margin: 0 0 6px; }
+
+/* ---------- 표 ---------- */
+.mp-tbl { border-collapse: collapse; width: 100%; }
+.mp-tbl th, .mp-tbl td {
+  border: 1px solid #555;
+  padding: 5px 8px;
+  font-size: 11px;
+  vertical-align: middle;
+  line-height: 1.55;
+}
+.mp-tbl th { background: #eef0f5; font-weight: 800; text-align: center; }
+.mp-tbl td.c { text-align: center; }
+.mp-tbl td.b, .mp-tbl .b { font-weight: 800; }
+.mp-tbl small { font-size: 9.5px; color: #666; }
+.mp-on { color: #1d5fd0; font-size: 13px; }
+.mp-off { color: #999; }
+
+/* 증상 결과·개선계획 판정 색 */
+.mp-ok { color: #1d7a57; }
+.mp-mg { color: #9a6b00; font-weight: 800; }
+.mp-pn { color: #c0392b; font-weight: 800; }
+.mp-sym th, .mp-sym td { padding: 4px 5px; font-size: 10px; }
+.mp-plan th, .mp-plan td { font-size: 10.5px; }
+
+/* ---------- 유해요인평가 세트 ---------- */
+.mp-cut { margin-bottom: 12px; }
+.mp-cut + .mp-cut { border-top: 1px dashed #bbb; padding-top: 12px; }
+.mp-shots { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.mp-shots figure { margin: 0; width: 210px; }
+.mp-shots img {
+  width: 210px;
+  height: 150px;
+  object-fit: cover;
+  border: 1px solid #555;
+  display: block;
+}
+.mp-shots figcaption { font-size: 10px; color: #444; margin-top: 3px; line-height: 1.4; }
+
+/* [108] 완성본 원본 페이지(목차~6장) — 여백 없이 페이지 전체를 이미지로 */
+.mp-imgpage { padding: 0; }
+.mp-imgpage img { display: block; width: 100%; height: auto; }
+
+/* ---------- 목차 · 본문 1~6장 [107] (재조판 스타일 — [108]에서 원본 이미지로 대체, 잔존) ---------- */
+.mp-toc-title {
+  text-align: center;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 18px;
+  margin: 60px 0 18px;
+  padding-bottom: 18px;
+  border-bottom: 6px solid #2b6cd4;
+}
+.mp-toc { padding: 30px 24px 0; }
+.mp-toc-item {
+  display: flex;
+  align-items: baseline;
+  font-size: 13.5px;
+  font-weight: 800;
+  margin: 13px 0;
+}
+.mp-toc-item.sub { font-weight: 600; padding-left: 18px; font-size: 12.5px; margin: 9px 0; }
+.mp-toc-item .dots { flex: 1; border-bottom: 2px dotted #9aa; margin: 0 8px 3px; }
+.mp-flow { display: block; width: 430px; max-width: 100%; margin: 6px auto 0; }
+.mp-extbl th, .mp-extbl td { font-size: 10.5px; }
+.mp-ex-img { display: block; width: 210px; margin: 2px auto; }
+.mp-blue { color: #1d5fd0; }
+.mp-pgnum {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+  text-align: center;
+  font-size: 10.5px;
+  color: #666;
+}
+
+.mp-note {
+  font-size: 10.5px;
+  color: #555;
+  line-height: 1.7;
+  margin-top: 10px;
+  border-top: 1px solid #ddd;
+  padding-top: 7px;
+}
+
+/* ---------- 인쇄 ---------- */
+@media print {
+  .mp-page {
+    width: 100%;
+    min-height: 100vh;
+    margin: 0;
+    padding: 12mm 12mm;
+    box-shadow: none;
+    page-break-after: always;
+  }
+  .mp-page:last-child { page-break-after: auto; }
+  .mp-cut, .mp-tbl tr { page-break-inside: avoid; }
+}
