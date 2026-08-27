@@ -1,5 +1,5 @@
 import { type MouseEvent as ReactMouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   type LucideIcon,
   Activity,
@@ -217,9 +217,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {items.map(({ Icon, label, to, end, sub }) => {
                   // 경영 대시보드: 학교의 5대 업무처럼 하위 탭을 나열하고, 셰브론으로 접기/펼치기
                   if (to === '/ledger') {
+                    // NavLink는 경로만 보고 ?tab= 8개 링크를 전부 active 처리하므로
+                    // 쿼리 탭 링크는 Link + 수동 active 클래스로 구성한다.
                     return (
                       <div key={label} style={{ display: 'contents' }}>
-                        <NavLink
+                        <Link
                           to={to}
                           className={'sbi' + (onLedger && !consoleOpen ? ' active' : '')}
                           title={label}
@@ -234,17 +236,18 @@ export function AppShell({ children }: { children: ReactNode }) {
                           >
                             <ChevronDown size={15} strokeWidth={2.2} />
                           </button>
-                        </NavLink>
+                        </Link>
                         {consoleOpen && CONSOLE_SUBS.map(({ key, label: sl, Icon: SIcon }) => (
-                          <NavLink
+                          <Link
                             key={key}
                             to={key === 'overview' ? '/ledger' : '/ledger?tab=' + key}
                             className={'sbi sub' + (onLedger && ledgerTab === key ? ' active' : '')}
+                            aria-current={onLedger && ledgerTab === key ? 'page' : undefined}
                             title={sl}
                           >
                             <SIcon size={17} strokeWidth={1.9} />
                             <span>{sl}</span>
-                          </NavLink>
+                          </Link>
                         ))}
                       </div>
                     )
