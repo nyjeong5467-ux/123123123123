@@ -312,6 +312,69 @@ const store = {
   },
 }
 
+// ---- [114] 08-13 이후 추가 화면 시드 — 세션코드·교육청 전송·직원 이력·메일 부가·배포 파일 ----
+const fieldSessions = [
+  { id: 'fs01', inspector_id: 'insp01', school_ids: ['s01', 's02'], allowed_modules: ['inspection', 'risk'], code: 'A3F2-9K1C', valid_from: iso(2), valid_until: new Date(Date.now() + 5 * 864e5).toISOString(), status: 'issued', redeemed_at: null },
+  { id: 'fs02', inspector_id: 'insp02', school_ids: ['s03'], allowed_modules: ['musculo'], code: 'B7Q4-2M8X', valid_from: iso(10), valid_until: iso(3), status: 'redeemed', redeemed_at: iso(9) },
+  { id: 'fs03', inspector_id: 'insp03', school_ids: ['s04', 's05'], allowed_modules: ['inspection'], code: 'C1D8-7T2P', valid_from: iso(30), valid_until: iso(20), status: 'closed', redeemed_at: null },
+]
+// 안전점검 제출 → 교육청 자동 대기 큐(본사 봇 폴링 대상) / 기타 업무 일반 큐
+const eduInspJobs = [
+  { job_id: 'ej01', inspection_id: 'i-pend-1', school_name: '한빛초등학교', part: 'catering', submitted_at: iso(0) },
+  { job_id: 'ej02', inspection_id: 'i-pend-2', school_name: '푸른중학교', part: 'facility', submitted_at: iso(1) },
+]
+const eduQueue = [
+  { job_id: 'q01', module: 'risk', record_id: 'r01', school_id: 's01', school_name: '한빛초등학교', status: 'success', signer: '김조사', updated_at: iso(1), proof_url: '', message: '' },
+  { job_id: 'q02', module: 'musculo', record_id: 'm01', school_id: 's02', school_name: '푸른중학교', status: 'pending', signer: '이조사', updated_at: iso(0), proof_url: '', message: '' },
+  { job_id: 'q03', module: 'education', record_id: 'e01', school_id: 's03', school_name: '해솔고등학교', status: 'failed', signer: '박조사', updated_at: iso(2), proof_url: '', message: '교육청 학교 검색 결과 없음' },
+]
+const eduCreds = { accounts: [{ affiliation: '본사', base_url: 'https://eduoffice.example.go.kr', login_id: 'safety_hq', has_password: true }] }
+const mailExtras = {
+  defaults: { default_subject_prefix: '[한국산업안전협회]', signature: '한국산업안전협회 드림\n02-000-0000' },
+  contacts: { s01: { email: 'hanbit@sen.go.kr', name: '김소현', phone: '02-111-2222' }, s02: { email: 'pureun@sen.go.kr', name: '박담당', phone: '' } },
+  sent: [
+    { id: 'ms01', ts: iso(1), by: '관리자', to: ['hanbit@sen.go.kr'], subject: '[한국산업안전협회] 8월 정기 안전점검 결과 송부', school_id: 's01', module: 'inspection', attachment_names: ['안전점검표_한빛초.pdf'] },
+    { id: 'ms02', ts: iso(4), by: '관리자', to: ['pureun@sen.go.kr'], subject: '[한국산업안전협회] 위험성평가 보고서 송부', school_id: 's02', module: 'risk', attachment_names: ['위험성평가_푸른중.pdf'] },
+  ],
+}
+// 다운로드 링크는 실서버 전용 — mock에선 모양만 (url '#')
+const releaseFiles = [
+  { name: 'safeplatform_setup.exe', size: 286438903, modified: iso(0), url: '#' },
+  { name: 'safeplatform_app.apk', size: 63992839, modified: iso(0), url: '#' },
+]
+// 직원 이력 — 작성자별 5대 업무 통합 이력(읽기 전용). created_by 없는 과거 기록은 __unknown__.
+const historyRows = [
+  { author_id: 'insp01', module: 'inspection', record_id: 'i01', school_id: 's01', school_name: '한빛초등학교', date: daysAgo(1), status: 'submitted', title: '8월 정기 안전점검 · 급식실' },
+  { author_id: 'insp01', module: 'risk', record_id: 'r01', school_id: 's01', school_name: '한빛초등학교', date: daysAgo(3), status: 'draft', title: '위험성평가(정기) · 급식' },
+  { author_id: 'insp01', module: 'inspection', record_id: 'i02', school_id: 's02', school_name: '푸른중학교', date: daysAgo(6), status: 'signed', title: '8월 정기 안전점검 · 시설' },
+  { author_id: 'insp02', module: 'musculo', record_id: 'm01', school_id: 's02', school_name: '푸른중학교', date: daysAgo(2), status: 'draft', title: '근골격계 유해요인조사(정기)' },
+  { author_id: 'insp02', module: 'inspection', record_id: 'i03', school_id: 's03', school_name: '해솔고등학교', date: daysAgo(8), status: 'submitted', title: '8월 정기 안전점검 · 급식실' },
+  { author_id: 'insp03', module: 'compliance', record_id: 'c01', school_id: 's04', school_name: '동산초등학교', date: daysAgo(12), status: 'draft', title: '이행점검(5월 정기)' },
+  { author_id: '', module: 'education', record_id: 'e-old', school_id: 's01', school_name: '한빛초등학교', date: daysAgo(90), status: 'submitted', title: '2분기 정기안전교육' },
+]
+const historyAuthors = users
+  .filter((u) => u.role !== 'executive')
+  .map((u) => {
+    const rows = historyRows.filter((r) => r.author_id === u.login_id)
+    const counts = {}
+    rows.forEach((r) => { counts[r.module] = (counts[r.module] || 0) + 1 })
+    return { author_id: u.login_id, name: u.name, affiliation: '본사', counts, total: rows.length, last_activity: rows[0]?.date || '' }
+  })
+  .filter((a) => a.total > 0)
+  .concat((() => {
+    const rows = historyRows.filter((r) => !r.author_id)
+    const counts = {}
+    rows.forEach((r) => { counts[r.module] = (counts[r.module] || 0) + 1 })
+    return rows.length ? [{ author_id: '__unknown__', name: '작성자 미상', affiliation: '', counts, total: rows.length, last_activity: rows[0]?.date || '' }] : []
+  })())
+// 직원 등록부(소속·부서·연락처) — 계정 탭·근무표에서 사용
+docs['staff-registry'] = {
+  admin: { affiliation: '본사', department: '경영지원', phone: '010-1234-5678' },
+  insp01: { affiliation: '본사', department: '점검1팀', phone: '010-2222-3333' },
+  insp02: { affiliation: '광주지회', department: '점검2팀', phone: '010-4444-5555' },
+  insp03: { affiliation: '본사', department: '점검1팀', phone: '010-6666-7777' },
+}
+
 // ============================================================================
 // 라우팅
 // ============================================================================
@@ -447,19 +510,80 @@ on('GET', '/resources', () => resources.map(({ content, ...r }) => r))
 on('POST', '/resources', (p, q, body) => { const r = { id: 're' + uid(), title: body?.title || '', category: body?.category || '기타', size: body?.size || '0 KB', date: daysAgo(0), content: body?.content || '' }; resources.unshift(r); return { ...r, content: undefined } })
 on('GET', '/resources/:id', (p) => resources.find((r) => r.id === p.id) || null)
 on('DELETE', '/resources/:id', (p) => { const i = resources.findIndex((r) => r.id === p.id); if (i >= 0) resources.splice(i, 1); return { ok: true } })
-on('POST', '/field/session', (p, q, body) => ({ session_id: uid(), code: (uid().slice(0, 4) + '-' + uid().slice(0, 4)).toUpperCase() }))
+// 세션코드 — 발급 내역 영속(목록·수정·폐기)
+on('POST', '/field/session', (p, q, body) => {
+  const s = {
+    id: 'fs' + uid(), inspector_id: body?.inspector_id || '', school_ids: body?.school_ids || [],
+    allowed_modules: body?.allowed_modules || [], code: (uid().slice(0, 4) + '-' + uid().slice(0, 4)).toUpperCase(),
+    valid_from: body?.valid_from || new Date().toISOString(), valid_until: body?.valid_until || new Date(Date.now() + 7 * 864e5).toISOString(),
+    status: 'issued', redeemed_at: null,
+  }
+  fieldSessions.unshift(s)
+  return { session_id: s.id, code: s.code }
+})
+on('GET', '/field/sessions', () => fieldSessions)
+on('PATCH', '/field/session/:id', (p, q, body) => { const s = fieldSessions.find((x) => x.id === p.id); if (s) Object.assign(s, body || {}); return s })
+on('POST', '/field/session/:id/revoke', (p) => { const s = fieldSessions.find((x) => x.id === p.id); if (s) s.status = 'closed'; return { ok: true } })
+
+// ---- 교육청 전송(콘솔 탭) ----
+on('GET', '/eduoffice/jobs', () => eduInspJobs)
+on('POST', '/eduoffice/jobs/:id/cancel', (p) => { const i = eduInspJobs.findIndex((j) => j.inspection_id === p.id); if (i >= 0) eduInspJobs.splice(i, 1); return { ok: true, id: p.id, cancelled_at: new Date().toISOString() } })
+on('GET', '/eduoffice/queue', () => eduQueue)
+// enqueue는 (module,record_id) 멱등 — pending 재등장 후 6초 뒤 success (게이지바 시연용)
+on('POST', '/eduoffice/queue/enqueue', (p, q, body) => {
+  let j = eduQueue.find((x) => x.module === body?.module && x.record_id === body?.record_id)
+  if (!j) {
+    j = { job_id: 'q' + uid(), module: body?.module || '', record_id: body?.record_id || '', school_id: body?.school_id || '', school_name: body?.school_name || '', status: 'pending', signer: body?.signer || '', updated_at: '', proof_url: '', message: '' }
+    eduQueue.unshift(j)
+  }
+  j.status = 'pending'; j.message = ''; j.updated_at = new Date().toISOString()
+  setTimeout(() => { if (j.status === 'pending') { j.status = 'success'; j.updated_at = new Date().toISOString() } }, 6000)
+  return { ok: true, job_id: j.job_id }
+})
+on('POST', '/eduoffice/queue/cancel', (p, q, body) => { const j = eduQueue.find((x) => x.job_id === body?.job_id); if (!j) return { ok: false, status: 'missing', message: '작업을 찾을 수 없습니다' }; j.status = 'cancelled'; j.updated_at = new Date().toISOString(); return { ok: true, job_id: j.job_id, status: 'cancelled' } })
+on('GET', '/eduoffice/credentials', () => ({ accounts: eduCreds.accounts.map((a) => ({ ...a })) }))
+on('PUT', '/eduoffice/credentials', (p, q, body) => { eduCreds.accounts = (body?.accounts || []).map((a) => ({ affiliation: a.affiliation || '', base_url: a.base_url || '', login_id: a.login_id || '', has_password: true })); return { ok: true } })
+
+// ---- 직원 이력(관리자 콘솔) ----
+on('GET', '/history/authors', () => historyAuthors)
+on('GET', '/history', (p, q) => historyRows
+  .filter((r) => (q.author_id === '__unknown__' ? !r.author_id : !q.author_id || r.author_id === q.author_id))
+  .filter((r) => (!q.module || r.module === q.module) && (!q.date_from || r.date >= q.date_from) && (!q.date_to || r.date <= q.date_to))
+  .map(({ author_id, ...r }) => r))
+
+// ---- 메일 부가(기본값·학교 담당자·보낸함) ----
+on('GET', '/mail/defaults', () => ({ defaults: mailExtras.defaults }))
+on('PUT', '/mail/defaults', (p, q, body) => { Object.assign(mailExtras.defaults, body?.defaults || {}); return { ok: true, defaults: mailExtras.defaults } })
+on('GET', '/mail/school-contacts', () => ({ contacts: mailExtras.contacts }))
+on('PUT', '/mail/school-contacts', (p, q, body) => { Object.assign(mailExtras.contacts, body?.contacts || {}); return { ok: true, contacts: mailExtras.contacts } })
+on('GET', '/mail/sent', (p, q) => mailExtras.sent.filter((r) => !q.school_id || r.school_id === q.school_id))
+
+// ---- 학교 부가(산재·이력·MSDS 추가, 일괄 업로드, 담당 이관) ----
+on('POST', '/schools/:id/accidents', (p, q, body) => { const a = { id: uid(), date: body?.date || daysAgo(0), description: body?.description || '', part: body?.part || '' }; ledgers[p.id]?.accidents.push(a); return a })
+on('POST', '/schools/:id/histories', (p, q, body) => { const h = { id: uid(), month: body?.month || '', content: body?.content || '', memo: body?.memo || '' }; ledgers[p.id]?.histories.push(h); return h })
+on('POST', '/schools/:id/msds', (p, q, body) => { const m = { id: uid(), area: body?.area || '', substances: body?.substances || [] }; ledgers[p.id]?.msds.push(m); return m })
+on('POST', '/schools/bulk', (p, q, body) => ({ ingested: (body?.rows || []).length || 3 }))
+on('POST', '/schools/transfer-manager', (p, q, body) => ({ transferred: (body?.school_ids || []).length || 0 }))
+
+// ---- 안전점검 삭제 · 배포 파일 ----
+on('DELETE', '/inspections/:id', (p) => { const i = inspections.findIndex((x) => x.id === p.id); if (i >= 0) inspections.splice(i, 1); return { ok: true, id: p.id, removed_files: 0 } })
+on('GET', '/release', () => releaseFiles)
 on('GET', '/mail/settings', () => ({ settings: store.mail }))
 on('PUT', '/mail/settings', (p, q, body) => { Object.assign(store.mail, body?.settings || body || {}); store.mail.has_password = true; return { settings: store.mail } })
 on('POST', '/mail/test', () => ({ ok: true, message: 'IMAP 접속 성공 (mock)' }))
 on('GET', '/mail/inbox', (p, q) => mailInbox.slice(0, Number(q.limit) || 15))
 // [062] 메일 발송(mock) — 점검표 PDF 첨부 학교 송부. 실서버는 백엔드 SMTP 구현 필요.
-on('POST', '/mail/send', (p, q, body) => ({
-  ok: true,
-  to: body?.to || '',
-  subject: body?.subject || '',
-  attachments: (body?.attachments || []).map((a) => a?.name).filter(Boolean),
-  sent_at: new Date().toISOString(),
-}))
+on('POST', '/mail/send', (p, q, body) => {
+  const names = (body?.attachments || []).map((a) => a?.name).filter(Boolean)
+  // 보낸메일함에도 기록 — GET /mail/sent 목록에 즉시 반영
+  mailExtras.sent.unshift({
+    id: 'ms' + uid(), ts: new Date().toISOString(), by: '관리자',
+    to: Array.isArray(body?.to) ? body.to : [body?.to].filter(Boolean),
+    subject: body?.subject || '', school_id: body?.school_id || null, module: body?.module || null,
+    attachment_names: names,
+  })
+  return { ok: true, id: mailExtras.sent[0].id, to: body?.to || '', subject: body?.subject || '', attachments: names, sent_at: mailExtras.sent[0].ts }
+})
 on('GET', '/mail/message', (p, q) => { const r = mailInbox.find((m) => m.uid === q.uid) || mailInbox[0]; return { ...r, to: 'hq@safety.or.kr', body: '안녕하세요.\n\n' + r.subject + ' 관련하여 회신드립니다.\n자세한 내용은 첨부 문서를 확인해 주세요.\n\n감사합니다.', attachments: ['첨부문서.pdf'] } })
 on('GET', '/files/info', () => ({ root: '/srv/safety-docs', modules: { inspection: { dir: 'inspection', files: 128, bytes: 34_500_000 }, risk: { dir: 'risk', files: 56, bytes: 12_000_000 }, musculo: { dir: 'musculo', files: 210, bytes: 88_000_000 }, education: { dir: 'education', files: 74, bytes: 9_100_000 }, compliance: { dir: 'compliance', files: 22, bytes: 4_400_000 } } }))
 
@@ -495,7 +619,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end() }
 
   let body = null
-  if (req.method === 'POST' || req.method === 'PUT') {
+  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
     const chunks = []
     for await (const c of req) chunks.push(c)
     try { body = JSON.parse(Buffer.concat(chunks).toString() || 'null') } catch { body = null }
