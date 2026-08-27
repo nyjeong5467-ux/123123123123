@@ -129,6 +129,41 @@
 @keyframes gauge-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 @media (prefers-reduced-motion: reduce) { .gauge-live-dot { animation: none; } }
 
+/* ── 개별 전송/재전송 — 클릭한 행 바로 아래 인라인 게이지 (2026-08-27) ── */
+/* 큐 테이블에서 [재전송]을 누르면 그 행 밑에 슬림한 진행바 서브행이 붙는다.
+   pending=바이올렛 인디터미넌트 애니메이션, success=초록 완료(6초 후 자동 접힘),
+   failed=빨강 유지(닫기/재전송 시 해제). */
+.tbl tbody tr.row-gauge { cursor: default; }
+.tbl tbody tr.row-gauge:hover { background: transparent; }
+.tbl tbody tr.row-gauge td { border-top: 0; padding: 0 18px 13px; }
+
+.inline-gauge { display: flex; flex-direction: column; gap: 5px; }
+.inline-gauge-track {
+  position: relative; height: 8px; border-radius: 999px;
+  background: var(--line); overflow: hidden;
+}
+.inline-gauge-bar {
+  position: absolute; top: 0; bottom: 0; left: -40%; width: 40%;
+  border-radius: 999px; background: var(--grad-violet);
+  animation: inline-gauge-slide 1.3s ease-in-out infinite;
+}
+@keyframes inline-gauge-slide { 0% { left: -40%; } 100% { left: 100%; } }
+.inline-gauge-bar.static { animation: none; left: 0; width: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  .inline-gauge-bar { animation: none; left: 0; width: 100%; }
+}
+.inline-gauge-track.ok .inline-gauge-bar { background: var(--ok, #16a34a); }
+.inline-gauge-track.fail .inline-gauge-bar { background: var(--red, #dc2626); }
+.inline-gauge-track.na .inline-gauge-bar { background: var(--muted); opacity: 0.45; }
+
+.inline-gauge-meta {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--muted);
+}
+.inline-gauge-meta .ok-ink { color: var(--ok-ink, var(--ok, #16a34a)); font-weight: 700; }
+.inline-gauge-meta .fail-ink { color: var(--red-ink, var(--red, #dc2626)); font-weight: 700; }
+.inline-gauge-dismiss { height: 24px; padding: 0 8px; font-size: 11.5px; margin-left: auto; }
+
 /* ── 근무 종합관리표 — 마스터 캘린더 (2026-08-27) ─────────────── */
 .cal-nav { display: inline-flex; align-items: center; gap: 6px; }
 

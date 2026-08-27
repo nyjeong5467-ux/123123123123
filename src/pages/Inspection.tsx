@@ -2,15 +2,15 @@
 // Risk.tsx("학교별 평가")와 동일 패턴: 학교 테이블 → 백버튼 있는 학교 컨텍스트 → 드릴다운 모달.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ChevronRight, ClipboardCheck } from 'lucide-react'
+import { ArrowLeft, ChevronRight, ClipboardCheck, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { Modal } from '../components/Modal'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
-import { InspectionSheetView, type SheetData } from '../components/InspectionSheetView'
-import type { InspExtra } from './InspectionForm'
+import { InspectionSheetView, SignImage, type SheetData } from '../components/InspectionSheetView'
+import { resolveExtra, type InspExtra, type PhotoSlot } from '../lib/inspExtra'
 import '../styles/hier.css'
 import '../styles/inspecthier.css'
 
@@ -73,6 +73,8 @@ function dateOf(r: Inspection): string {
   const d = r.submitted_at || r.signed_at || r.signatures?.[0]?.signed_at || r.created_at || ''
   return String(d).slice(0, 10)
 }
+
+// [사진대지 매칭 폴백] resolveExtra — src/lib/inspExtra.ts 로 이동(작성/수정 화면과 공용).
 
 // ===== 1단계: 학교 목록 (점검 요약) =====
 type SchoolRow = School & {
@@ -246,6 +248,13 @@ export function Inspection() {
 
   // 드릴다운 상세 모달 (기존 재사용)
   const [detail, setDetail] = useState<Inspection | null>(null)
+  // 상세 모달 사진대지 썸네일 — 앱이 올린 사진을 '보기' 양식까지 안 가도 바로 확인 [사진표시 수정]
+  const [detailPhotos, setDetailPhotos] = useState<{ label: string; slots: PhotoSlot[] }[]>([])
+  // 상세 모달 결재선 — 현장앱 다중 결재란(서명 이미지 포함)도 상세에서 바로 확인 [서명·사진 출력 수정]
+  const [detailLines, setDetailLines] = useState<NonNullable<InspExtra['approval_lines']>>([])
+  // 점검 삭제 — 삭제 중 잠금(id) + 결과 토스트
+  const [delBusy, setDelBusy] = useState('')
+  const [delMsg, setDelMsg] = useState('')
   const [sheetView, setSheetView] = useState<SheetData | null>(null) // 실물 양식 보기 [054]
   // 부가정보(기타의견·사진대지·확인자 등)를 함께 불러와 양식에 표시 [057]
   async function openSheet(school: School, date: string, parts: Inspection[]) {
@@ -253,7 +262,8 @@ export function Inspection() {
     try {
       const r = await api<{ doc: Record<string, InspExtra[]> }>('/ops/docs/inspection-extras')
       const ids = new Set(parts.map((p) => p.id))
-      extra = (r.doc?.[school.id] ?? []).find((e) => Array.isArray(e.ids) && e.ids.some((id) => ids.has(id)))
+      // id 직매칭 → 같은 점검일 → 학교 항목 사진 병합 폴백 (앱 파트별 제출로 ids가 어긋나도 사진 표시)
+      extra = resolveExtra(r.doc?.[school.id], ids, date)
     } catch { /* 부가정보 없으면 기본 표시 */ }
     // [104] 대장 결재선 → 양식 결재란 칸 구성
     let approval: { title: string; name: string }[] | undefined
@@ -263,6 +273,27 @@ export function Inspection() {
     } catch { /* 결재선 없으면 담당자 1칸 */ }
     setSheetView({ schoolName: school.name, manager: school.manager, date, parts, extra, approval })
   }
+
+  // 상세 모달 열릴 때 해당 점검의 사진대지 로드 — resolveExtra 폴백으로 앱 파트별 제출도 커버
+  useEffect(() => {
+    if (!detail || !sel) { setDetailPhotos([]); setDetailLines([]); return }
+    let alive = true
+    api<{ doc: Record<string, InspExtra[]> }>('/ops/docs/inspection-extras')
+      .then((r) => {
+        if (!alive) return
+        const extra = resolveExtra(r.doc?.[sel.id], new Set([detail.id]), dateOf(detail))
+        const photos = extra?.photos ?? {}
+        const own = PART_LABEL[detail.part]
+        // 이 공정 사진이 있으면 그것만, 없으면(첫 파트에만 묶여 온 경우 등) 학교 점검표 전체 사진을 라벨별 표시
+        const groups = photos[own]?.length
+          ? [{ label: own, slots: photos[own] }]
+          : Object.entries(photos).map(([label, slots]) => ({ label, slots }))
+        setDetailPhotos(groups.filter((g) => (g.slots ?? []).some((s) => s.dataUrl)))
+        setDetailLines(extra?.approval_lines ?? [])
+      })
+      .catch(() => { if (alive) { setDetailPhotos([]); setDetailLines([]) } })
+    return () => { alive = false }
+  }, [detail, sel])
 
   // 학교 목록 로드 — 세션 캐시 적중 시 재조회 없이 복원 [073]
   useEffect(() => {
@@ -318,6 +349,30 @@ export function Inspection() {
       })
       .catch(() => { /* 캐시 유지 */ })
   }, [])
+
+  // 점검 삭제 — 서명·사진 파일과 부가정보까지 백엔드에서 함께 정리(DELETE /inspections/{id}).
+  // 점검표 1장(sheet)은 공정별 여러 레코드로 구성되므로 각 레코드를 순차 삭제하고 정리된 파일 수를 합산.
+  async function deleteInspections(ids: string[], schoolId: string) {
+    if (!ids.length || delBusy) return
+    if (!window.confirm('이 점검을 삭제하면 서명·사진·부가정보까지 영구 삭제되며 되돌릴 수 없습니다. 삭제할까요?')) return
+    setDelBusy(ids[0])
+    try {
+      let removed = 0
+      for (const id of ids) {
+        const r = await api<{ ok: boolean; id: string; removed_files: number }>(`/inspections/${id}`, { method: 'DELETE' })
+        removed += r?.removed_files ?? 0
+      }
+      setDetail(null)
+      if (schoolId) refetchSchool(schoolId)
+      setDelMsg(`삭제되었습니다 (파일 ${removed}개 정리)`)
+      setTimeout(() => setDelMsg(''), 3000)
+    } catch (e) {
+      setDelMsg(e instanceof Error ? `삭제 실패: ${e.message}` : '삭제 실패')
+      setTimeout(() => setDelMsg(''), 4000)
+    } finally {
+      setDelBusy('')
+    }
+  }
 
   async function create() {
     if (!sel || busy) return
@@ -501,6 +556,20 @@ export function Inspection() {
 
   return (
     <div className="page rv">
+      {delMsg && (
+        <div
+          role="status"
+          style={{
+            position: 'fixed', top: 74, right: 24, zIndex: 60,
+            background: 'var(--card)', border: '1px solid var(--line)',
+            borderLeft: '3px solid var(--ok)', borderRadius: 12,
+            padding: '10px 16px', fontSize: 13, fontWeight: 700,
+            color: 'var(--ink)', boxShadow: 'var(--sh-soft)',
+          }}
+        >
+          {delMsg}
+        </div>
+      )}
       <div className="breadcrumb">
         <Link to="/">홈</Link> / {sel
           ? <><a onClick={() => setSel(null)} style={{ cursor: 'pointer' }}>안전점검</a> / <b>{sel.name}</b></>
@@ -599,13 +668,24 @@ export function Inspection() {
                         <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
                         <td className="c"><span className={'pillx ' + eo.cls}>{eo.label}</span></td>
                         <td className="c">
-                          <button
-                            className="btn btn-ghost"
-                            style={{ height: 30, padding: '0 12px', fontSize: 12 }}
-                            onClick={(e) => { e.stopPropagation(); void openSheet(r.school, r.date, r.parts) }}
-                          >
-                            보기
-                          </button>
+                          <div style={{ display: 'inline-flex', gap: 6, justifyContent: 'center' }}>
+                            <button
+                              className="btn btn-ghost"
+                              style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                              onClick={(e) => { e.stopPropagation(); void openSheet(r.school, r.date, r.parts) }}
+                            >
+                              보기
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              style={{ height: 30, padding: '0 10px', fontSize: 12 }}
+                              disabled={delBusy === r.parts[0]?.id}
+                              onClick={(e) => { e.stopPropagation(); void deleteInspections(r.parts.map((p) => p.id), r.school.id) }}
+                              title="이 점검표를 삭제(서명·사진·부가정보 포함)"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                         <td className="c"><span className="chev"><ChevronRight size={15} /></span></td>
                       </tr>
@@ -680,23 +760,34 @@ export function Inspection() {
                           <td className="c"><span className={'pillx ' + st.cls}>{st.label}</span></td>
                           <td className="c"><span className={'pillx ' + eo.cls}>{eo.label}</span></td>
                           <td className="c">
-                            {sheet.status === 'draft' ? (
+                            <div style={{ display: 'inline-flex', gap: 6, justifyContent: 'center' }}>
+                              {sheet.status === 'draft' ? (
+                                <button
+                                  className="btn btn-primary"
+                                  style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                                  onClick={(e) => { e.stopPropagation(); nav(`/inspection/new?school=${sel.id}&resumeall=1`) }}
+                                >
+                                  이어서 작성
+                                </button>
+                              ) : (
+                                <button
+                                  className="btn btn-ghost"
+                                  style={{ height: 30, padding: '0 12px', fontSize: 12 }}
+                                  onClick={(e) => { e.stopPropagation(); void openSheet(sel, sheet.date, sheet.parts) }}
+                                >
+                                  보기
+                                </button>
+                              )}
                               <button
-                                className="btn btn-primary"
-                                style={{ height: 30, padding: '0 12px', fontSize: 12 }}
-                                onClick={(e) => { e.stopPropagation(); nav(`/inspection/new?school=${sel.id}&resumeall=1`) }}
+                                className="btn btn-danger"
+                                style={{ height: 30, padding: '0 10px', fontSize: 12 }}
+                                disabled={delBusy === sheet.parts[0]?.id}
+                                onClick={(e) => { e.stopPropagation(); void deleteInspections(sheet.parts.map((p) => p.id), sel.id) }}
+                                title="이 점검표를 삭제(서명·사진·부가정보 포함)"
                               >
-                                이어서 작성
+                                <Trash2 size={13} />
                               </button>
-                            ) : (
-                              <button
-                                className="btn btn-ghost"
-                                style={{ height: 30, padding: '0 12px', fontSize: 12 }}
-                                onClick={(e) => { e.stopPropagation(); void openSheet(sel, sheet.date, sheet.parts) }}
-                              >
-                                보기
-                              </button>
-                            )}
+                            </div>
                           </td>
                         </tr>
                       )
@@ -739,12 +830,78 @@ export function Inspection() {
         <Modal
           title={`안전점검 상세 · ${PART_LABEL[detail.part] || detail.part}`}
           onClose={() => setDetail(null)}
-          footer={<button className="btn btn-primary" onClick={() => setDetail(null)}>닫기</button>}
+          footer={(
+            <>
+              <button
+                className="btn btn-danger"
+                disabled={delBusy === detail.id}
+                onClick={() => void deleteInspections([detail.id], sel?.id ?? '')}
+              >
+                <Trash2 size={15} /> {delBusy === detail.id ? '삭제 중…' : '삭제'}
+              </button>
+              <button className="btn btn-primary" onClick={() => setDetail(null)}>닫기</button>
+            </>
+          )}
         >
           <div className="kv"><b>상태</b><span>{STATUS[detail.status]?.label || detail.status}</span></div>
           <div className="kv"><b>점검일</b><span>{dateOf(detail) || '—'}</span></div>
           <div className="kv"><b>서명</b><span>{detail.signatures.length > 0 ? `서명완료 · ${detail.signatures.map((s) => s.signer).join(', ')}` : '미서명'}</span></div>
+          {detail.signatures.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, margin: '2px 0 8px' }}>
+              {detail.signatures.map((s, i) => (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  {typeof s.image_ref === 'string' && s.image_ref !== '' && (
+                    <SignImage refPath={s.image_ref} />
+                  )}
+                  <span style={{ fontSize: 12, color: 'var(--muted, #888)' }}>{s.signer}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* 현장앱 결재선 서명 이미지 — 부가정보(approval_lines)에서 로드 [서명·사진 출력 수정] */}
+          {detailLines.length > 0 && (
+            <>
+              <div className="kv"><b>결재선</b><span>{detailLines.map((l) => l.title || '확인자').join(' → ')}</span></div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, margin: '2px 0 8px' }}>
+                {detailLines.map((l, i) => (
+                  <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    {l.image_ref
+                      ? <SignImage refPath={l.image_ref} />
+                      : <span style={{ fontSize: 12, color: 'var(--muted, #888)' }}>{l.signer ? '(서명)' : '(미서명)'}</span>}
+                    <span style={{ fontSize: 12, color: 'var(--muted, #888)' }}>{l.title || l.signer}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           <div className="kv"><b>교육청 전송</b><span>{EDUOFFICE[detail.eduoffice_submit_status]?.label || detail.eduoffice_submit_status}</span></div>
+          {detailPhotos.length > 0 && (
+            <>
+              <div style={{ fontWeight: 700, fontSize: 13, marginTop: 6 }}>사진대지</div>
+              {detailPhotos.map((g) => (
+                <div key={g.label} style={{ margin: '4px 0 8px' }}>
+                  <div style={{ fontSize: 12, color: 'var(--muted, #888)', marginBottom: 4 }}>{g.label}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {g.slots.filter((s) => s.dataUrl).map((s, i) => (
+                      <figure key={i} style={{ margin: 0, width: 104 }}>
+                        <img
+                          src={s.dataUrl}
+                          alt={s.caption || s.name || '사진'}
+                          title={s.caption || s.name}
+                          style={{ width: 104, height: 104, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line, #ddd)', display: 'block' }}
+                        />
+                        {(s.caption || s.name) && (
+                          <figcaption style={{ fontSize: 11, color: 'var(--muted, #888)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {s.caption || s.name}
+                          </figcaption>
+                        )}
+                      </figure>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
           <div style={{ fontWeight: 700, fontSize: 13, marginTop: 6 }}>점검 항목 ({detail.items.length})</div>
           <div className="twrap">
             <table className="tbl">

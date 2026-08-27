@@ -1,14 +1,14 @@
 // 근골격계 증상조사표 통계 — 본사(HQ). 기존 엑셀(00_보호해제_수식유지.xlsx)의 분류·집계를
 // 웹으로 이식. 학교별 종사자 증상조사표를 입력/붙여넣기 → KOSHA 기준 통계 산출.
 // 저장: /ops/docs/musculo-symptom (school_id → { workers, updated }). 순수 웹(백엔드 무변경).
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Activity, ClipboardList, Plus, Save, Smartphone, Trash2, Upload } from 'lucide-react'
-import { api } from '../lib/api'
+import { Activity, ClipboardList, FileSpreadsheet, Plus, Save, Smartphone, Trash2, Upload } from 'lucide-react'
+import { api, getToken } from '../lib/api'
 import { Modal } from '../components/Modal'
 import {
-  BURDEN_OPTS, DEFAULT_CUR_THRESH, DEFAULT_PREV_THRESH, DURATION_OPTS, FREQUENCY_OPTS, INTENSITY_OPTS, PARTS, VERDICTS,
-  classifyWorker, computeStats, parsePastedData,
+  BURDEN_OPTS, DEFAULT_CUR_THRESH, DEFAULT_PREV_THRESH, DURATION_OPTS, FREQUENCY_OPTS, INTENSITY_OPTS, PARTS,
+  classifyWorker, parsePastedData,
   type PartAnswer, type PartKey, type Thresh, type Verdict, type Worker,
 } from '../features/musculo/symptomStats'
 
@@ -20,7 +20,9 @@ const VCLS: Record<Verdict, string> = { 정상: 'ok', 관리대상자: 'doing', 
 function VBadge({ v }: { v: Verdict }) {
   return <span className={'pillx ' + VCLS[v]}>{v}</span>
 }
-const pct = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : 0)
+
+// 부위별 헤더 옅은 색(엑셀형 그룹 구분).
+const PART_TINT = ['#eef3ff', '#eefcf3', '#fff4ec', '#f3eeff', '#fdeff5', '#eef9ff']
 
 function newWorker(): Worker {
   return { id: 'w-' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), name: '', parts: {} }
@@ -54,7 +56,6 @@ export function MusculoStats() {
   }, [])
 
   const workers = sel ? (doc[sel]?.workers ?? []) : []
-  const stats = useMemo(() => computeStats(workers, { curThresh, prevThresh }), [workers, curThresh, prevThresh])
 
   // 학교 전환 시 저장된 작업기간 임계값 로드(없으면 기본값=엑셀값)
   useEffect(() => {
@@ -132,16 +133,68 @@ export function MusculoStats() {
     } finally { setBusy(false) }
   }
 
+  // ── 인라인 그리드 편집 ──
+  const num = (s: string): number | undefined => {
+    const t = s.trim(); if (t === '') return undefined
+    const n = Number(t); return Number.isFinite(n) ? n : undefined
+  }
+  function patch(id: string, p: Partial<Worker>) {
+    setWorkers(workers.map((w) => (w.id === id ? { ...w, ...p } : w)))
+  }
+  function patchPart(id: string, key: PartKey, field: keyof PartAnswer, v: number | undefined) {
+    setWorkers(workers.map((w) => {
+      if (w.id !== id) return w
+      const cur: PartAnswer = { ...(w.parts[key] || {}) }
+      if (v == null) delete cur[field]; else cur[field] = v
+      const parts = { ...w.parts }
+      if (Object.keys(cur).length) parts[key] = cur; else delete parts[key]
+      return { ...w, parts }
+    }))
+  }
+
+  // ── 원본 공단 양식(.xlsx) 내려받기 — 판정·통계 자동 계산본 ──
+  // api.ts는 JSON 전용이라 바이너리는 토큰 실어 직접 fetch → blob 다운로드.
+  async function downloadExcel() {
+    if (!sel || busy) return
+    setBusy(true); setMsg('')
+    const school = schools.find((s) => s.id === sel)
+    try {
+      const res = await fetch('/api/v1/musculo/symptom-export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({
+          school_name: school?.name || '', workers,
+          cur_thresh: curThresh, prev_thresh: prevThresh,
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+      const a = document.createElement('a')
+      a.href = url; a.download = `${school?.name || '근골격계'}_증상조사표_통계_${ymd}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
+      setMsg('엑셀을 내려받았습니다 — 열면 공단 양식에 판정·통계가 자동 계산됩니다.')
+    } catch (e) {
+      setMsg(e instanceof Error ? '엑셀 내보내기 실패: ' + e.message : '엑셀 내보내기 실패')
+    } finally { setBusy(false) }
+  }
+
   return (
     <div className="page rv">
       <div className="breadcrumb">
-        <Link to="/">홈</Link> / <Link to="/musculo">근골격계</Link> / <b>증상조사표 통계</b>
+        <Link to="/">홈</Link> / <Link to="/musculo">근골격계</Link> / <b>증상조사표 엑셀 입력</b>
       </div>
       <div className="bar">
-        <h2><ClipboardList size={20} /> 증상조사표 통계</h2>
+        <h2><ClipboardList size={20} /> 증상조사표 엑셀 입력</h2>
         <div className="sp" />
         <span className="pillx doing" style={{ whiteSpace: 'normal' }}>
-          KOSHA 「근골격계부담작업 유해요인조사 지침」 기준 · 통증호소자/관리대상자 자동 분류
+          KOSHA 「근골격계부담작업 유해요인조사 지침」 기준 · 통증호소자/관리대상자 자동 분류 · 통계는 보고서 「공단 엑셀 미리보기」 단계에서 확인
         </span>
       </div>
 
@@ -169,6 +222,11 @@ export function MusculoStats() {
                     <Smartphone size={14} /> 현장 제출 불러오기
                   </button>
                   <button className="btn btn-primary" onClick={save} disabled={busy}><Save size={14} /> {busy ? '저장 중…' : '저장'}</button>
+                  <button className="btn" onClick={() => void downloadExcel()} disabled={busy || workers.length === 0}
+                    title="공단 원본 양식에 채워 내려받기 (열면 판정·통계 자동 계산)"
+                    style={{ background: 'var(--ok-soft, #e7f6ee)', color: 'var(--ok-ink, #1b7a44)', fontWeight: 800 }}>
+                    <FileSpreadsheet size={14} /> 엑셀 다운로드
+                  </button>
                 </>
               )}
               {msg && <span style={{ fontSize: 12.5, fontWeight: 700, color: msg.includes('실패') ? 'var(--red-ink)' : 'var(--ok-ink)' }}>{msg}</span>}
@@ -179,110 +237,111 @@ export function MusculoStats() {
             <div className="tstate">학교를 선택하면 해당 학교의 증상조사표를 입력·조회할 수 있습니다.</div>
           ) : (
             <>
-              {/* ── 요약 카드 ── */}
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
-                <SummaryCard label="응답자" value={`${stats.total}명`} sub={stats.age.n ? `평균 ${stats.age.mean.toFixed(1)}세 (±${stats.age.sd.toFixed(1)})` : ''} />
-                {VERDICTS.map((v) => (
-                  <SummaryCard key={v} label={v} value={`${stats.overall[v]}명`} sub={`${pct(stats.overall[v], stats.total)}%`} tone={VCLS[v]} />
-                ))}
-              </div>
-
-              {/* ── 부위별 분포 ── */}
-              <StatTable title="통증부위별 분포 (전체 판정 기준)" rows={[
-                ...PARTS.map((p) => ({ label: p.label, counts: stats.byPart[p.key] })),
-                { label: '전체', counts: stats.byPart.all, bold: true },
-              ]} total={stats.total} />
-
-              {/* ── 부서별 / 라인별 / 작업별 ── */}
-              {stats.byDept.length > 0 && (
-                <StatTable title="부서별 분포" firstCol="부서" rows={stats.byDept.map((d) => ({ label: d.key, counts: d.counts }))} total={stats.total} />
-              )}
-              {stats.byLine.length > 0 && (
-                <StatTable title="라인별 분포" firstCol="라인" rows={stats.byLine.map((d) => ({ label: d.key, counts: d.counts }))} total={stats.total} />
-              )}
-              {stats.byJob.length > 0 && (
-                <StatTable title="작업별 분포" firstCol="작업" rows={stats.byJob.map((d) => ({ label: d.key, counts: d.counts }))} total={stats.total} />
-              )}
-
-              {/* ── 작업기간 그룹 (임계값 설정) ── */}
-              <div className="ledger" style={{ marginBottom: 14 }}>
-                <div className="lh" style={{ gap: 10, flexWrap: 'wrap' }}>
-                  <h2 style={{ fontSize: 15 }}>작업기간 그룹 설정 (년)</h2>
-                  <div className="sp" />
-                  <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>현재</span>
-                  <ThreshInput t={curThresh} onChange={setCurThresh} />
-                  <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700, marginLeft: 8 }}>이전</span>
-                  <ThreshInput t={prevThresh} onChange={setPrevThresh} />
-                </div>
-                <div style={{ padding: '0 18px 12px', fontSize: 11.5, color: 'var(--muted)' }}>
-                  경계값 3개로 4구간(미만 / 사이 / 사이 / 이상)을 나눕니다. 기본값은 엑셀과 동일(현재 1·3·3, 이전 1·2·3).
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 320px' }}>
-                  <StatTable title="현재 작업기간별 분포" firstCol="현재 작업기간" rows={stats.byCurPeriod.map((d) => ({ label: d.key, counts: d.counts }))} total={stats.total} />
-                </div>
-                <div style={{ flex: '1 1 320px' }}>
-                  <StatTable title="이전 작업기간별 분포" firstCol="이전 작업기간" rows={stats.byPrevPeriod.map((d) => ({ label: d.key, counts: d.counts }))} total={stats.total} />
-                </div>
-              </div>
-
-              {/* ── 성별 / 연령대 / 부담 ── */}
-              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 300px' }}>
-                  <StatTable title="성별 분포" firstCol="성별" rows={[
-                    { label: '남자', counts: stats.bySex.남 },
-                    { label: '여자', counts: stats.bySex.여 },
-                    ...(stats.bySex.미상.정상 + stats.bySex.미상.관리대상자 + stats.bySex.미상.통증호소자 > 0 ? [{ label: '미상', counts: stats.bySex.미상 }] : []),
-                  ]} total={stats.total} />
-                </div>
-                {stats.byAgeBand.length > 0 && (
-                  <div style={{ flex: '1 1 300px' }}>
-                    <StatTable title="연령대별 분포" firstCol="연령대" rows={stats.byAgeBand.map((b) => ({ label: b.key, counts: b.counts }))} total={stats.total} />
-                  </div>
-                )}
-                {stats.byBurden.length > 0 && (
-                  <div style={{ flex: '1 1 300px' }}>
-                    <StatTable title="육체적 부담정도별 분포" firstCol="부담정도" rows={stats.byBurden.map((b) => ({ label: b.label, counts: b.counts }))} total={stats.total} />
-                  </div>
-                )}
-              </div>
-
-              {/* ── 종사자 목록 ── */}
+              {/* ── 증상조사표 입력 그리드 (엑셀형·인라인 편집) ── */}
+              <MSGridStyle />
               <div className="ledger" style={{ marginTop: 14 }}>
-                <div className="lh"><h2 style={{ fontSize: 15 }}><Activity size={16} /> 종사자 목록</h2><span className="pillx doing">{workers.length}명</span></div>
-                <div className="twrap">
-                  <table className="tbl">
-                    <thead><tr>
-                      <th>성명</th><th className="c">성별</th><th className="c">연령</th><th>부서</th><th>작업</th>
-                      {PARTS.map((p) => <th key={p.key} className="c" style={{ fontSize: 11 }}>{p.label}</th>)}
-                      <th className="c">전체</th><th />
-                    </tr></thead>
+                <div className="lh" style={{ flexWrap: 'wrap', gap: 8 }}>
+                  <h2 style={{ fontSize: 15 }}><Activity size={16} /> 증상조사표 입력 (엑셀형)</h2>
+                  <span className="pillx doing">{workers.length}명</span>
+                  <span className="muted" style={{ fontSize: 11.5 }}>셀을 클릭해 바로 입력 · 통증기간(2번)·강도(3번)·빈도(4번)만 넣어도 판정됩니다 · 오른쪽 판정은 자동</span>
+                  <div className="sp" />
+                  <button className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => setWorkers([...workers, newWorker()])}><Plus size={13} /> 행 추가</button>
+                </div>
+                <div className="msgrid-wrap">
+                  <table className="msgrid">
+                    <thead>
+                      <tr>
+                        <th className="stick c" style={{ left: 0, width: 34, minWidth: 34 }} rowSpan={2}>#</th>
+                        <th className="stick" style={{ left: 34, width: 96, minWidth: 96 }} rowSpan={2}>성명</th>
+                        <th className="c" rowSpan={2} style={{ minWidth: 46 }}>연령</th>
+                        <th className="c" rowSpan={2} style={{ minWidth: 52 }}>성별</th>
+                        <th rowSpan={2} style={{ minWidth: 92 }}>부서</th>
+                        <th rowSpan={2} style={{ minWidth: 74 }}>라인</th>
+                        <th rowSpan={2} style={{ minWidth: 84 }}>작업</th>
+                        <th className="c" rowSpan={2} style={{ minWidth: 56 }}>결혼</th>
+                        <th className="c" rowSpan={2} style={{ minWidth: 56 }}>현재<br />기간(년)</th>
+                        <th className="c" rowSpan={2} style={{ minWidth: 48 }}>근무<br />(h)</th>
+                        <th className="c" rowSpan={2} style={{ minWidth: 56 }}>이전<br />기간(년)</th>
+                        <th className="c" rowSpan={2} style={{ minWidth: 66 }}>부담<br />정도</th>
+                        {PARTS.map((p, i) => (
+                          <th key={p.key} className="c grp" colSpan={3} style={{ background: PART_TINT[i] }}>{p.label}</th>
+                        ))}
+                        <th className="c vgrp" colSpan={PARTS.length + 1}>판정 (자동)</th>
+                        <th rowSpan={2} style={{ minWidth: 40 }} />
+                      </tr>
+                      <tr>
+                        {PARTS.map((p, i) => (
+                          <Fragment key={p.key}>
+                            <th className="c sub" title="통증기간(2번)" style={{ background: PART_TINT[i] }}>기간</th>
+                            <th className="c sub" title="통증강도(3번)" style={{ background: PART_TINT[i] }}>강도</th>
+                            <th className="c sub" title="통증빈도(4번)" style={{ background: PART_TINT[i] }}>빈도</th>
+                          </Fragment>
+                        ))}
+                        {PARTS.map((p) => <th key={p.key + 'v'} className="c sub" style={{ fontSize: 10 }}>{p.label}</th>)}
+                        <th className="c sub">전체</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      {workers.map((w) => {
+                      {workers.map((w, ri) => {
                         const { byPart, overall } = classifyWorker(w)
                         return (
-                          <tr key={w.id} style={{ cursor: 'pointer' }} onClick={() => setEdit(JSON.parse(JSON.stringify(w)) as Worker)}>
-                            <td><b>{w.name || '(무명)'}</b></td>
-                            <td className="c">{w.sex === 1 ? '남' : w.sex === 2 ? '여' : '—'}</td>
-                            <td className="c">{w.age ?? '—'}</td>
-                            <td>{w.dept || '—'}</td>
-                            <td>{w.job || '—'}</td>
+                          <tr key={w.id}>
+                            <td className="stick c idx" style={{ left: 0 }}>{ri + 1}</td>
+                            <td className="stick" style={{ left: 34 }}>
+                              <input value={w.name} placeholder="성명" onChange={(e) => patch(w.id, { name: e.target.value })} />
+                            </td>
+                            <td><input className="ta-c" type="number" value={w.age ?? ''} onChange={(e) => patch(w.id, { age: num(e.target.value) })} /></td>
+                            <td>
+                              <select value={w.sex ?? ''} onChange={(e) => patch(w.id, { sex: e.target.value === '' ? undefined : Number(e.target.value) as 1 | 2 })}>
+                                <option value="">—</option><option value="1">남</option><option value="2">여</option>
+                              </select>
+                            </td>
+                            <td><input value={w.dept ?? ''} onChange={(e) => patch(w.id, { dept: e.target.value })} /></td>
+                            <td><input value={w.line ?? ''} onChange={(e) => patch(w.id, { line: e.target.value })} /></td>
+                            <td><input value={w.job ?? ''} onChange={(e) => patch(w.id, { job: e.target.value })} /></td>
+                            <td>
+                              <select value={w.married ?? ''} onChange={(e) => patch(w.id, { married: e.target.value === '' ? undefined : Number(e.target.value) as 1 | 2 })}>
+                                <option value="">—</option><option value="1">기혼</option><option value="2">미혼</option>
+                              </select>
+                            </td>
+                            <td><input className="ta-c" type="number" value={w.curYears ?? ''} onChange={(e) => patch(w.id, { curYears: num(e.target.value) })} /></td>
+                            <td><input className="ta-c" type="number" value={w.workHours ?? ''} onChange={(e) => patch(w.id, { workHours: num(e.target.value) })} /></td>
+                            <td><input className="ta-c" type="number" value={w.prevYears ?? ''} onChange={(e) => patch(w.id, { prevYears: num(e.target.value) })} /></td>
+                            <td>
+                              <select value={w.burden ?? ''} title={w.burden ? BURDEN_OPTS[w.burden - 1] : ''} onChange={(e) => patch(w.id, { burden: e.target.value === '' ? undefined : Number(e.target.value) })}>
+                                <option value="">—</option>{BURDEN_OPTS.map((o, i) => <option key={i} value={i + 1}>{i + 1}. {o}</option>)}
+                              </select>
+                            </td>
+                            {PARTS.map((p) => {
+                              const a = w.parts[p.key] ?? {}
+                              return (
+                                <GCells key={p.key} a={a}
+                                  onDur={(v) => patchPart(w.id, p.key, 'duration', v)}
+                                  onInt={(v) => patchPart(w.id, p.key, 'intensity', v)}
+                                  onFreq={(v) => patchPart(w.id, p.key, 'frequency', v)} />
+                              )
+                            })}
                             {PARTS.map((p) => (
-                              <td key={p.key} className="c">
-                                <span title={byPart[p.key]} style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 999, background: byPart[p.key] === '통증호소자' ? 'var(--red-ink)' : byPart[p.key] === '관리대상자' ? 'var(--amber-ink)' : 'var(--line-2)' }} />
+                              <td key={p.key + 'v'} className="c">
+                                <span title={byPart[p.key]} className="dot" style={{ background: byPart[p.key] === '통증호소자' ? 'var(--red-ink, #c0392b)' : byPart[p.key] === '관리대상자' ? 'var(--amber-ink, #b7791f)' : 'var(--line-2, #d9dee6)' }} />
                               </td>
                             ))}
                             <td className="c"><VBadge v={overall} /></td>
-                            <td className="c" onClick={(e) => e.stopPropagation()}>
-                              <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => removeWorker(w.id)}><Trash2 size={13} /></button>
+                            <td className="c">
+                              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '3px 6px' }} title="삭제" onClick={() => removeWorker(w.id)}><Trash2 size={13} /></button>
                             </td>
                           </tr>
                         )
                       })}
-                      {workers.length === 0 && <tr><td colSpan={13}><div className="tstate">종사자를 추가하거나 엑셀에서 붙여넣으세요.</div></td></tr>}
+                      {workers.length === 0 && <tr><td colSpan={12 + PARTS.length * 4 + 2}><div className="tstate">「행 추가」·「엑셀 붙여넣기」·「현장 제출 불러오기」로 종사자를 넣으세요.</div></td></tr>}
                     </tbody>
                   </table>
+                </div>
+                <div style={{ padding: '8px 16px 4px', fontSize: 11.5, color: 'var(--muted)' }}>
+                  <span className="dot" style={{ background: 'var(--red-ink, #c0392b)' }} /> 통증호소자
+                  <span className="dot" style={{ background: 'var(--amber-ink, #b7791f)', marginLeft: 12 }} /> 관리대상자
+                  <span className="dot" style={{ background: 'var(--line-2, #d9dee6)', marginLeft: 12 }} /> 정상
+                  <span style={{ marginLeft: 16 }}>· 기간/강도/빈도 코드는 셀의 드롭다운에서 선택(숫자가 클수록 심함).</span>
                 </div>
               </div>
             </>
@@ -355,41 +414,54 @@ export function MusculoStats() {
   )
 }
 
-function SummaryCard({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
+// 부위 1개 = 기간/강도/빈도 3셀(엑셀형 인라인 드롭다운).
+function GCells({ a, onDur, onInt, onFreq }: {
+  a: PartAnswer
+  onDur: (v?: number) => void; onInt: (v?: number) => void; onFreq: (v?: number) => void
+}) {
   return (
-    <div style={{ flex: '1 1 150px', padding: '14px 16px', background: 'var(--card)', border: '1px solid var(--line)', borderLeft: tone ? `4px solid var(--${tone === 'ok' ? 'ok' : tone === 'doing' ? 'amber' : 'red'}-ink)` : '4px solid var(--line)', borderRadius: 12 }}>
-      <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 900, marginTop: 2 }}>{value}</div>
-      {sub && <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{sub}</div>}
-    </div>
+    <>
+      <td><GSel opts={DURATION_OPTS} value={a.duration} onChange={onDur} /></td>
+      <td><GSel opts={INTENSITY_OPTS} value={a.intensity} onChange={onInt} /></td>
+      <td><GSel opts={FREQUENCY_OPTS} value={a.frequency} onChange={onFreq} /></td>
+    </>
+  )
+}
+function GSel({ opts, value, onChange }: { opts: string[]; value?: number; onChange: (v?: number) => void }) {
+  return (
+    <select className="pcell" value={value ?? ''} title={value ? `${value}. ${opts[value - 1]}` : ''}
+      onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}>
+      <option value="">·</option>
+      {opts.map((o, i) => <option key={i} value={i + 1}>{i + 1}. {o}</option>)}
+    </select>
   )
 }
 
-function StatTable({ title, rows, total, firstCol = '구분' }: { title: string; firstCol?: string; total: number; rows: { label: string; counts: Record<Verdict, number>; bold?: boolean }[] }) {
+// 엑셀형 편집 그리드 전용 스코프 스타일.
+function MSGridStyle() {
   return (
-    <div className="ledger" style={{ marginBottom: 14 }}>
-      <div className="lh"><h2 style={{ fontSize: 15 }}>{title}</h2></div>
-      <div className="twrap">
-        <table className="tbl">
-          <thead><tr><th>{firstCol}</th>{VERDICTS.map((v) => <th key={v} className="c">{v}</th>)}<th className="c">합계</th></tr></thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const t = r.counts.정상 + r.counts.관리대상자 + r.counts.통증호소자
-              return (
-                <tr key={i} style={r.bold ? { fontWeight: 800, background: 'var(--card-2)' } : undefined}>
-                  <td>{r.label}</td>
-                  {VERDICTS.map((v) => (
-                    <td key={v} className="c">{r.counts[v]}{r.counts[v] > 0 && <span style={{ color: 'var(--muted)', fontSize: 11 }}> ({pct(r.counts[v], t)}%)</span>}</td>
-                  ))}
-                  <td className="c"><b>{t}</b></td>
-                </tr>
-              )
-            })}
-            {rows.length === 0 && <tr><td colSpan={5}><div className="tstate">데이터 없음</div></td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <style>{`
+.msgrid-wrap { overflow-x: auto; border-top: 1px solid var(--line); border-radius: 0 0 4px 4px; }
+.msgrid { border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+.msgrid th, .msgrid td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 0; white-space: nowrap; }
+.msgrid thead th { background: var(--card-2, #f5f3fb); font-weight: 800; font-size: 11px; padding: 5px 6px; text-align: center; line-height: 1.2; }
+.msgrid thead th.sub { font-size: 10.5px; font-weight: 700; color: var(--muted, #6b7280); }
+.msgrid thead th.vgrp { background: #efeaff; color: var(--violet, #7C5CFB); }
+.msgrid .c { text-align: center; }
+.msgrid td { height: 30px; }
+.msgrid .stick { position: sticky; z-index: 1; background: var(--card, #fff); }
+.msgrid thead th.stick { z-index: 2; background: var(--card-2, #f5f3fb); }
+.msgrid td.stick { box-shadow: 1px 0 0 var(--line); }
+.msgrid .idx { color: var(--muted, #6b7280); font-size: 11px; }
+.msgrid input, .msgrid select { width: 100%; box-sizing: border-box; border: 1px solid transparent; background: transparent; padding: 4px 6px; font-size: 12.5px; border-radius: 6px; color: inherit; font-family: inherit; }
+.msgrid input.ta-c { text-align: center; }
+.msgrid input:hover, .msgrid select:hover { background: var(--card-2, #f5f3fb); }
+.msgrid input:focus, .msgrid select:focus { border-color: var(--violet, #7C5CFB); background: var(--card, #fff); outline: none; box-shadow: 0 0 0 2px rgba(124,92,251,.18); }
+.msgrid select.pcell { min-width: 44px; padding: 4px 2px; text-align: center; }
+.msgrid tbody tr:nth-child(even) td:not(.stick) { background: rgba(124,92,251,.045); }
+.msgrid tbody tr:hover td:not(.stick) { background: var(--card-2, #f5f3fb); }
+.msgrid .dot { display: inline-block; width: 11px; height: 11px; border-radius: 999px; vertical-align: -1px; }
+`}</style>
   )
 }
 
@@ -399,23 +471,6 @@ function PartSelect({ opts, value, onChange }: { opts: string[]; value?: number;
       <option value="">없음</option>
       {opts.map((o, i) => <option key={i} value={i + 1}>{i + 1}. {o}</option>)}
     </select>
-  )
-}
-
-function ThreshInput({ t, onChange }: { t: Thresh; onChange: (t: Thresh) => void }) {
-  const set = (i: number, v: string) => {
-    const nt = [...t] as Thresh
-    const n = Number(v)
-    nt[i] = Number.isFinite(n) ? n : 0
-    onChange(nt)
-  }
-  return (
-    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-      {[0, 1, 2].map((i) => (
-        <input key={i} className="input" type="number" value={t[i]} onChange={(e) => set(i, e.target.value)}
-          style={{ width: 54, fontSize: 12.5, padding: '4px 6px' }} />
-      ))}
-    </span>
   )
 }
 

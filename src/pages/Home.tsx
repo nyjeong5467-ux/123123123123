@@ -26,6 +26,7 @@ import { useAuth } from '../lib/auth'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { FilterBar, Pagination, SortableTh } from '../components/table'
 import { Modal } from '../components/Modal'
+import { FilePicker } from '../components/FilePicker'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { AY_MONTH_NO, CycleHero, CYCLE_DOC_DEFAULT, migrateCycleDoc, type CycleDoc } from '../components/CycleHero'
 import { TodayHero } from '../components/TodayHero'
@@ -377,6 +378,32 @@ export function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plans])
 
+  // 점검 일정(schedules) 오버레이 — 로그인 조사원 '본인 이름'으로 홈 캘린더에 표시.
+  // 조사원은 /users 권한이 없어 로그인ID로 표시되므로, /auth/me 의 실제 이름으로 매칭한다.
+  const [myName, setMyName] = useState('')
+  const [myRole, setMyRole] = useState('')
+  type SchedDoc = Record<string, Record<string, Record<string, { schools?: string[]; note?: string; region?: string }>>>
+  const [sched, setSched] = useState<SchedDoc>({})
+  useEffect(() => {
+    api<{ name?: string; role?: string }>('/auth/me').then((d) => { setMyName(d.name || ''); setMyRole(d.role || '') }).catch(() => {})
+    api<{ doc: SchedDoc | null }>('/ops/docs/schedules').then((d) => setSched(d.doc || {})).catch(() => {})
+  }, [])
+
+  // 캘린더 근무표 오버레이 대상 선택 — 본사(hq_admin·executive)는 조사원별 일정을 골라 볼 수 있다.
+  // 조사원은 본인 일정만(현행 유지). '' = 내 일정(myName).
+  const isHqUser = myRole === 'hq_admin' || myRole === 'executive'
+  const [schedNames, setSchedNames] = useState<string[]>([]) // 본사용: 전체 조사원 이름
+  const [schedWho, setSchedWho] = useState('')               // 선택된 조사원(빈 값=본인)
+  useEffect(() => {
+    if (!isHqUser) return
+    api<{ name?: string; role?: string }[]>('/users')
+      .then((list) => setSchedNames(
+        Array.isArray(list) ? list.filter((u) => u.role === 'field_inspector' && u.name).map((u) => u.name as string) : [],
+      ))
+      .catch(() => setSchedNames([])) // 조회 권한 없으면(403 등) 내 일정만
+  }, [isHqUser])
+  const schedTarget = schedWho || myName
+
   const [calY, setCalY] = useState(today.getFullYear())
   const [calM, setCalM] = useState(today.getMonth() + 1) // 1~12
   const [editCal, setEditCal] = useState(false)
@@ -403,6 +430,29 @@ export function Home() {
     })
     return m
   }, [visits, schoolName])
+
+  // 점검 일정(선택 대상) 날짜별 — 홈 캘린더 오버레이(현재 표시 달 · 선택 조사원 기준)
+  const schedByDate = useMemo(() => {
+    const m = new Map<string, { schools: string[]; note?: string }>()
+    const ym = `${calY}-${pad2(calM)}`
+    const byName = (sched[ym] || {})[schedTarget] || {}
+    for (const [date, v] of Object.entries(byName)) {
+      m.set(date, { schools: v.schools || [], note: v.note })
+    }
+    return m
+  }, [sched, calY, calM, schedTarget])
+
+  // 학교명 → id 매칭(정확→시작일치→포함) — 점검 일정의 학교명으로 대장 연결 [feat#5]
+  const findSid = useMemo(() => {
+    return (nm: string): string | undefined => {
+      const n = nm.trim()
+      return (
+        schools.find((s) => s.name === n) ||
+        schools.find((s) => s.name.startsWith(n) || n.startsWith(s.name)) ||
+        schools.find((s) => s.name.includes(n) || n.includes(s.name))
+      )?.id
+    }
+  }, [schools])
 
   function addPlan(date: string, schoolId: string) {
     const s = schools.find((x) => x.id === schoolId)
@@ -463,11 +513,17 @@ export function Home() {
     const done = (visitsByDate.get(TODAY_YMD) ?? []).filter((d) => isMine(d.school_id))
     const doneIds = new Set(done.map((d) => d.school_id))
     const planned = (plans[TODAY_YMD] ?? []).filter((p) => isMine(p.school_id) && (!p.school_id || !doneIds.has(p.school_id)))
+    // 점검 일정(본인)의 오늘 학교도 포함
+    const ym = TODAY_YMD.slice(0, 7)
+    const schedToday = ((sched[ym] || {})[myName] || {})[TODAY_YMD]?.schools ?? []
+    const seen = new Set([...done.map((d) => d.name), ...planned.map((p) => p.name)])
+    // 점검 일정은 학교명만 있음 → 학교 목록에서 id 매칭(정확→시작일치→포함)해 업무 상태를 불러올 수 있게 함
     return [
       ...done.map((d) => ({ key: 'v-' + d.school_id, name: d.name, school_id: d.school_id as string | undefined, done: true })),
       ...planned.map((p) => ({ key: 'p-' + p.id, name: p.name, school_id: p.school_id, done: false })),
+      ...schedToday.filter((nm) => !seen.has(nm)).map((nm, i) => ({ key: 's-' + i, name: nm, school_id: findSid(nm), done: false })),
     ]
-  }, [visitsByDate, plans, TODAY_YMD, myIds])
+  }, [visitsByDate, plans, TODAY_YMD, myIds, sched, myName, schools, findSid])
 
   /* ---- 이번 주 방문 예정: 내일부터 7일간의 계획(날짜별 그룹) ---- */
   const weekPlans = useMemo(() => {
@@ -681,6 +737,18 @@ export function Home() {
               <span><i className="sw-now" />방문 예정</span>
               <span><i className="sw-miss" />미이행</span>
             </div>
+            {isHqUser && schedNames.length > 0 && (
+              <select
+                className="lselect"
+                value={schedWho}
+                onChange={(e) => setSchedWho(e.target.value)}
+                title="근무표를 볼 조사원 선택"
+                style={{ marginLeft: 4 }}
+              >
+                <option value="">내 일정</option>
+                {schedNames.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            )}
             <div className="hm-editbar">
               {editCal ? (
                 <>
@@ -726,7 +794,7 @@ export function Home() {
                     <button
                       key={'v' + v.school_id}
                       className="hm-ev done"
-                      onClick={(e) => { e.stopPropagation(); nav('/schools/' + v.school_id) }}
+                      onClick={(e) => { e.stopPropagation(); nav('/schools/' + v.school_id + '#sd-info') }}
                       title={v.name + ' · 방문 완료'}
                     >
                       {v.name}
@@ -743,7 +811,7 @@ export function Home() {
                           onClick={(e) => {
                             e.stopPropagation()
                             if (editCal) return
-                            if (p.school_id) nav('/schools/' + p.school_id)
+                            if (p.school_id) nav('/schools/' + p.school_id + '#sd-info')
                           }}
                           title={p.name + (missed ? ' · 미이행' : ' · 방문 예정')}
                         >
@@ -771,6 +839,38 @@ export function Home() {
                         </button>
                       )
                     })}
+                  {(() => {
+                    const sd = schedByDate.get(dateKey)
+                    if (!sd) return null
+                    return (
+                      <>
+                        {sd.schools.map((nm, i) => {
+                          const sid = findSid(nm)
+                          if (!sid)
+                            return (
+                              <span key={'sc' + i} className="hm-ev plan" style={{ cursor: 'default' }} title={nm + ' · 점검 일정'}>
+                                <span className="tx">{nm}</span>
+                              </span>
+                            )
+                          return (
+                            <button
+                              key={'sc' + i}
+                              className="hm-ev plan"
+                              onClick={(e) => { e.stopPropagation(); nav('/schools/' + sid + '#sd-info') }}
+                              title={nm + ' · 점검 일정 · 학교 정보 열기'}
+                            >
+                              <span className="tx">{nm}</span>
+                            </button>
+                          )
+                        })}
+                        {sd.note && (
+                          <span className="hm-ev miss" style={{ cursor: 'default' }} title="점검 일정">
+                            <span className="tx">{sd.note}</span>
+                          </span>
+                        )}
+                      </>
+                    )
+                  })()}
                   {editCal && addDate !== dateKey && (
                     <button className="hm-addbtn" onClick={(e) => { e.stopPropagation(); setAddDate(dateKey) }}>+ 학교</button>
                   )}
@@ -955,15 +1055,14 @@ export function Home() {
           </label>
           <label className="field">
             <span>파일 첨부 (파일명만 전송)</span>
-            <input
-              className="input hm-filein"
-              type="file"
+            <FilePicker
               multiple
-              onChange={(e) => {
-                const fl = e.target.files
+              resetAfter
+              buttonLabel="파일 선택"
+              fileName={nFiles.length ? `${nFiles.length}개 첨부됨` : undefined}
+              onPick={(fl) => {
                 const picked: NoticeFile[] = fl ? Array.from(fl).map((f) => ({ name: f.name })) : []
                 if (picked.length) setNFiles((prev) => [...prev, ...picked])
-                e.target.value = ''
               }}
             />
           </label>
@@ -1006,6 +1105,12 @@ export function Home() {
                   <li key={i}>
                     <span className="dt">완료</span>
                     <span className="tx">{v.name}</span>
+                    <button
+                      type="button"
+                      title="학교 정보 섹션 열기"
+                      style={{ border: 0, background: 'transparent', color: 'var(--violet)', fontWeight: 700, fontSize: 11.5, cursor: 'pointer', whiteSpace: 'nowrap', flex: 'none' }}
+                      onClick={() => { setDayModal(null); nav('/schools/' + v.school_id + '#sd-info') }}
+                    >학교 정보 →</button>
                   </li>
                 ))}
               </ul>
@@ -1021,6 +1126,14 @@ export function Home() {
                 <li key={p.id}>
                   <span className="dt">{p.school_id ? '학교' : '일정'}</span>
                   <span className="tx">{p.name}</span>
+                  {p.school_id && (
+                    <button
+                      type="button"
+                      title="학교 정보 섹션 열기"
+                      style={{ border: 0, background: 'transparent', color: 'var(--violet)', fontWeight: 700, fontSize: 11.5, cursor: 'pointer', whiteSpace: 'nowrap', flex: 'none' }}
+                      onClick={() => { setDayModal(null); nav('/schools/' + p.school_id + '#sd-info') }}
+                    >학교 정보 →</button>
+                  )}
                   <button className="shub-del" title="삭제" onClick={() => removePlan(dayModal, p.id)}>✕</button>
                 </li>
               ))}

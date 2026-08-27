@@ -2,10 +2,12 @@ import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   type LucideIcon,
+  CalendarRange,
   CloudUpload,
   Globe,
   LayoutDashboard,
   Receipt,
+  ScrollText,
   Settings2,
   ShieldAlert,
   TabletSmartphone,
@@ -18,6 +20,8 @@ import ConsoleApp from '../features/console/ConsoleApp'
 import ConsoleContent from '../features/console/ConsoleContent'
 import ConsoleSystem from '../features/console/ConsoleSystem'
 import ConsoleEduoffice from '../features/console/ConsoleEduoffice'
+import ConsoleSchedule from '../features/console/ConsoleSchedule'
+import ConsoleStaffHistory from '../features/console/ConsoleStaffHistory'
 import '../styles/console.css'
 
 // ── 경영 대시보드 = 회사 관리자 콘솔 ──
@@ -25,12 +29,14 @@ import '../styles/console.css'
 // 기존 /ops·/billing·/accounts·/sessions 라우트는 딥링크 호환을 위해 유지되며,
 // 이 콘솔이 회사 관리자(hq_admin·executive)의 기본 진입점이다. ?tab= 쿼리로 딥링크 가능.
 
-type TabKey = 'overview' | 'billing' | 'accounts' | 'app' | 'eduoffice' | 'content' | 'system'
+type TabKey = 'overview' | 'billing' | 'accounts' | 'history' | 'schedule' | 'app' | 'eduoffice' | 'content' | 'system'
 
 const TABS: { key: TabKey; label: string; Icon: LucideIcon }[] = [
   { key: 'overview', label: '경영 현황', Icon: LayoutDashboard },
   { key: 'billing', label: '청구·정산', Icon: Receipt },
   { key: 'accounts', label: '계정·권한', Icon: Users },
+  { key: 'history', label: '직원 이력', Icon: ScrollText },
+  { key: 'schedule', label: '근무 종합관리표', Icon: CalendarRange },
   { key: 'app', label: '현장 앱 관리', Icon: TabletSmartphone },
   { key: 'eduoffice', label: '교육청 전송', Icon: CloudUpload },
   { key: 'content', label: '홈페이지·콘텐츠', Icon: Globe },
@@ -80,6 +86,8 @@ export function Dashboard() {
       {tab === 'overview' && <ConsoleOverview />}
       {tab === 'billing' && <div className="console-embed"><Billing embedded /></div>}
       {tab === 'accounts' && <div className="console-embed"><Accounts embedded /></div>}
+      {tab === 'history' && <ConsoleStaffHistory />}
+      {tab === 'schedule' && <ConsoleSchedule />}
       {tab === 'app' && <ConsoleApp />}
       {tab === 'eduoffice' && <ConsoleEduoffice />}
       {tab === 'content' && <ConsoleContent />}

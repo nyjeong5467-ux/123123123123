@@ -1,12 +1,16 @@
 // 종사자 안전·보건 점검표 — 실물 양식 보기 [054]
 // 점검표 1장(학교×점검일, 공정별 점검 묶음)을 제출 PDF와 같은 서식으로 표시.
 // [인쇄 / PDF 저장]으로 브라우저 인쇄 → PDF 생성 가능. 조회 전용(수정은 이어서 작성에서).
-import { useEffect, useState } from 'react'
+import { useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
-import { PARTDEF, type InspExtra } from '../pages/InspectionForm'
-import { getToken } from '../lib/api'
+import { PARTDEF } from '../pages/InspectionForm'
+import type { InspExtra } from '../lib/inspExtra'
+import { SignImage, waitForSheetImages } from './SignImage'
 import '../styles/inspectsheet.css'
+
+// 기존 사용처(Inspection.tsx 등) 호환 재수출 — SignImage 본체는 components/SignImage.tsx로 이동.
+export { SignImage } from './SignImage'
 
 export type SheetItem = { code: string; label: string; result?: string | null; remark?: string | null }
 export type SheetPart = {
@@ -30,34 +34,6 @@ const PART_NAME: Record<string, string> = {
 const PART_ORDER = ['catering', 'night_duty', 'commute', 'facility', 'cleaning']
 // 저장값 → 표시 컬럼 (구 시드 ok/fix 값도 방어적으로 수용)
 const RES_COL: Record<string, 0 | 1 | 2> = { good: 0, ok: 0, poor: 1, fix: 1, na: 2 }
-
-// 손글씨 서명 이미지 — 보호 파일이라 토큰 실어 자체 fetch → objectURL로 <img> 표시.
-// api.ts는 JSON 전용(수정 금지)이므로 여기서 직접 fetch. (MusculoPhotos와 동일 패턴) [054]
-function SignImage({ refPath }: { refPath: string }) {
-  const [url, setUrl] = useState('')
-  const [err, setErr] = useState(false)
-  useEffect(() => {
-    let alive = true
-    let made = ''
-    fetch(`/api/v1/files/inspection/download?path=${encodeURIComponent(refPath)}`, {
-      headers: { Authorization: `Bearer ${getToken()}`, 'ngrok-skip-browser-warning': 'true' },
-    })
-      .then((res) => { if (!res.ok) throw new Error(String(res.status)); return res.blob() })
-      .then((b) => { const u = URL.createObjectURL(b); if (alive) { made = u; setUrl(u) } else URL.revokeObjectURL(u) })
-      .catch(() => { if (alive) setErr(true) })
-    return () => { alive = false; if (made) URL.revokeObjectURL(made) }
-  }, [refPath])
-  // 이미지 로드 실패 시엔 서명은 있으므로 '(서명)' 텍스트로 폴백.
-  if (err) return <span className="st">(서명)</span>
-  if (!url) return <span className="st">불러오는 중…</span>
-  return (
-    <img
-      src={url}
-      alt="서명"
-      style={{ maxHeight: 48, maxWidth: 200, objectFit: 'contain', alignSelf: 'center' }}
-    />
-  )
-}
 
 // 양식 본문 — 오버레이 보기와 메일 PDF 캡처([062])가 공용으로 사용
 export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
@@ -209,11 +185,13 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
         {/* 사진대지 [057] */}
         <div className="inss-sec"><i />사진대지</div>
         {(() => {
-          const groups = ordered
-            .map((p) => {
-              const def = PARTDEF.find((d) => d.key === p.part)
+          // 부가정보에 있는 모든 공정 사진을 표시 — 점검표에 포함된 공정만이 아니라 전 공정 순회.
+          // (앱은 파트별 점검을 개별 제출해 사진이 다른 파트 id 묶음에 실려 올 수 있음 [사진표시 수정])
+          const groups = PART_ORDER
+            .map((key) => {
+              const def = PARTDEF.find((d) => d.key === key)
               const slots = (def && extra?.photos?.[def.label]) || []
-              return { key: p.part, name: PART_NAME[p.part] || p.part, slots: slots.filter((s) => s.name || s.dataUrl || s.caption) }
+              return { key, name: PART_NAME[key] || key, slots: slots.filter((s) => s.name || s.dataUrl || s.caption) }
             })
             .filter((g) => g.slots.length > 0)
           if (groups.length === 0) return <div className="inss-empty">등록된 사진이 없습니다.</div>
@@ -232,18 +210,29 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
           ))
         })()}
 
-        {/* 확인자 [057] — 현장앱 다중 결재란(approval_lines) 우선, 없으면 단일 확인자 */}
+        {/* 확인자 [057] — 현장앱 다중 결재란(approval_lines)이 있으면 주서명 + 결재선 서명을 모두 표시,
+            없으면 단일 확인자. (기존엔 결재선이 있으면 주서명 이미지가 빠졌음 [서명·사진 출력 수정]) */}
         <div className="inss-sec"><i />확인자</div>
         {approvalLines.length > 0 ? (
-          approvalLines.map((ln, i) => (
-            <div className="inss-signer" key={i}>
-              <span className="lab">{ln.title || '확인자'}</span>
-              <span className="nm">{ln.signer || ''}</span>
-              {ln.image_ref
-                ? <SignImage refPath={ln.image_ref} />
-                : <span className="st">{ln.signer ? '(서명)' : '(미서명)'}</span>}
-            </div>
-          ))
+          <>
+            {signImageRef && (
+              <div className="inss-signer">
+                <span className="lab">확인자(담당자)</span>
+                <span className="nm">{finalSigner || ''}</span>
+                <SignImage refPath={signImageRef} />
+                {signedAt && <span className="dt">서명일 {signedAt}</span>}
+              </div>
+            )}
+            {approvalLines.map((ln, i) => (
+              <div className="inss-signer" key={i}>
+                <span className="lab">{ln.title || '확인자'}</span>
+                <span className="nm">{ln.signer || ''}</span>
+                {ln.image_ref
+                  ? <SignImage refPath={ln.image_ref} />
+                  : <span className="st">{ln.signer ? '(서명)' : '(미서명)'}</span>}
+              </div>
+            ))}
+          </>
         ) : (
           <div className="inss-signer">
             <span className="lab">확인자(담당자)</span>
@@ -259,16 +248,24 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
 }
 
 export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onClose: () => void }) {
+  const bodyRef = useRef<HTMLDivElement>(null)
+  // 서명 이미지(비동기 fetch)가 아직 로딩 중일 때 바로 인쇄하면 서명 칸이 비어 출력됨 — 로드 완료 후 인쇄.
+  async function printSheet() {
+    if (bodyRef.current) await waitForSheetImages(bodyRef.current)
+    window.print()
+  }
   // document.body 포탈 — 앱 레이아웃(오버플로·포지셔닝) 영향 없이 인쇄 시 양식만 출력되게 [054]
   return createPortal(
     <div className="inss-overlay" role="dialog" aria-label="종사자 안전·보건 점검표">
       <div className="inss-bar">
         <b>종사자 안전·보건 점검표 — {sheet.schoolName}{sheet.date ? ` · ${sheet.date}` : ' · 작성중'}</b>
         <div className="sp" />
-        <button className="btn btn-primary" onClick={() => window.print()}><Printer size={14} /> 인쇄 / PDF 저장</button>
+        <button className="btn btn-primary" onClick={() => { void printSheet() }}><Printer size={14} /> 인쇄 / PDF 저장</button>
         <button className="btn btn-ghost" onClick={onClose}><X size={14} /> 닫기</button>
       </div>
-      <InspectionSheetBody sheet={sheet} />
+      <div ref={bodyRef}>
+        <InspectionSheetBody sheet={sheet} />
+      </div>
     </div>,
     document.body,
   )

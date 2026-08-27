@@ -155,8 +155,10 @@ export function TodayHero(p: {
                       chips.map((c, i) => (
                         <span key={i} className={'hm-td-chip ' + c.cls}>{c.label}</span>
                       ))
-                    ) : (
+                    ) : it.school_id ? (
                       <span className="hm-td-chip muted">업무 확인 중…</span>
+                    ) : (
+                      <span className="hm-td-chip muted">방문 예정</span>
                     )}
                   </div>
                   {/* 빠른 실행 — 행 클릭으로 펼침 [044] */}

@@ -5,13 +5,20 @@ import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { InspectionMailModal } from '../components/InspectionMailModal'
+import { SignImage } from '../components/SignImage'
 import type { SheetData } from '../components/InspectionSheetView'
+import { resolveExtra, type InspExtra } from '../lib/inspExtra'
 import '../styles/inspectform.css'
+
+// 기존 사용처 호환 재수출 — InspExtra 본체는 lib/inspExtra.ts로 이동(공용 매칭 로직과 함께).
+export type { InspExtra } from '../lib/inspExtra'
 
 /* ===================== 점검항목 (프로토타입 Q_GS·Q_TH·Q_SI·Q_MI 그대로) ===================== */
 const Q_GS = ['바닥의 물·기름·물때 등으로 인해 미끄러질 위험 여부', '통로 확보 및 통행로나 바닥에 호스, 물품 적재·방치 여부', '장애물(문턱·배관·패인곳 및 돌출부 등)로 인해 넘어질 위험 여부', '조리장·계단·통로에 적정한 조명 설치 여부', '계단에 난간 설치, 답단 끝에 미끄러짐 방지 조치 여부', '미끄러짐 방지 장화 등 보호구 착용 여부', '청소 후 트렌치 덮개를 원상태로 덮어 놓았는지 여부', '왁스, 물청소 등으로 넘어짐 위험장소에 "미끄러짐표지" 부착 여부', '문은 쉽게 열고 닫을 수 있는 구조를 유지하고 있는지 여부', '재료 운반대차 및 배식차에 끼일 위험 여부', '양념재료(마늘·파·양파 등) 분쇄기·절단기에 말려들 위험 여부', '기계의 회전체(벨트·체인·회전날개 등)에 방호덮개 설치 여부', '리프트, 덤웨이터의 안전한 사용 여부||사람 탑승금지 조치, 출입문이 열린 상태에서는 동작이 안 되도록 조치 / 사용중량·경고표지 부착 여부', '절단기·분쇄기 칼날 부위에 베임방지용 덮개 설치 여부', '칼날 등에 베일 위험을 방지하기 위한 조치 여부', '칼 용도 외 사용 여부 (김치포장 끈 제거, 캔 뚜껑 제거, 식용유 뚜껑 제거 등)', '식자재 운반카트의 바퀴 고정장치(stopper) 정상작동 여부', '부딪힘 사고 유형별 예방 확인||선반 등 돌출부 / 이동 중인 급식카트 / 시야 미확보 / 식기세척·청소 후 일어서다가 / 의자·작업발판에서 내려오다가', '전기 기계·기구에 감전 예방용 접지 상태 여부', '누전차단기 설치 및 월 1회 이상 동작점검 여부', '전선의 노후화 또는 피복손상, 심하게 구부러짐 여부', '가스누출감지기, 경보기가 정상적으로 작동하는지 여부', '가스공급배관에서 가스가 누출되고 있지 않은지 여부', '급식실 작업장 환기는 충분히 실시하고 있는지 여부', '환기 방법', '환기장치 설치 및 조리 시 사용 여부', '환기장치 작동 여부', '급식실 후드청소 주기', '급식실 위치', '급식실에 적합한 소화기 비치 및 정상작동 여부', '국솥 등에 한꺼번에 많은 양의 식자재를 넣고 있지 않은가', '뜨거운 물, 국 등이 들어있는 회전식 국솥 핸들고정 장치가 정상적으로 고정되어 있는지 여부', '자외선 살균기, 전격살충기 등 램프 적정선정 및 정상작동 여부', '기타 각종 위험요인으로부터 근로자 보호조치 여부', '고온 스팀 사용장소에 "고온 경고" 또는 "화상주의" 표지 게시 여부', '뜨거운 용기 취급 시 방열장갑 또는 보조집게 사용 여부', '조리실 등 고온다습하고 환기가 불충분한 장소에 적정한 환기·통풍·냉방시설 설치 및 관리 여부', '물질안전보건자료(MSDS)의 게시(비치) 및 교육 여부', '취급용기 및 포장에 MSDS 경고표지 부착 여부', '세제, 청소제 등 화학물질 취급 시 고무장갑 등 적정 보호장구 착용 여부', '근골격계부담작업 유해요인조사 실시 여부', '근골격계질환 예방을 위해 인력작업 보조설비 및 편의설비 등 작업환경 개선 여부', '근골격계부담작업 종사자에 대한 유해성 주지(교육 등) 적정성', '중량물 안내포스터 부착 유무 — 5kg 이상 물체를 중량물로 취급', '작업 전·후 스트레칭 실시 및 적정 휴식시간 배분 여부', '운반작업 시 적정한 양 운반, 2인 1조 작업 또는 이동대차 등 운반보조도구 사용 여부']
 const Q_TH = ['운전원은 차량이 항상 청결하도록 유지하였는가?', '운전 중 흡연 및 식음, 통화 등은 하지 않았는가?', '운전 중 직무수행에 필요한 사람 이외의 탑승은 없었는가?', '배차되지 않은 차량의 사적인 운행 행위는 금지되었는가?', '운전원은 차량 밖으로 이동 시 잠금장치를 하였는가?', '운전원은 경제속도운행 및 안전운행에 노력하였는가?', '승차 시 학생들의 안전한 탑승이 확인된 후에 출발하였는가?', '하차 시 학생들의 안전한 상태를 확인 후 하차하였는가?', '승하차 시 지정된 장소에 대기하고 있던 학부모와 인사를 나누고 학생들을 안전하게 인도하였는가?', '운행 중 창밖으로 손을 내밀거나 하는 위험 행동을 통제했는가?', '출발 전 학생들의 안전벨트 착용 등의 상태를 확인하였는가?', '차량의 학교 도착 후 유실물과 차량의 상태는 확인하였는가?']
 const Q_SI = ['위험작업 시 안전모, 안전화 등 개인보호구를 착용하였는가?', '사다리 작업 시 안전한 작업방법을 숙지하고 있는가?', '각종 계기류 확인 시 감전 예방을 위한 절연장갑을 착용하였는가?', '기계 점검·보수 시 동력원을 완전히 차단 후 작업하는가?', '고장난 승강기를 임의로 열거나 기기를 조작하지는 않는가?', '승강기 점검·보수 시 접근금지 표지판을 부착하는가?', '각종 전기기구 작업 시 작업자가 감전사고에 대한 작업방법을 확실하게 인지하고 있는가?', '화학물질 취급 및 저장 시 별도의 지정된 장소에 보관하는가?', '사용하는 화학물질의 위험성 또는 유해성에 대해 정확히 알고 있는가?', '소화기 및 소화전의 작동 및 사용방법을 아는가?', '무거운 물체 운반 시 2인 1조로 작업을 실시하는가?', '올바른 중량물 취급방법에 대해 알고 있는가?', '작업 전·중·후 주기적으로 스트레칭을 하였는가?']
+// 당직 점검표(범용 초안) — 협회 공식 자료 수령 시 교체 (앱 inspection_screen.dart night_duty와 동일 코드·문구)
+const Q_DJ = ['당직실 전기·전열기구(난방기구) 안전 상태 및 문어발식 콘센트 사용 여부', '당직실 및 순찰 구역 소화기 비치·압력게이지 정상 여부', '야간 순찰 경로의 조명 상태 및 미끄러짐·걸려 넘어짐 위험 여부', '교내 출입문·창문 시건(잠금) 상태 확인 여부', '비상연락체계(비상연락망·연락처) 비치 및 숙지 여부', '가스·보일러 등 시설 이상 유무 확인 여부', '우천·강설 시 순찰 구역 위험 구간(빙판·물고임 등) 확인 및 조치 여부', '당직실 환기 및 소방·피난 통로 확보 여부']
 const Q_MI = ['바닥에 작업자가 걸려 넘어질 위험이 있는 장애물은 제거하였는가?', '근로자의 통행에 장해가 없도록 채광 또는 조명시설이 충분한가?', '교차점이나 코너에는 충돌방지용 거울을 설치하였는가?', '다른 사람과 충돌을 방지하기 위해 우측통행을 하는가?', '화장실 타일이 깨지거나 비어있는 부분은 없는가?', '청소 전 화장실 내부에 사람이 있는지 확인하였는가?', '화장실 천정이나 높은 벽 청소 시 사용하는 사다리에 미끄럼방지 조치를 하였는가?', '화장실 세면대나 변기 위에 올라가서 작업을 하지 않는가?', '청소 중에는 "청소 중"을 알리는 표지를 하고 작업하는가?', '청소 후 바닥에 미끄러운 세제나 물기를 깨끗이 제거하는가?', '청소도구를 지정된 위치에 보관하는가?', '자극성 세제를 이용한 청소 시 고무장갑을 착용하는가?', '청소 중에는 미끄럼 방지용 장화를 착용하는가?']
 
 /* 비고가 '값'인 항목 — 지난 점검 값이 채워진 채 시작하고, 추천 보기에서 고를 수 있다 (CARRY_VALUE) */
@@ -22,12 +29,12 @@ const CARRY_VALUE: Record<string, { v: string; opts: string[] }> = {
 }
 
 /* 파트 정의 — 백엔드 Part enum(catering/facility/cleaning/commute/night_duty) 매핑 */
-type PartApi = 'catering' | 'facility' | 'cleaning' | 'commute' | 'night_duty'
+type PartApi = 'catering' | 'facility' | 'cleaning' | 'commute' | 'night_duty' / 'sanitation_workers'
 type PartDef = { key: PartApi; label: string; name: string; q: string[] | null }
 // 실물 양식 보기(InspectionSheetView)에서도 표준 문항 전체를 그리는 데 사용 [056]
 export const PARTDEF: PartDef[] = [
   { key: 'catering', label: '급식', name: '급식종사자', q: Q_GS },
-  { key: 'night_duty', label: '당직', name: '당직업무', q: null },
+  { key: 'night_duty', label: '당직', name: '당직업무', q: Q_DJ },
   { key: 'commute', label: '통학', name: '통학보조', q: Q_TH },
   { key: 'facility', label: '시설', name: '시설관리', q: Q_SI },
   { key: 'cleaning', label: '미화', name: '미화원', q: Q_MI },
@@ -78,22 +85,15 @@ type Ledger = {
 }
 type ApprovalStep = { title: string; name: string }
 type PrevItem = { code: string; remark: string; result: string | null }
-type PrevInsp = { id?: string; part: string; status?: string; items: PrevItem[] }
+type PrevSig = { signer: string; signed_at?: string | null; image_ref?: string | null }
+type PrevInsp = {
+  id?: string; part: string; status?: string; items: PrevItem[]
+  signatures?: PrevSig[]; submitted_at?: string | null; signed_at?: string | null
+}
 // 이어서 작성(resume): 저장된 결과값 → 폼 답변 역매핑 (구 시드 ok/fix 값도 방어적으로 수용)
 const RES_INV: Record<string, Ans> = { good: '양호', poor: '미흡', na: '해당없음', ok: '양호', fix: '미흡' }
 type Ans = '양호' | '미흡' | '해당없음'
 type Slot = { name: string; dataUrl: string; caption: string }
-// 점검표 부가정보 — 기본정보·점검대상·기타의견·사진대지·확인자 (양식 보기용, /ops/docs/inspection-extras) [057]
-export type InspExtra = {
-  ids: string[] // 이 점검표에 포함된 공정별 점검 ID (보기 화면 매칭 키)
-  info: { org: string; dept: string; role: string; writer: string; writeDate: string; inspectDate: string; place: string; accType: string }
-  targets: string[] // 점검대상 체크(공정 key — 당직 등 점검표 없는 공정 포함)
-  etc: string
-  photos: Record<string, Slot[]>
-  signer: string
-  // 현장앱 다중 결재란 — {직책, 서명자, 서명이미지 저장경로}. 백엔드 _persist_approval_lines(/ops/docs/inspection-extras).
-  approval_lines?: { title: string; signer: string; image_ref?: string | null }[]
-}
 type PartStatus = { st: 'idle' | 'run' | 'done' | 'err'; note: string }
 
 const RES_API: Record<Ans, string> = { 양호: 'good', 미흡: 'poor', 해당없음: 'na' }
@@ -131,9 +131,15 @@ export function InspectionForm() {
   const [signerName, setSignerName] = useState('')
   const [signed, setSigned] = useState(false)
   const [followupOn, setFollowupOn] = useState(false)
+  // 수신 데이터(현장앱 제출분) — 이어서 작성/수정 모드에서 표시·보존 [서명·사진 출력 수정]
+  // recvSigs: part key → 주서명(이미지 저장경로 포함), recvLines: 다중 결재란(서명 이미지 포함)
+  const [recvSigs, setRecvSigs] = useState<Record<string, PrevSig[]>>({})
+  const [recvLines, setRecvLines] = useState<NonNullable<InspExtra['approval_lines']>>([])
 
   // 제출 상태
   const [busy, setBusy] = useState(false)
+  // 전남교육청 업로드 진행 팝업(게이지) — 완료 시 자동 사라짐
+  const [prog, setProg] = useState<null | { done: number; total: number; label: string; phase: 'run' | 'done' | 'err'; msg: string }>(null)
   const [draftIds, setDraftIds] = useState<Record<string, string>>({}) // 임시저장으로 생성된 파트별 점검 ID [047]
   const [draftNote, setDraftNote] = useState('')
   const [submitErr, setSubmitErr] = useState('')
@@ -159,6 +165,7 @@ export function InspectionForm() {
   useEffect(() => {
     setLedger(null); setAnswers({}); setRemarks({}); setPhotos({}); setStatuses({})
     setSigned(false); setDoneAll(false); setMailOpen(false); setSubmitErr(''); setPrevVals({}); setLoadErr('')
+    setRecvSigs({}); setRecvLines([])
     if (!sid) return
     let alive = true
     api<Ledger>(`/schools/${sid}/ledger`)
@@ -188,6 +195,38 @@ export function InspectionForm() {
           if (Object.keys(pa).length) setAnswers((p) => ({ ...pa, ...p }))
           if (Object.keys(pr).length) setRemarks((p) => ({ ...pr, ...p }))
         }
+        // [서명·사진 출력 수정] 수신분 프리필 — 기존/제출된 점검표를 열면 앱이 보낸 서명 이미지와
+        // 사진대지·기본정보·결재선을 함께 불러와 표시한다. (기존엔 항목 결과만 프리필되어
+        // '실제 점검표'(작성/수정 화면)에서 서명·사진이 안 보였음.)
+        const loadReceived = (targets: PrevInsp[]) => {
+          // ① 주서명 — GET /inspections 응답의 signatures(image_ref 포함)를 part key별 보관
+          const sigs: Record<string, PrevSig[]> = {}
+          for (const t of targets) if (t.signatures?.length) sigs[t.part] = t.signatures
+          if (Object.keys(sigs).length) setRecvSigs(sigs)
+          // 확인자 성명 프리필 — 서명 기록이 있으면 서명 완료 상태로 표시(재서명 가능)
+          const firstSigner = targets.flatMap((t) => t.signatures ?? []).map((s) => s.signer).find(Boolean)
+          if (firstSigner) { setSignerName((v) => v || firstSigner); setSigned(true) }
+          // ② 부가정보 — Inspection.tsx '보기'와 동일한 resolveExtra 폴백 매칭(any-id → 점검일 → 학교 사진 병합)
+          const ids = new Set(targets.map((t) => t.id).filter((x): x is string => !!x))
+          const date = targets
+            .map((t) => String(t.submitted_at || t.signed_at || t.signatures?.[0]?.signed_at || '').slice(0, 10))
+            .find(Boolean) || ''
+          api<{ doc: Record<string, InspExtra[]> }>('/ops/docs/inspection-extras')
+            .then((r) => {
+              if (!alive) return
+              const extra = resolveExtra(r.doc?.[sid], ids, date)
+              if (!extra) return
+              setRecvLines(extra.approval_lines ?? [])
+              // 사진대지 — 앱 사진(라벨 키: 급식/통학/시설/미화/당직 = PARTDEF label과 동일)을 슬롯에 프리필
+              if (extra.photos && Object.keys(extra.photos).length) setPhotos((p) => ({ ...extra.photos, ...p }))
+              if (extra.etc) setEtc((v) => v || extra.etc)
+              if (extra.info?.place) setPlace((v) => v || extra.info.place)
+              if (extra.info?.accType) setAccType((v) => (v === ACC_TYPES[0] ? extra.info.accType : v))
+              if (extra.info?.inspectDate) setInspectDate(extra.info.inspectDate)
+              if (extra.signer) { setSignerName((v) => v || extra.signer); setSigned(true) }
+            })
+            .catch(() => { /* 부가정보 없으면 기본 폼 */ })
+        }
         if (resumeAll) {
           // 점검표 단위 이어서 작성 — 공정별 최신 작성중 점검을 모두 프리필하고 그 점검들에 이어서 기록 [052]
           const latestDraft = new Map<string, PrevInsp>()
@@ -195,6 +234,7 @@ export function InspectionForm() {
           const drafts = [...latestDraft.values()]
           if (drafts.length) {
             prefill(drafts)
+            loadReceived(drafts)
             const ids: Record<string, string> = {}
             for (const dr of drafts) {
               const def = PARTDEF.find((x) => x.key === dr.part)
@@ -208,6 +248,7 @@ export function InspectionForm() {
           const targets = list.filter((x) => x.id && editIds.includes(x.id))
           if (targets.length) {
             prefill(targets)
+            loadReceived(targets)
             const ids: Record<string, string> = {}
             for (const t of targets) {
               const def = PARTDEF.find((x) => x.key === t.part)
@@ -218,7 +259,7 @@ export function InspectionForm() {
           }
         } else if (resumeId) {
           const target = list.find((x) => x.id === resumeId)
-          if (target) prefill([target])
+          if (target) { prefill([target]); loadReceived([target]) }
         }
       })
       .catch(() => {})
@@ -357,6 +398,12 @@ export function InspectionForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schoolMail, schoolName, inspectDate, enabled, tally, etc, approval, photos])
 
+  /* 수신된 주서명 이미지 경로 — 현장앱 제출분의 첫 image_ref (표시 + 메일 PDF) [서명·사진 출력 수정] */
+  const mainRecvSigRef = useMemo(
+    () => Object.values(recvSigs).flat().map((s) => s.image_ref || '').find(Boolean) || '',
+    [recvSigs],
+  )
+
   /* [062] 메일 첨부 PDF용 — 현재 입력 상태를 양식 데이터(SheetData)로 조립 */
   function buildSheet(): SheetData {
     return {
@@ -372,7 +419,10 @@ export function InspectionForm() {
           const remark = exl[i + 1] && answers[code] === undefined ? `자동 해당없음 — ${exl[i + 1]}` : effRemark(code)
           return { code, label: question.split('||')[0], result: a ? RES_API[a] : null, remark }
         }),
-        signatures: signed && signerName.trim() ? [{ signer: signerName.trim(), signed_at: today }] : [],
+        // 수신된 서명(이미지 경로 포함)이 있으면 그대로 — 없으면 웹 입력 서명 [서명·사진 출력 수정]
+        signatures: recvSigs[d.key]?.length
+          ? recvSigs[d.key]
+          : signed && signerName.trim() ? [{ signer: signerName.trim(), signed_at: today }] : [],
       })),
       extra: {
         ids: [],
@@ -384,6 +434,7 @@ export function InspectionForm() {
         etc,
         photos,
         signer: signed ? signerName.trim() : '',
+        approval_lines: recvLines.length ? recvLines : undefined, // 현장앱 결재선 서명 → 메일 PDF에도 출력
       },
     }
   }
@@ -410,6 +461,8 @@ export function InspectionForm() {
         etc,
         photos,
         signer: signed ? signerName.trim() : '',
+        // 현장앱 결재선(서명 이미지 경로) 보존 — 웹에서 재저장해도 수신 서명이 유실되지 않게 [서명·사진 출력 수정]
+        ...(recvLines.length ? { approval_lines: recvLines } : {}),
       }
       const idx = list.findIndex((e) => Array.isArray(e.ids) && e.ids.some((id) => ids.includes(id)))
       if (idx >= 0) list[idx] = entry
@@ -465,17 +518,27 @@ export function InspectionForm() {
 
   async function submitAll() {
     if (!ledger || busy) return
-    if (!activeDefs.length) { setSubmitErr('점검대상 파트가 없습니다. 점검대상을 선택하세요.'); return }
-    if (!signerName.trim() || !signed) { setSubmitErr('확인자(담당자) 성명을 입력하고 서명해 주세요.'); return }
+    if (!activeDefs.length) {
+      setSubmitErr('점검대상 파트가 없습니다. 점검대상을 선택하세요.')
+      setProg({ done: 0, total: 0, label: '', phase: 'err', msg: '점검대상 파트가 없습니다 — 점검대상을 먼저 선택하세요' })
+      return
+    }
+    if (!signerName.trim() || !signed) {
+      setSubmitErr('확인자(담당자) 성명을 입력하고 서명해 주세요.')
+      setProg({ done: 0, total: 0, label: '', phase: 'err', msg: '확인자(담당자) 성명 입력 + 서명 후 업로드하세요' })
+      return
+    }
     setBusy(true)
     setSubmitErr('')
     setDraftNote('')
+    setProg({ done: 0, total: activeDefs.length, label: '', phase: 'run', msg: '전송을 준비합니다…' })
     let okAll = true
     const usedIds: string[] = []
     for (const d of activeDefs) {
       const q = d.q!
       const exl = ex[d.label] || {}
       try {
+        setProg((p) => (p ? { ...p, label: d.name, msg: '점검 생성 · 결과 기록 · 서명' } : p))
         setStatus(d.label, 'run', '점검 생성')
         const items = q.map((question, i) => ({ code: `${d.label}-${i + 1}`, label: question.split('||')[0] }))
         // 이어서 작성/임시저장분이 있으면 그 점검에 이어서 기록, 아니면 새로 생성
@@ -527,13 +590,16 @@ export function InspectionForm() {
         okAll = false
         setStatus(d.label, 'err', e instanceof Error ? e.message : '제출 실패')
       }
+      setProg((p) => (p ? { ...p, done: p.done + 1 } : p))
     }
     await saveExtras(usedIds) // 기타의견·사진대지·확인자 등 부가정보 함께 저장 [057]
     setBusy(false)
     if (okAll) {
+      setProg((p) => (p ? { ...p, phase: 'done', msg: '전남교육청 전송 대기 등록 완료' } : p))
       setDoneAll(true)
-      setMailOpen(true) // 저장 완료 → 학교 메일 전송 창 자동 열기 [062]
+      window.setTimeout(() => { setProg(null); setMailOpen(true) }, 1400) // 완료 잠깐 보여주고 자동 사라짐 → 메일창
     } else {
+      setProg((p) => (p ? { ...p, phase: 'err', msg: '일부 파트 전송 실패 — 상태 확인 후 다시 시도하세요' } : p))
       setSubmitErr('일부 파트 제출에 실패했습니다. 상태를 확인하세요.')
     }
   }
@@ -750,7 +816,8 @@ export function InspectionForm() {
           <i className="insf-sq" /><h3>사진대지</h3>
           <div className="r">사진마다 설명을 적어야 PDF에 함께 출력됩니다 · 인원 ~5명 1컷 · 6~10명 2컷 · 11~15명 3컷 · 공정 관련 추가 가능</div>
         </div>
-        {PARTDEF.filter((d) => enabled[d.label]).map((d) => {
+        {/* 선택 공정 + (앱 수신 등으로) 사진이 실려 있는 공정 — 라벨이 달라도 사진이 숨지 않게 [서명·사진 출력 수정] */}
+        {PARTDEF.filter((d) => enabled[d.label] || (photos[d.label] ?? []).some((s) => s.dataUrl || s.name || s.caption)).map((d) => {
           const n = counts[d.key] ?? 0
           const slots = slotsFor(d.label)
           return (
@@ -811,6 +878,28 @@ export function InspectionForm() {
             </div>
           </label>
         </div>
+        {/* 수신된 서명 — 현장앱이 제출한 손글씨 서명(주서명·결재선)을 그대로 표시 [서명·사진 출력 수정] */}
+        {(mainRecvSigRef || recvLines.length > 0) && (
+          <div style={{ marginTop: 12, borderTop: '1px solid var(--line-2, #eee)', paddingTop: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>수신된 서명 <span style={{ fontWeight: 500, color: 'var(--muted)', fontSize: 12 }}>현장앱 제출분 — 저장 시 그대로 유지됩니다</span></div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-end' }}>
+              {mainRecvSigRef && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                  <SignImage refPath={mainRecvSigRef} />
+                  <span style={{ fontSize: 12, color: 'var(--muted, #888)' }}>확인자(담당자){signerName ? ` · ${signerName}` : ''}</span>
+                </div>
+              )}
+              {recvLines.map((ln, i) => (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                  {ln.image_ref
+                    ? <SignImage refPath={ln.image_ref} />
+                    : <span style={{ fontSize: 12, color: 'var(--muted, #888)' }}>{ln.signer ? '(서명)' : '(미서명)'}</span>}
+                  <span style={{ fontSize: 12, color: 'var(--muted, #888)' }}>{ln.title || ln.signer || '확인자'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* [062] 학교 메일 전송 모달 — 점검표 PDF 자동 첨부 + 학교 이메일 자동 입력 */}
@@ -864,6 +953,51 @@ export function InspectionForm() {
           </button>
         </div>
       </div>
+
+      {prog && (() => {
+        const pct = prog.phase === 'done' ? 100 : Math.round((prog.done / Math.max(1, prog.total)) * 100)
+        const isErr = prog.phase === 'err'
+        const isDone = prog.phase === 'done'
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'grid', placeItems: 'center', background: 'rgba(22,22,42,.34)', backdropFilter: 'blur(2px)' }}>
+            <style>{`@keyframes uplspin{to{transform:rotate(360deg)}}`}</style>
+            <div style={{ width: 400, maxWidth: '90vw', background: 'var(--card,#fff)', borderRadius: 18, boxShadow: '0 24px 64px rgba(22,22,42,.30)', padding: '22px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 15 }}>
+                <span style={{ width: 42, height: 42, borderRadius: 13, display: 'grid', placeItems: 'center', flex: 'none',
+                  background: isErr ? 'var(--red-soft,#fdeced)' : isDone ? 'var(--ok-soft,#e7f6ee)' : 'var(--violet-soft,#efeaff)',
+                  color: isErr ? 'var(--red-ink,#c0392b)' : isDone ? 'var(--ok-ink,#1b7a44)' : 'var(--violet,#7C5CFB)' }}>
+                  {isDone ? (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                  ) : isErr ? (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                  ) : (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" style={{ animation: 'uplspin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.2-8.5" /></svg>
+                  )}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 15.5, color: 'var(--ink,#20232e)' }}>전남교육청 업로드</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted,#7a8090)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {prog.msg}{prog.label && !isDone && !isErr ? ` · ${prog.label}` : ''}
+                  </div>
+                </div>
+                <div style={{ fontWeight: 900, fontSize: 16, color: isErr ? 'var(--red-ink,#c0392b)' : 'var(--violet,#7C5CFB)' }}>{pct}%</div>
+              </div>
+              <div style={{ height: 10, borderRadius: 99, background: 'var(--line,#e7e9f2)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, borderRadius: 99, transition: 'width .35s ease',
+                  background: isErr ? 'var(--red-ink,#c0392b)' : isDone ? 'var(--ok-ink,#1b7a44)' : 'linear-gradient(90deg,#9b83ff,#7C5CFB)' }} />
+              </div>
+              <div style={{ marginTop: 9, fontSize: 12, color: 'var(--muted,#7a8090)' }}>
+                {isDone ? '봇이 곧 전남교육청 SHM System에 전송합니다.' : isErr ? '일부 파트 전송에 실패했습니다.' : `${prog.done} / ${prog.total} 파트 처리 중…`}
+              </div>
+              {isErr && (
+                <div style={{ marginTop: 15, textAlign: 'right' }}>
+                  <button className="btn" onClick={() => setProg(null)}>닫기</button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

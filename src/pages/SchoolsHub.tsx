@@ -2,7 +2,7 @@
 // GET /schools + 담당 학교별 GET /schools/{id}/ledger 요약(종사자수·인원대조 — [060] 담당 한정)을 합쳐
 // 검색/학교급 필터/정렬/CSV/페이지네이션(useTableQuery) + 표·카드 토글을 제공.
 // 행 클릭 → /schools/{id} 상세. 라우팅 배선은 리드 담당.
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Building2, X } from 'lucide-react'
 import { api } from '../lib/api'
@@ -118,12 +118,22 @@ export function SchoolsHub() {
   const [modal, setModal] = useState<'create' | 'bulk' | null>(null)
   const [scope, setScope] = useState<'mine' | 'all'>('all') // 담당 학교 / 전체 학교
   const [scopeInit, setScopeInit] = useState(false)
+  const [myName, setMyName] = useState('')   // 담당 매칭용 이름(학교 manager 는 이름 기준)
+  const [meLoaded, setMeLoaded] = useState(false)
   const [badges, setBadges] = useState<Record<string, WorkBadges>>({})
   const [nameQ, setNameQ] = useState('') // 학교명 입력값 (조회 전)
   const [regionQ, setRegionQ] = useState('') // 지역명 입력값 (조회 전)
   const [mgrQ, setMgrQ] = useState('') // 담당자 입력값 (전체 학교에서만 노출) [043]
   const [applied, setApplied] = useState({ name: '', region: '', manager: '' }) // [조회]로 확정된 검색 조건
   const [levelQ, setLevelQ] = useState('') // 학교급 선택값 (조회 전 — [조회] 클릭 시 반영)
+
+  // 로그인 사용자 이름 — 학교 담당(manager)은 이름 기준이라 담당 매칭에 필요
+  useEffect(() => {
+    api<{ name?: string }>('/auth/me')
+      .then((d) => setMyName(d.name || ''))
+      .catch(() => {})
+      .finally(() => setMeLoaded(true))
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -171,17 +181,21 @@ export function SchoolsHub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reload])
 
-  // 담당 학교 여부 — 점검자(담당 배정 있음)는 '담당'이 기본, 관리자는 '전체'가 기본
+  // 담당 학교 여부 — 학교 담당은 manager(이름) 기준, 예전 배정은 assigned_inspector_id(로그인ID) 기준.
   const myLogin = user?.login ?? ''
-  const mineCount = useMemo(
-    () => rows.filter((r) => r.school.assigned_inspector_id === myLogin).length,
-    [rows, myLogin],
+  const isMine = useCallback(
+    (s: School) =>
+      (!!myName.trim() && (s.manager ?? '').trim() === myName.trim()) ||
+      (!!myLogin && s.assigned_inspector_id === myLogin),
+    [myName, myLogin],
   )
+  const mineCount = useMemo(() => rows.filter((r) => isMine(r.school)).length, [rows, isMine])
+  // 담당 학교가 있으면 기본 '담당', 없으면 '전체'. 이름(/auth/me) 로딩까지 기다린 뒤 결정.
   useEffect(() => {
-    if (scopeInit || loading) return
+    if (scopeInit || loading || !meLoaded) return
     setScope(mineCount > 0 ? 'mine' : 'all')
     setScopeInit(true)
-  }, [loading, mineCount, scopeInit])
+  }, [loading, meLoaded, mineCount, scopeInit])
 
   // 5대 업무 상태 배지 — 학교별 3개 API + 이행점검 조사지 문서 1회 병렬 조회 (실패 시 해당 배지만 생략)
   // 집계 대상은 담당 학교로 한정 (업무 바로가기 컬럼·배너 도넛 모두 담당 기준 — 전체 783교 조회는 과부하)
@@ -189,7 +203,7 @@ export function SchoolsHub() {
     if (rows.length === 0) { setBadges({}); return }
     // [060] 같은 rows 스냅샷이면 캐시 재사용 — 탭 재진입 시 담당 학교 3개 API 재조회 생략
     if (hubBadgeCache && hubBadgeCache.forRows === rows) { setBadges(hubBadgeCache.badges); return }
-    const mine = rows.filter((r) => r.school.assigned_inspector_id === (user?.login ?? ''))
+    const mine = rows.filter((r) => isMine(r.school))
     const target = mine.length > 0 ? mine : rows
     let alive = true
     const now = new Date()
@@ -216,22 +230,25 @@ export function SchoolsHub() {
     })()
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, user?.login])
+  }, [rows, user?.login, myName])
 
   // 학교명·지역명·담당자 검색 — [조회] 버튼(또는 Enter)으로 확정된 조건 기준, 복수 입력 시 AND
   const searchedRows = useMemo(() => {
-    const scoped = scope === 'mine' ? rows.filter((r) => r.school.assigned_inspector_id === myLogin) : rows
     const nq = applied.name.toLowerCase()
     const rq = applied.region.toLowerCase()
     const mq = applied.manager.toLowerCase()
-    if (!nq && !rq && !mq) return scoped
-    return scoped.filter(
+    const hasQuery = !!(nq || rq || mq)
+    // 검색어가 있으면 담당 여부와 무관하게 전체에서 검색(다른 담당자 학교도 노출),
+    // 검색어가 없으면 스코프(담당/전체) 적용 — 기본은 담당 학교만.
+    const base = hasQuery ? rows : scope === 'mine' ? rows.filter((r) => isMine(r.school)) : rows
+    if (!hasQuery) return base
+    return base.filter(
       (r) =>
         (!nq || r.school.name.toLowerCase().includes(nq)) &&
         (!rq || (r.school.address ?? '').toLowerCase().includes(rq)) &&
         (!mq || (r.school.manager ?? '').toLowerCase().includes(mq)),
     )
-  }, [rows, applied, scope, myLogin])
+  }, [rows, applied, scope, isMine])
 
   const q = useTableQuery(searchedRows, {
     filters: HUB_FILTERS,
@@ -250,14 +267,14 @@ export function SchoolsHub() {
   // 축약 배너용 — 현재 스코프의 안전점검 미방문(이번 달 미실시) 수. 배지 로드 전엔 null
   const inspUnvisited = useMemo(() => {
     if (Object.keys(badges).length === 0) return null
-    const scoped = scope === 'mine' ? rows.filter((r) => r.school.assigned_inspector_id === myLogin) : rows
+    const scoped = scope === 'mine' ? rows.filter((r) => isMine(r.school)) : rows
     return scoped.filter((r) => badges[r.school.id] && badges[r.school.id].insp.cls !== 'ok').length
-  }, [rows, badges, scope, myLogin])
+  }, [rows, badges, scope, isMine])
 
   // 배너 도넛용 — 담당 학교 기준 업무별 완료 수 (담당 배정 없으면 전체 학교 기준)
   const workStats = useMemo<WorkStats | null>(() => {
     if (Object.keys(badges).length === 0) return null
-    const mineRows = rows.filter((r) => r.school.assigned_inspector_id === myLogin)
+    const mineRows = rows.filter((r) => isMine(r.school))
     const base = mineRows.length > 0 ? mineRows : rows
     const count = (f: (id: string) => boolean) => base.filter((r) => f(r.school.id)).length
     return {
@@ -268,7 +285,7 @@ export function SchoolsHub() {
       mus: count((id) => badges[id]?.mus.cls === 'ok'),
       comp: count((id) => badges[id]?.comp.cls === 'ok'),
     }
-  }, [rows, badges, myLogin])
+  }, [rows, badges, isMine])
 
   return (
     <div className="page rv">

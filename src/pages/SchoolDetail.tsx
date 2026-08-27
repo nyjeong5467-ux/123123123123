@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
@@ -28,6 +28,9 @@ type FullSchool = {
   inspection_agency?: string
 }
 type WRow = { part: string; count: number; contact: string; is_nutrition_teacher: boolean }
+
+// 메일 담당자(학교별 수신자 기본값) — GET·PUT /mail/school-contacts (학교 1건 병합 저장)
+type SchoolContact = { email: string; name?: string; phone?: string }
 
 type ApprovalStep = { title: string; name: string }
 const PRESET_DEFAULT: ApprovalStep[] = [{ title: '담당자', name: '' }, { title: '행정실장', name: '' }, { title: '교장', name: '' }]
@@ -90,9 +93,22 @@ function parseManagerCsv(text: string): ManagerRow[] {
     .filter((r) => r.name && !/^(start|시작|시작일)$/i.test(r.start))
 }
 
+// 페이지 내 섹션 바로가기 — 앵커 칩 & 해시(#sd-...) 스크롤 대상
+const SD_SECTIONS: { id: string; label: string }[] = [
+  { id: 'sd-info', label: '학교 정보' },
+  { id: 'sd-workers', label: '종사자' },
+  { id: 'sd-approval', label: '결재선' },
+  { id: 'sd-history', label: '담당자 이력' },
+  { id: 'sd-works', label: '업무 이력' },
+]
+function scrollToSection(sid: string) {
+  document.getElementById(sid)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 export function SchoolDetail() {
   const { id } = useParams()
   const nav = useNavigate()
+  const loc = useLocation()
   const [data, setData] = useState<Ledger | null>(null)
   const [reveal, setReveal] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -117,6 +133,11 @@ export function SchoolDetail() {
   const [notes, setNotes] = useState<FreeNote[]>([])
   const [noteDate, setNoteDate] = useState('')
   const [noteText, setNoteText] = useState('')
+
+  // 메일 담당자(담당자 이메일·이름·전화) — /mail/school-contacts
+  const [contact, setContact] = useState<SchoolContact>({ email: '', name: '', phone: '' })
+  const [ctBusy, setCtBusy] = useState(false)
+  const [ctMsg, setCtMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   // 담당자 이력
   const [mgrRows, setMgrRows] = useState<ManagerRow[]>([])
@@ -167,6 +188,20 @@ export function SchoolDetail() {
     api<{ items: FreeNote[] }>(`/schools/${id}/notes`)
       .then((d) => { if (alive) setNotes(Array.isArray(d.items) ? d.items : []) })
       .catch(() => { if (alive) setNotes([]) })
+    return () => { alive = false }
+  }, [id])
+
+  // 메일 담당자 로드 — 전체 contacts에서 이 학교 항목만
+  useEffect(() => {
+    let alive = true
+    setCtMsg(null)
+    api<{ contacts: Record<string, SchoolContact> }>('/mail/school-contacts')
+      .then((d) => {
+        if (!alive) return
+        const c = d.contacts?.[id || '']
+        setContact({ email: c?.email ?? '', name: c?.name ?? '', phone: c?.phone ?? '' })
+      })
+      .catch(() => { if (alive) setContact({ email: '', name: '', phone: '' }) })
     return () => { alive = false }
   }, [id])
 
@@ -252,6 +287,15 @@ export function SchoolDetail() {
     return () => { alive = false }
   }, [id])
 
+  // 해시(#sd-info 등)로 진입하면 데이터 로드 후 해당 섹션으로 부드럽게 스크롤 [feat#5]
+  useEffect(() => {
+    if (loading) return
+    const sid = loc.hash.replace(/^#/, '')
+    if (!sid) return
+    const t = window.setTimeout(() => scrollToSection(sid), 60) // 렌더 완료 후 실행
+    return () => window.clearTimeout(t)
+  }, [loc.hash, loading])
+
   function toggleFeat(k: string) {
     setFeat((prev) => {
       const next = { ...prev, [k]: !prev[k] }
@@ -274,6 +318,33 @@ export function SchoolDetail() {
     saveNotes([...notes, { date: noteDate || new Date().toISOString().slice(0, 10), text: noteText.trim() }])
     setNoteDate('')
     setNoteText('')
+  }
+
+  // 메일 담당자 저장 — 학교 1건 병합(PUT), 성공 시 저장됨 표시
+  async function saveContact() {
+    if (!contact.email.trim()) {
+      setCtMsg({ ok: false, text: '담당자 이메일을 입력하세요.' })
+      return
+    }
+    setCtBusy(true)
+    setCtMsg(null)
+    try {
+      await api('/mail/school-contacts', {
+        method: 'PUT',
+        body: JSON.stringify({
+          school_id: id,
+          email: contact.email.trim(),
+          name: contact.name ?? '',
+          phone: contact.phone ?? '',
+        }),
+      })
+      setCtMsg({ ok: true, text: '담당자 연락처를 저장했습니다.' })
+      window.setTimeout(() => setCtMsg(null), 4000)
+    } catch (e) {
+      setCtMsg({ ok: false, text: e instanceof Error ? e.message : '저장 실패' })
+    } finally {
+      setCtBusy(false)
+    }
   }
 
   async function putManagerHistory(rows: ManagerRow[]): Promise<boolean> {
@@ -412,7 +483,7 @@ export function SchoolDetail() {
   const s = data.school
   return (
     <div className="page rv">
-      <div className="breadcrumb"><Link to="/">이력관리 대장</Link> / <b>{s.name}</b></div>
+      <div className="breadcrumb"><Link to="/schools">학교</Link> / <b>{s.name}</b></div>
       <div className="bar">
         <h2>{s.name}</h2>
         <span className={'pillx ' + (s.is_private ? 'doing' : 'ok')}>{s.is_private ? '사립' : '국공립'}</span>
@@ -429,8 +500,23 @@ export function SchoolDetail() {
         <Link to="/schools" className="pill"><ChevronLeft size={15} /> 학교 목록으로</Link>
       </div>
 
+      {/* ===== 섹션 바로가기(앵커 칩) — '학교 정보 섹션으로 바로' 등 [feat#5] ===== */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '0 0 20px' }}>
+        {SD_SECTIONS.map((sec) => (
+          <button
+            key={sec.id}
+            type="button"
+            className="pill"
+            style={{ cursor: 'pointer', height: 32 }}
+            onClick={() => scrollToSection(sec.id)}
+          >
+            {sec.label}
+          </button>
+        ))}
+      </div>
+
       {/* ===== 학교 정보 — 보기: 요약 그리드 · 편집: 인라인 입력 [037] ===== */}
-      <div className="ledger" style={{ marginBottom: 24 }}>
+      <div className="ledger" id="sd-info" style={{ marginBottom: 24 }}>
         <div className="lh">
           <h2>학교 정보</h2>
           <div className="sp" />
@@ -470,13 +556,44 @@ export function SchoolDetail() {
               <div className="kv"><b>안전점검기관</b><span>{info?.inspection_agency || '—'}</span></div>
               <div className="kv"><b>교육생 수</b><span>{(info?.education_count ?? s.education_count) != null ? `${info?.education_count ?? s.education_count}명` : '—'}</span></div>
               <div className="kv"><b>이메일</b><span>{info?.email || '—'}</span></div>
-              <div className="kv"><b>주소</b><span>{info?.address || s.address || '—'}</span></div>
+              <div className="kv shub-info-wide"><b>주소</b><span style={{ whiteSpace: 'normal', wordBreak: 'keep-all' }}>{info?.address || s.address || '—'}</span></div>
             </div>
           )}
+
+          {/* 담당자 이메일(메일 수신자 기본값) — /mail/school-contacts, 메일 쓰기·앱 발송 프리필 */}
+          <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+              <b style={{ fontSize: 13.5 }}>담당자 이메일 (업무 메일 수신자)</b>
+              <span className="muted" style={{ fontSize: 11.5 }}>메일 쓰기·현장앱 발송 시 받는 사람으로 자동 입력됩니다</span>
+            </div>
+            <div className="formrow">
+              <label className="field" style={{ minWidth: 240 }}>
+                <span>담당자 이메일</span>
+                <input className="input" value={contact.email} placeholder="school@example.kr"
+                  onChange={(e) => setContact({ ...contact, email: e.target.value })} />
+              </label>
+              <label className="field" style={{ minWidth: 140 }}>
+                <span>담당자 이름</span>
+                <input className="input" value={contact.name ?? ''} placeholder="홍길동"
+                  onChange={(e) => setContact({ ...contact, name: e.target.value })} />
+              </label>
+              <label className="field" style={{ minWidth: 160 }}>
+                <span>담당자 전화</span>
+                <input className="input" value={contact.phone ?? ''} placeholder="010-0000-0000"
+                  onChange={(e) => setContact({ ...contact, phone: e.target.value })} />
+              </label>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+                <button className="btn btn-ghost" onClick={() => void saveContact()} disabled={ctBusy}>
+                  {ctBusy ? '저장 중…' : '담당자 저장'}
+                </button>
+                {ctMsg && <span className={'pillx ' + (ctMsg.ok ? 'ok' : 'late')} style={{ marginBottom: 6 }}>{ctMsg.text}</span>}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="ledger" style={{ marginBottom: 24 }}>
+      <div className="ledger" id="sd-workers" style={{ marginBottom: 24 }}>
         <div className="lh">
           <h2>현업종사자</h2>
           <div className="sp" />
@@ -590,7 +707,7 @@ export function SchoolDetail() {
         </div>
       </div>
 
-      <div className="ledger" style={{ marginBottom: 24 }}>
+      <div className="ledger" id="sd-approval" style={{ marginBottom: 24 }}>
         <div className="lh">
           <h2>결재선</h2>
           <div className="sp" />
@@ -653,7 +770,7 @@ export function SchoolDetail() {
         </div>
       </div>
 
-      <div className="ledger" style={{ marginTop: 24 }}>
+      <div className="ledger" id="sd-history" style={{ marginTop: 24 }}>
         <div className="lh">
           <h2>담당자 이력</h2>
           <span className="pillx na">{mgrRows.length}건</span>
@@ -687,7 +804,7 @@ export function SchoolDetail() {
         </div>
       </div>
 
-      <div className="grid2" style={{ marginTop: 24 }}>
+      <div className="grid2" id="sd-works" style={{ marginTop: 24 }}>
         <div className="ledger">
           <div className="lh"><h2>5대 업무 진행이력</h2><div className="sp" /><span className="pillx doing">실데이터 연동</span></div>
           <div className="card-body shub-works">

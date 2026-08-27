@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { ShieldCheck } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 
+// 단일 기관(한국산업안전협회) 운영 — 테넌트는 내부 고정값(사용자에게 노출/입력 불필요).
+const TENANT_ID = 't_demo'
+
 export function Login() {
   const { login } = useAuth()
   const nav = useNavigate()
-  const [tenant, setTenant] = useState('t_demo')
-  const [id, setId] = useState('admin')
-  const [pw, setPw] = useState('pw')
+  const [id, setId] = useState('')
+  const [pw, setPw] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -17,7 +19,7 @@ export function Login() {
     setErr('')
     setBusy(true)
     try {
-      await login(tenant, id, pw)
+      await login(TENANT_ID, id, pw)
       nav('/')
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : '로그인 실패')
@@ -39,20 +41,15 @@ export function Login() {
         <h1 className="login-h">로그인</h1>
         <p className="login-sub">본사 관리자 계정으로 로그인하세요.</p>
         <label className="login-f">
-          <span>테넌트</span>
-          <input value={tenant} onChange={(e) => setTenant(e.target.value)} autoComplete="off" />
-        </label>
-        <label className="login-f">
           <span>아이디</span>
-          <input value={id} onChange={(e) => setId(e.target.value)} autoComplete="username" />
+          <input value={id} onChange={(e) => setId(e.target.value)} autoComplete="username" placeholder="아이디" />
         </label>
         <label className="login-f">
           <span>비밀번호</span>
-          <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" />
+          <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" placeholder="비밀번호" />
         </label>
         {err && <div className="login-err">{err}</div>}
         <button className="login-btn" disabled={busy}>{busy ? '확인 중…' : '로그인'}</button>
-        <div className="login-hint">데모 계정 · t_demo / admin / pw</div>
       </form>
     </div>
   )

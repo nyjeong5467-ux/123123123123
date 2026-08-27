@@ -3,10 +3,12 @@
 // 공단 엑셀 열 매핑 + CSV·개선계획서·백엔드 제출(musculo API 재사용, 미지원분 localStorage 파사드).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Activity, Camera, Download, Plus, Printer, Save, Upload, X } from 'lucide-react'
-import { api } from '../lib/api'
+import { Activity, Camera, Download, FileSpreadsheet, Plus, Printer, Save, Upload, X } from 'lucide-react'
+import { api, getToken } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
 import { MusculoReportPrint } from '../components/MusculoReportPrint' // [105] 보고서 인쇄
+import { SymptomStatsView } from '../features/musculo/SymptomStatsView'
+import { DEFAULT_CUR_THRESH, DEFAULT_PREV_THRESH, PARTS as STAT_PARTS, type PartKey, type Worker as StatWorker } from '../features/musculo/symptomStats'
 import '../styles/musculoreport.css'
 
 /* ===================== 프로토타입 도메인 데이터 (문구 그대로) ===================== */
@@ -91,6 +93,7 @@ type Person = {
   detail: string[] | null
   form?: PersonForm
   omrFile?: string
+  omrB64?: string // 스캔 원본 base64 — 제출 시 서버 OMR 인식(sheets/omr)에 사용
 }
 
 const ST: Record<PStat, [string, string]> = {
@@ -298,6 +301,10 @@ export function MusculoReport() {
   const [submitting, setSubmitting] = useState(false)
   const [subLog, setSubLog] = useState<string[]>([])
 
+  // 5단계 공단 원본양식(.xlsx) 다운로드 — 판정·통계 자동 계산본 (구 증상조사표 엑셀 페이지 기능 이관)
+  const [xlsxBusy, setXlsxBusy] = useState(false)
+  const [xlsxMsg, setXlsxMsg] = useState('')
+
   /* ---- 학교 목록 ---- */
   useEffect(() => {
     let alive = true
@@ -342,7 +349,9 @@ export function MusculoReport() {
     const meta: Record<string, Shot[]> = {}
     // [106] 축소 JPEG dataURL까지 초안에 보존 — 새로고침 후에도 사진이 화면·보고서 인쇄에 유지됨
     for (const [k, list] of Object.entries(shots)) meta[k] = list.map((s) => ({ name: s.name, cap: s.cap, url: s.url }))
-    return { parts, chk, ab, hz, caps, shots: meta, cutN, roster, plan, surveyId, date }
+    // omrB64(스캔 원본)는 용량이 커 초안에서 제외 — 파일명 메타(omrFile)만 보존
+    const slim = roster.map(({ omrB64: _omit, ...p }) => p)
+    return { parts, chk, ab, hz, caps, shots: meta, cutN, roster: slim, plan, surveyId, date }
   }
 
   useEffect(() => {
@@ -519,21 +528,50 @@ export function MusculoReport() {
     setRoster((rs) => rs.map((p, i) => (i === formIdx ? { ...p, ...patch } : p)))
   }
 
-  function omrUploadAll(files: FileList | null) {
-    if (!files || !files.length) return
-    const add: Person[] = Array.from(files).map((f) => ({
-      n: f.name.replace(/\.[^.]+$/, ''), a: 0, g: '—', d: '종이 제출', via: 'omr', st: 'review',
-      res: null, detail: null, omrFile: f.name,
-    }))
-    setRoster((rs) => [...rs, ...add])
-    setToolMsg(`종이 스캔 ${add.length}건 업로드 — OMR 인식 검수 대기로 등록되었습니다 (제출 시 검수 큐로 전송).`)
+  // 스캔 파일 → base64 (10MB 제한, 초과·실패 시 undefined = 파일명 메타만 전송)
+  async function fileB64(f: File): Promise<string | undefined> {
+    if (f.size > 10 * 1024 * 1024) return undefined
+    try {
+      const url = await new Promise<string>((res, rej) => {
+        const r = new FileReader()
+        r.onload = () => res(String(r.result))
+        r.onerror = () => rej(r.error)
+        r.readAsDataURL(f)
+      })
+      return url.split(',')[1]
+    } catch { return undefined }
   }
 
-  function omrUploadFor(i: number, files: FileList | null) {
+  async function omrUploadAll(files: FileList | null) {
+    if (!files || !files.length) return
+    const add: Person[] = await Promise.all(Array.from(files).map(async (f) => ({
+      n: f.name.replace(/\.[^.]+$/, ''), a: 0, g: '—', d: '종이 제출', via: 'omr' as Via, st: 'review' as PStat,
+      res: null, detail: null, omrFile: f.name, omrB64: await fileB64(f),
+    })))
+    setRoster((rs) => [...rs, ...add])
+    setToolMsg(`종이 스캔 ${add.length}건 업로드 — 제출 시 서버 OMR 인식 후 검수/자동확정됩니다.`)
+  }
+
+  async function omrUploadFor(i: number, files: FileList | null) {
     if (!files || !files.length) return
     const f = files[0]
-    setRoster((rs) => rs.map((p, j) => (j === i ? { ...p, via: 'omr', st: 'review', omrFile: f.name } : p)))
-    setToolMsg(`${roster[i]?.n} 종이 스캔 업로드 — OMR 인식 검수 대기 (파일명 메타만 전송됩니다).`)
+    const b64 = await fileB64(f)
+    setRoster((rs) => rs.map((p, j) => (j === i ? { ...p, via: 'omr', st: 'review', omrFile: f.name, omrB64: b64 } : p)))
+    setToolMsg(`${roster[i]?.n} 종이 스캔 업로드 — 제출 시 서버 OMR 인식 후 검수/자동확정됩니다.`)
+  }
+
+  // 인쇄용 OMR 백지 양식(PNG) — api.ts는 JSON 전용이라 토큰 실어 자체 fetch → 다운로드.
+  async function downloadOmrForm() {
+    try {
+      const res = await fetch('/api/v1/musculo/omr-form', {
+        headers: { Authorization: `Bearer ${getToken()}`, 'ngrok-skip-browser-warning': 'true' },
+      })
+      if (!res.ok) throw new Error(String(res.status))
+      const u = URL.createObjectURL(await res.blob())
+      const a = document.createElement('a')
+      a.href = u; a.download = 'musculo_omr_form.png'; a.click()
+      URL.revokeObjectURL(u)
+    } catch { setToolMsg('OMR 양식 다운로드 실패 — 로그인 상태를 확인하세요.') }
   }
 
   const done = roster.filter((p) => p.st === 'done').length
@@ -542,6 +580,29 @@ export function MusculoReport() {
   const omrN = roster.filter((p) => p.via === 'omr').length
   const painN = roster.filter((p) => overall(p.res) === '통증호소자').length
   const mgmtN = roster.filter((p) => overall(p.res) === '관리대상자').length
+
+  // 증상조사표 통계 뷰 입력 — roster(Person) → 통계 엔진 Worker[]로 변환.
+  //  · 부위 라벨(BODY)과 통계 엔진 부위(STAT_PARTS)는 인덱스로 정렬(라벨 표기 미세 차이 무시).
+  //  · 통증 있음(pain===2)인 응답만 부위별 통증기간(q2)·강도(q3)·빈도(q4)를 매핑 — 미리보기 판정과 동일.
+  const statWorkers = useMemo<StatWorker[]>(() => roster.map((p, i) => {
+    const parts: Partial<Record<PartKey, { duration?: number; intensity?: number; frequency?: number }>> = {}
+    const src = p.form && p.form.pain === 2 ? p.form.parts : undefined
+    if (src) {
+      BODY.forEach((label, j) => {
+        const a = src[label]
+        const key = STAT_PARTS[j]?.key
+        if (a && key) parts[key] = { duration: a.q2 || undefined, intensity: a.q3 || undefined, frequency: a.q4 || undefined }
+      })
+    }
+    return {
+      id: `r-${i}`,
+      name: p.n,
+      age: Number(p.a) || undefined,
+      sex: p.g === '남' ? 1 : p.g === '여' ? 2 : undefined,
+      dept: p.d,
+      parts,
+    }
+  }), [roster])
 
   /* ---- 5. 공단 엑셀 CSV ---- */
   function exportCsv() {
@@ -562,6 +623,40 @@ export function MusculoReport() {
         return [p.n, p.a, p.g === '남' ? 1 : 2, p.d, ...marks, ...per, overall(per) || '정상']
       })
     downloadCsv(`안전보건공단_증상조사표_${schoolName}`, headers, rows)
+  }
+
+  // 원본 공단 양식(.xlsx) 내려받기 — 판정·통계 자동 계산본. 구 「증상조사표 엑셀」 페이지의 downloadExcel 이관.
+  // api.ts는 JSON 전용이라 바이너리는 토큰 실어 직접 fetch → blob 다운로드. 4단계 응답에서 만든 statWorkers 사용.
+  async function downloadKoshaXlsx() {
+    if (!sid || xlsxBusy) return
+    setXlsxBusy(true); setXlsxMsg('')
+    const schoolNm = schools.find((s) => s.id === sid)?.name || ''
+    try {
+      const res = await fetch('/api/v1/musculo/symptom-export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({
+          school_name: schoolNm, workers: statWorkers,
+          cur_thresh: DEFAULT_CUR_THRESH, prev_thresh: DEFAULT_PREV_THRESH,
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `${schoolNm || '근골격계'}_증상조사표_공단양식.xlsx`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
+      setXlsxMsg('공단 원본양식(xlsx)을 내려받았습니다 — 열면 판정·통계가 자동 계산됩니다.')
+    } catch (e) {
+      setXlsxMsg(e instanceof Error ? '공단 양식 내보내기 실패: ' + e.message : '공단 양식 내보내기 실패')
+    } finally {
+      setXlsxBusy(false)
+    }
   }
 
   /* ---- 6. 개선계획서 ---- */
@@ -639,14 +734,26 @@ export function MusculoReport() {
           })
           push(`✓ 증상조사표 ${person.n} — ${r.review_status === 'auto' ? '자동 확정' : r.review_status}`)
         } else if (person.st === 'review') {
-          await api(`/musculo/${mid}/sheets`, {
-            method: 'POST',
-            body: JSON.stringify({
-              person_name: person.n, image_ref: person.omrFile || '',
-              marks: Array(MARKS_LEN).fill(null), confidence: 0.5,
-            }),
-          })
-          push(`✓ 증상조사표(종이 OMR) ${person.n} — 검수 대기 큐 등록`)
+          if (person.omrB64) {
+            // 스캔 원본이 있으면 서버 OMR 인식(피듀셜 정합+채움비율) → 자동확정/검수
+            const r = await api<{ review_status: string; needs_review: boolean; confidence: number }>(
+              `/musculo/${mid}/sheets/omr`, {
+                method: 'POST',
+                body: JSON.stringify({ person_name: person.n, image_b64: person.omrB64 }),
+              })
+            push(r.review_status === 'auto'
+              ? `✓ 증상조사표(OMR 인식) ${person.n} — 자동 확정 (신뢰도 ${Math.round(r.confidence * 100)}%)`
+              : `✓ 증상조사표(OMR 인식) ${person.n} — 검수 대기 큐 등록`)
+          } else {
+            await api(`/musculo/${mid}/sheets`, {
+              method: 'POST',
+              body: JSON.stringify({
+                person_name: person.n, image_ref: person.omrFile || '',
+                marks: Array(MARKS_LEN).fill(null), confidence: 0.5,
+              }),
+            })
+            push(`✓ 증상조사표(종이 OMR) ${person.n} — 검수 대기 큐 등록`)
+          }
         }
       }
 
@@ -1076,13 +1183,26 @@ export function MusculoReport() {
       <div className="mur-sec" id="mur-s5" style={{ display: step === 5 ? undefined : 'none' }}>
         <div className="mur-ch">
           <span className="num">5</span><h3>공단 엑셀 미리보기 — 기본사항 · 판정 결과</h3>
-          <div className="r">
+          <div className="r" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             4단계 응답으로 자동 생성 — 별도 작성 없음
             <button className="btn btn-primary" style={{ height: 34, fontSize: 12, marginLeft: 10 }} onClick={exportCsv}>
               <Download size={14} /> 안전보건공단 엑셀 내보내기
             </button>
+            <button className="btn" style={{ height: 34, fontSize: 12, fontWeight: 800, background: 'var(--ok-soft, #e7f6ee)', color: 'var(--ok-ink, #1b7a44)' }}
+              onClick={() => void downloadKoshaXlsx()} disabled={xlsxBusy || statWorkers.length === 0}
+              title="공단 원본 양식(.xlsx)에 채워 내려받기 — 열면 판정·통계가 자동 계산됩니다">
+              <FileSpreadsheet size={14} /> {xlsxBusy ? '내보내는 중…' : '공단 원본양식(xlsx) 다운로드'}
+            </button>
+            {xlsxMsg && <span style={{ fontSize: 12, fontWeight: 700, color: xlsxMsg.includes('실패') ? 'var(--red-ink)' : 'var(--ok-ink)' }}>{xlsxMsg}</span>}
           </div>
         </div>
+
+        {/* 증상조사표 통계 — 공단 엑셀 제출 전 집계 확인 (업무 순서: 증상조사표 → 통계 → 공단 엑셀) */}
+        <div className="mur-ch" style={{ marginTop: 4 }}>
+          <h3 style={{ fontSize: 15 }}>증상조사표 통계</h3>
+          <div className="r">4단계 증상조사표 응답 집계 — KOSHA 기준 통증호소자·관리대상자 분포</div>
+        </div>
+        <SymptomStatsView workers={statWorkers} />
 
         {/* [100] 공단 엑셀과 같은 배치의 자동 미리보기 (읽기 전용) — 판정은 공단 엑셀 수식과 동일 기준의 앱 계산 */}
         <div className="twrap" style={{ marginBottom: 14 }}>
@@ -1253,8 +1373,11 @@ export function MusculoReport() {
                   <Upload size={12} /> 종이 스캔 업로드 (OMR)
                 </label>
                 <input id="mur-omr-modal" type="file" accept="image/*,.pdf" style={{ display: 'none' }}
-                  onChange={(e) => { omrUploadFor(formIdx, e.target.files); e.target.value = '' }} />
-                <span className="mur-note" style={{ margin: 0 }}>종이로 받은 경우 스캔본을 올리면 OMR로 값을 추출해 검수 대기로 등록됩니다.</span>
+                  onChange={(e) => { void omrUploadFor(formIdx, e.target.files); e.target.value = '' }} />
+                <button type="button" className="mur-btn-sm" onClick={() => void downloadOmrForm()}>
+                  <Download size={12} /> OMR 인쇄 양식
+                </button>
+                <span className="mur-note" style={{ margin: 0 }}>종이로 받은 경우 스캔본을 올리면 제출 시 서버 OMR이 값을 인식해 자동확정/검수 대기로 등록됩니다.</span>
               </div>
             )}
 

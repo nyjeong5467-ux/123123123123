@@ -1,8 +1,8 @@
 // 계정 관리(본사 관리자 전용) — 계정 목록·생성·역할/모듈 권한 부여·비밀번호 재설정.
 // 모듈 권한: 비면 전체 허용, 지정하면 해당 모듈 메뉴만 사이드바에 표시(재로그인/새로고침 시 반영).
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Check, KeyRound, Plus, Users } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Check, KeyRound, Pencil, Plus, ScrollText, Trash2, UserMinus, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
 
@@ -13,6 +13,9 @@ type Account = {
   role: string
   modules: string[]
 }
+// 직원 등록 정보 — 스키마 변경 없이 org_docs 'staff-registry'(로그인ID→정보)에 저장.
+// 소속은 점검표/발행처 자동채움·교육청 계정(소속별) 선택의 기준이 된다.
+type StaffInfo = { affiliation?: string; department?: string; phone?: string }
 
 const ROLES: { value: string; label: string }[] = [
   { value: 'hq_admin', label: '본사 관리자' },
@@ -37,18 +40,20 @@ const MODULES: { key: string; label: string; group: string }[] = [
   { key: 'ops', label: '종합관리', group: '본사' },
   { key: 'billing', label: '세금계산서', group: '본사' },
   { key: 'resources', label: '자료실', group: '본사' },
-  { key: 'sessions', label: '세션코드', group: '본사' },
+  { key: 'sessions', label: '세션코드', group: '업무' },
 ]
 const MODULE_LABEL = Object.fromEntries(MODULES.map((m) => [m.key, m.label]))
 
 // embedded: 경영 콘솔(계정·권한 탭) 임베드용 — 페이지 헤더만 숨기고 본문(생성 버튼 포함) 동일.
 export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
+  const nav = useNavigate()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [staffReg, setStaffReg] = useState<Record<string, StaffInfo>>({}) // 직원 등록 정보(로그인ID→소속·부서·연락처)
 
   // 신규 계정 모달
   const [createOpen, setCreateOpen] = useState(false)
@@ -56,7 +61,19 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
   const [nName, setNName] = useState('')
   const [nPw, setNPw] = useState('')
   const [nRole, setNRole] = useState('field_inspector')
+  const [nAff, setNAff] = useState('')
+  const [nDept, setNDept] = useState('')
+  const [nPhone, setNPhone] = useState('')
   const [nErr, setNErr] = useState('')
+
+  // 계정 편집(아이디·이름·소속) 모달
+  const [editTarget, setEditTarget] = useState<Account | null>(null)
+  const [eLogin, setELogin] = useState('')
+  const [eName, setEName] = useState('')
+  const [eAff, setEAff] = useState('')
+  const [eDept, setEDept] = useState('')
+  const [ePhone, setEPhone] = useState('')
+  const [eErr, setEErr] = useState('')
 
   // 모듈 권한 편집 모달
   const [modTarget, setModTarget] = useState<Account | null>(null)
@@ -67,12 +84,26 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
   const [pwNew, setPwNew] = useState('')
   const [pwErr, setPwErr] = useState('')
 
+  // 계정 삭제 확인 모달
+  const [delTarget, setDelTarget] = useState<Account | null>(null)
+  const [delErr, setDelErr] = useState('')
+
+  // 퇴사 처리(담당 이전 + 계정 삭제) 모달
+  const [offOpen, setOffOpen] = useState(false)
+  const [offFrom, setOffFrom] = useState('')      // 퇴사자 계정 id
+  const [offTo, setOffTo] = useState('')          // 인수자 계정 id
+  const [offDelete, setOffDelete] = useState(true)
+  const [offCounts, setOffCounts] = useState<Record<string, number>>({}) // 담당자명 → 학교수
+  const [offErr, setOffErr] = useState('')
+
   useEffect(() => {
     let alive = true
     setLoading(true)
     api<Account[]>('/users')
       .then((d) => { if (alive) { setAccounts(Array.isArray(d) ? d : []); setLoading(false) } })
       .catch((e) => { if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) } })
+    api<{ doc: Record<string, StaffInfo> | null }>('/ops/docs/staff-registry')
+      .then((d) => { if (alive) setStaffReg(d.doc || {}) }).catch(() => {})
     return () => { alive = false }
   }, [reload])
 
@@ -82,6 +113,18 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
     limited: accounts.filter((a) => a.modules.length > 0).length,
   }), [accounts])
 
+  // 소속 입력 자동완성 후보(기존 등록 소속에서 수집)
+  const affSuggestions = useMemo(
+    () => Array.from(new Set(Object.values(staffReg).map((s) => (s.affiliation || '').trim()).filter(Boolean))),
+    [staffReg],
+  )
+
+  // 직원 등록 정보 저장(org_docs) — 스키마 변경 없이 로그인ID 기준 병합 저장
+  async function saveStaffReg(next: Record<string, StaffInfo>) {
+    setStaffReg(next)
+    try { await api('/ops/docs/staff-registry', { method: 'PUT', body: JSON.stringify({ doc: next }) }) } catch { /* 무시 — 세션 상태 유지 */ }
+  }
+
   async function changeRole(a: Account, role: string) {
     setBusy(a.id)
     setMsg(null)
@@ -90,6 +133,40 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
       setReload((n) => n + 1)
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : '역할 변경 실패' })
+    } finally {
+      setBusy('')
+    }
+  }
+
+  function openEdit(a: Account) {
+    setEErr('')
+    setELogin(a.login_id)
+    setEName(a.name || '')
+    const si = staffReg[a.login_id] || {}
+    setEAff(si.affiliation || ''); setEDept(si.department || ''); setEPhone(si.phone || '')
+    setEditTarget(a)
+  }
+
+  async function saveEdit() {
+    if (!editTarget) return
+    setEErr('')
+    if (!eLogin.trim()) { setEErr('로그인 ID를 입력하세요.'); return }
+    setBusy('edit')
+    try {
+      await api(`/users/${editTarget.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ login_id: eLogin.trim(), name: eName.trim() }),
+      })
+      // 직원 등록 정보 저장 — 로그인ID 변경 시 기존 키 이동
+      const nextReg = { ...staffReg }
+      if (editTarget.login_id !== eLogin.trim()) delete nextReg[editTarget.login_id]
+      nextReg[eLogin.trim()] = { affiliation: eAff.trim(), department: eDept.trim(), phone: ePhone.trim() }
+      await saveStaffReg(nextReg)
+      setEditTarget(null)
+      setReload((n) => n + 1)
+      setMsg({ ok: true, text: '계정 정보(아이디·이름·소속)를 변경했습니다.' })
+    } catch (e) {
+      setEErr(e instanceof Error ? e.message : '변경 실패')
     } finally {
       setBusy('')
     }
@@ -105,8 +182,12 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
         method: 'POST',
         body: JSON.stringify({ login_id: nLogin.trim(), password: nPw, role: nRole, name: nName.trim() }),
       })
+      // 직원 등록 정보(소속·부서·연락처) 저장 — 하나라도 입력됐을 때만
+      if (nAff.trim() || nDept.trim() || nPhone.trim()) {
+        await saveStaffReg({ ...staffReg, [nLogin.trim()]: { affiliation: nAff.trim(), department: nDept.trim(), phone: nPhone.trim() } })
+      }
       setCreateOpen(false)
-      setNLogin(''); setNName(''); setNPw(''); setNRole('field_inspector')
+      setNLogin(''); setNName(''); setNPw(''); setNRole('field_inspector'); setNAff(''); setNDept(''); setNPhone('')
       setReload((n) => n + 1)
       setMsg({ ok: true, text: '계정을 생성했습니다.' })
     } catch (e) {
@@ -138,6 +219,68 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
     }
   }
 
+  async function deleteAccount() {
+    if (!delTarget) return
+    setDelErr('')
+    setBusy('del')
+    try {
+      await api(`/users/${delTarget.id}`, { method: 'DELETE' })
+      const removed = delTarget.login_id
+      setDelTarget(null)
+      setReload((n) => n + 1)
+      setMsg({ ok: true, text: `${removed} 계정을 삭제했습니다.` })
+    } catch (e) {
+      setDelErr(e instanceof Error ? e.message : '삭제 실패')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function openOffboard() {
+    setOffErr(''); setOffFrom(''); setOffTo(''); setOffDelete(true); setOffCounts({})
+    setOffOpen(true)
+    try {
+      const schools = await api<Array<{ manager?: string }>>('/schools')
+      const counts: Record<string, number> = {}
+      for (const s of schools) {
+        const m = (s.manager || '').trim()
+        if (m) counts[m] = (counts[m] || 0) + 1
+      }
+      setOffCounts(counts)
+    } catch { /* 담당 학교 수는 참고용 — 조회 실패해도 이전은 진행 가능 */ }
+  }
+
+  async function doOffboard() {
+    setOffErr('')
+    const from = accounts.find((a) => a.id === offFrom)
+    const to = accounts.find((a) => a.id === offTo)
+    if (!from) { setOffErr('퇴사할 조사원을 선택하세요.'); return }
+    if (!to) { setOffErr('인수받을 조사원을 선택하세요.'); return }
+    if (from.id === to.id) { setOffErr('퇴사자와 인수자는 서로 달라야 합니다.'); return }
+    if (!from.name.trim()) {
+      setOffErr('퇴사자 계정에 이름이 없어 담당 학교를 특정할 수 없습니다. 먼저 「편집」에서 이름을 지정하세요.')
+      return
+    }
+    setBusy('off')
+    try {
+      const res = await api<{ transferred: number }>('/schools/transfer-manager', {
+        method: 'POST',
+        body: JSON.stringify({ from_name: from.name.trim(), to_name: to.name.trim() }),
+      })
+      if (offDelete) await api(`/users/${from.id}`, { method: 'DELETE' })
+      setOffOpen(false)
+      setReload((n) => n + 1)
+      setMsg({
+        ok: true,
+        text: `${from.name} → ${to.name} 담당 학교 ${res.transferred}개 이전${offDelete ? ' + 계정 삭제' : ''} 완료.`,
+      })
+    } catch (e) {
+      setOffErr(e instanceof Error ? e.message : '퇴사 처리 실패')
+    } finally {
+      setBusy('')
+    }
+  }
+
   async function resetPw() {
     if (!pwTarget) return
     setPwErr('')
@@ -159,11 +302,15 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
 
   return (
     <div className={embedded ? '' : 'page rv'}>
+      <datalist id="aff-suggest">{affSuggestions.map((a) => <option key={a} value={a} />)}</datalist>
       {!embedded && <div className="breadcrumb"><Link to="/">홈</Link> / <b>계정 관리</b></div>}
       <div className="bar">
         {!embedded && <h2><Users size={20} /> 계정 관리</h2>}
         <div className="sp" />
         {msg && <span className={'pillx ' + (msg.ok ? 'ok' : 'late')}>{msg.text}</span>}
+        <button className="btn btn-ghost" onClick={() => void openOffboard()}>
+          <UserMinus size={15} /> 퇴사 처리
+        </button>
         <button className="btn btn-primary" onClick={() => { setNErr(''); setCreateOpen(true) }}>
           <Plus size={15} /> 계정 생성
         </button>
@@ -181,16 +328,25 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
           <table className="tbl">
             <thead>
               <tr>
-                <th>로그인 ID</th><th>이름</th><th>역할</th><th>사용 가능 모듈</th><th style={{ width: 210 }}>관리</th>
+                <th>로그인 ID</th><th>이름</th><th>소속 · 부서</th><th>역할</th><th>사용 가능 모듈</th><th style={{ width: 210 }}>관리</th>
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={5}><div className="tstate">불러오는 중…</div></td></tr>}
-              {!loading && error && <tr><td colSpan={5}><div className="tstate">오류: {error}</div></td></tr>}
+              {loading && <tr><td colSpan={6}><div className="tstate">불러오는 중…</div></td></tr>}
+              {!loading && error && <tr><td colSpan={6}><div className="tstate">오류: {error}</div></td></tr>}
               {!loading && !error && accounts.map((a) => (
                 <tr key={a.id}>
                   <td><b>{a.login_id}</b></td>
                   <td>{a.name || '—'}</td>
+                  <td>
+                    {(() => {
+                      const si = staffReg[a.login_id] || {}
+                      return (<>
+                        <b>{si.affiliation || '—'}</b>
+                        {(si.department || si.phone) && <div className="muted" style={{ fontSize: 11 }}>{[si.department, si.phone].filter(Boolean).join(' · ')}</div>}
+                      </>)
+                    })()}
+                  </td>
                   <td>
                     <select className="select" style={{ width: 140, padding: '4px 8px' }}
                       value={a.role} disabled={busy === a.id}
@@ -206,15 +362,26 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
                       ))}
                   </td>
                   <td>
+                    <button className="btn btn-ghost" onClick={() => openEdit(a)}>
+                      <Pencil size={13} /> 편집
+                    </button>
                     <button className="btn btn-ghost" onClick={() => openModules(a)}>모듈 권한</button>
+                    <button className="btn btn-ghost" title="작성 이력 보기"
+                      onClick={() => nav(`/ledger?tab=history&author=${encodeURIComponent(a.login_id)}`)}>
+                      <ScrollText size={13} /> 이력
+                    </button>
                     <button className="btn btn-ghost" onClick={() => { setPwErr(''); setPwNew(''); setPwTarget(a) }}>
                       <KeyRound size={13} /> 비밀번호
+                    </button>
+                    <button className="btn btn-ghost" style={{ color: 'var(--red-ink)' }}
+                      onClick={() => { setDelErr(''); setDelTarget(a) }} title="계정 삭제">
+                      <Trash2 size={13} /> 삭제
                     </button>
                   </td>
                 </tr>
               ))}
               {!loading && !error && accounts.length === 0 && (
-                <tr><td colSpan={5}><div className="tstate">계정이 없습니다.</div></td></tr>
+                <tr><td colSpan={6}><div className="tstate">계정이 없습니다.</div></td></tr>
               )}
             </tbody>
           </table>
@@ -257,8 +424,53 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
                 {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select></label>
           </div>
+          <div className="formrow" style={{ marginTop: 10 }}>
+            <label className="field"><span>소속</span>
+              <input className="input" list="aff-suggest" value={nAff} onChange={(e) => setNAff(e.target.value)} placeholder="예: 한국산업안전협회" /></label>
+            <label className="field"><span>부서</span>
+              <input className="input" value={nDept} onChange={(e) => setNDept(e.target.value)} placeholder="예: 안전점검팀" /></label>
+            <label className="field"><span>연락처</span>
+              <input className="input" value={nPhone} onChange={(e) => setNPhone(e.target.value)} placeholder="예: 010-0000-0000" /></label>
+          </div>
           <div className="muted" style={{ marginTop: 10, fontSize: 11.5 }}>
+            소속은 점검표·세금계산서 발행처 자동채움과 교육청 계정(소속별) 선택의 기준이 됩니다.
             모듈 권한은 생성 후 목록의 「모듈 권한」에서 지정하세요(기본: 전체 허용).
+          </div>
+        </Modal>
+      )}
+
+      {/* 계정 편집(아이디·이름) */}
+      {editTarget && (
+        <Modal
+          title={`계정 편집 · ${editTarget.login_id}`}
+          onClose={() => { if (busy !== 'edit') setEditTarget(null) }}
+          footer={
+            <>
+              <button className="btn btn-ghost" disabled={busy === 'edit'} onClick={() => setEditTarget(null)}>취소</button>
+              <button className="btn btn-primary" disabled={busy === 'edit'} onClick={() => void saveEdit()}>
+                {busy === 'edit' ? '저장 중…' : '저장'}
+              </button>
+            </>
+          }
+        >
+          {eErr && <div className="login-err">{eErr}</div>}
+          <div className="formrow">
+            <label className="field"><span>로그인 ID *</span>
+              <input className="input" value={eLogin} onChange={(e) => setELogin(e.target.value)} placeholder="예: insp-kim" /></label>
+            <label className="field"><span>이름</span>
+              <input className="input" value={eName} onChange={(e) => setEName(e.target.value)} placeholder="예: 김조사" /></label>
+          </div>
+          <div className="formrow" style={{ marginTop: 10 }}>
+            <label className="field"><span>소속</span>
+              <input className="input" list="aff-suggest" value={eAff} onChange={(e) => setEAff(e.target.value)} placeholder="예: 한국산업안전협회" /></label>
+            <label className="field"><span>부서</span>
+              <input className="input" value={eDept} onChange={(e) => setEDept(e.target.value)} placeholder="예: 안전점검팀" /></label>
+            <label className="field"><span>연락처</span>
+              <input className="input" value={ePhone} onChange={(e) => setEPhone(e.target.value)} placeholder="예: 010-0000-0000" /></label>
+          </div>
+          <div className="muted" style={{ marginTop: 10, fontSize: 11.5 }}>
+            아이디는 이 테넌트 안에서 중복될 수 없습니다. 비밀번호는 「비밀번호」 버튼에서 따로 변경하세요.
+            아이디를 바꾸면 해당 계정은 새 아이디로 로그인해야 합니다.
           </div>
         </Modal>
       )}
@@ -331,6 +543,86 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
           </div>
         </Modal>
       )}
+
+      {/* 계정 삭제 확인 */}
+      {delTarget && (
+        <Modal
+          title="계정 삭제"
+          onClose={() => { if (busy !== 'del') setDelTarget(null) }}
+          footer={
+            <>
+              <button className="btn btn-ghost" disabled={busy === 'del'} onClick={() => setDelTarget(null)}>취소</button>
+              <button className="btn btn-danger" disabled={busy === 'del'} onClick={() => void deleteAccount()}>
+                <Trash2 size={15} /> {busy === 'del' ? '삭제 중…' : '삭제'}
+              </button>
+            </>
+          }
+        >
+          {delErr && <div className="login-err">{delErr}</div>}
+          <p style={{ fontSize: 13.5, lineHeight: 1.7, margin: 0 }}>
+            <b>{delTarget.login_id}</b>{delTarget.name ? ` (${delTarget.name})` : ''} 계정을 삭제하시겠습니까?
+          </p>
+          <div className="muted" style={{ marginTop: 10, fontSize: 11.5 }}>
+            삭제하면 이 계정으로는 더 이상 로그인할 수 없습니다. 되돌릴 수 없습니다.
+            (본인 계정·마지막 본사 관리자는 삭제할 수 없습니다.)
+          </div>
+        </Modal>
+      )}
+
+      {/* 퇴사 처리(담당 이전 + 계정 삭제) */}
+      {offOpen && (() => {
+        const fromAcc = accounts.find((a) => a.id === offFrom)
+        const cnt = fromAcc ? (offCounts[fromAcc.name.trim()] || 0) : 0
+        const inspectors = accounts.filter((a) => a.role === 'field_inspector')
+        return (
+          <Modal
+            title="퇴사 처리 · 담당 인수인계"
+            onClose={() => { if (busy !== 'off') setOffOpen(false) }}
+            footer={
+              <>
+                <button className="btn btn-ghost" disabled={busy === 'off'} onClick={() => setOffOpen(false)}>취소</button>
+                <button className="btn btn-primary" disabled={busy === 'off'} onClick={() => void doOffboard()}>
+                  {busy === 'off' ? '처리 중…' : '이전 실행'}
+                </button>
+              </>
+            }
+          >
+            {offErr && <div className="login-err">{offErr}</div>}
+            <div className="formrow">
+              <label className="field" style={{ flex: 1, minWidth: 180 }}>
+                <span>퇴사(이전) 조사원</span>
+                <select className="select" value={offFrom} onChange={(e) => setOffFrom(e.target.value)}>
+                  <option value="">선택하세요</option>
+                  {inspectors.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name || a.login_id}{a.name ? ` (${offCounts[a.name.trim()] || 0}교)` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field" style={{ flex: 1, minWidth: 180 }}>
+                <span>인수받을 조사원</span>
+                <select className="select" value={offTo} onChange={(e) => setOffTo(e.target.value)}>
+                  <option value="">선택하세요</option>
+                  {inspectors.filter((a) => a.id !== offFrom).map((a) => (
+                    <option key={a.id} value={a.id}>{a.name || a.login_id}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {fromAcc && (
+              <div className="muted" style={{ marginTop: 12, fontSize: 12.5, lineHeight: 1.7 }}>
+                <b>{fromAcc.name || fromAcc.login_id}</b> 담당 학교 <b>{cnt}개</b>가 선택한 조사원으로 재배정되고,
+                각 학교의 담당자 변경이력에 기록됩니다.
+              </div>
+            )}
+            <label className="row" style={{ gap: 8, marginTop: 12, cursor: 'pointer', alignItems: 'center' }}>
+              <input type="checkbox" checked={offDelete} onChange={(e) => setOffDelete(e.target.checked)} />
+              <span style={{ fontSize: 13 }}>이전 후 퇴사자 계정 삭제(로그인 차단)</span>
+            </label>
+          </Modal>
+        )
+      })()}
     </div>
   )
 }

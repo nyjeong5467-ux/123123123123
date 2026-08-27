@@ -14,7 +14,6 @@ import { Risk } from './pages/Risk'
 import { Musculo } from './pages/Musculo'
 import { MusculoPhotos } from './pages/MusculoPhotos'
 import { MusculoReport } from './pages/MusculoReport'
-import { MusculoStats } from './pages/MusculoStats'
 import { Education } from './pages/Education'
 import { Compliance } from './pages/Compliance'
 import { Billing } from './pages/Billing'
@@ -24,6 +23,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { Accounts } from './pages/Accounts'
 import { Mail } from './pages/Mail'
 import { Resources } from './pages/Resources'
+import { Schedule } from './pages/Schedule'
 import { useAuth } from './lib/auth'
 
 function Protected({ children }: { children: ReactNode }) {
@@ -49,6 +49,7 @@ export default function App() {
           <Route path="/ledger" element={<Dashboard />} />
           <Route path="/schools" element={<SchoolsHub />} />
           <Route path="/schools/:id" element={<SchoolDetail />} />
+          <Route path="/schedule" element={<Schedule />} />
           <Route path="/schools-status" element={<Navigate to="/schools" replace />} />
           <Route path="/ops" element={<Ops />} />
           <Route path="/accidents" element={<Accidents />} />
@@ -57,7 +58,8 @@ export default function App() {
           <Route path="/risk" element={<Risk />} />
           <Route path="/musculo" element={<Musculo />} />
           <Route path="/musculo/photos" element={<MusculoPhotos />} />
-          <Route path="/musculo/stats" element={<MusculoStats />} />
+          {/* 증상조사표 엑셀 페이지는 보고서 작성 플로우로 통합 — 구 링크·북마크는 보고서로 리다이렉트 */}
+          <Route path="/musculo/stats" element={<Navigate to="/musculo/report" replace />} />
           <Route path="/musculo/report" element={<MusculoReport />} />
           <Route path="/education" element={<Education />} />
           <Route path="/compliance" element={<Compliance />} />

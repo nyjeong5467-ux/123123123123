@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom'
 import { FileText, Mail, Send, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { InspectionSheetBody, type SheetData } from './InspectionSheetView'
+import { waitForSheetImages } from './SignImage'
 
 declare global {
   interface Window {
@@ -62,6 +63,9 @@ export function InspectionMailModal(p: {
         await new Promise((r) => setTimeout(r, 250))
         const el = paperRef.current?.querySelector('.inss-page') as HTMLElement | null
         if (!el || !window.html2canvas || !window.jspdf) throw new Error('양식 렌더에 실패했습니다.')
+        // 서명 이미지(SignImage — 비동기 fetch→blob)·사진 <img>가 전부 로드될 때까지 대기 후 캡처.
+        // 250ms 고정 대기만으로는 캡처가 이미지 로드보다 먼저 일어나 PDF의 서명·사진 칸이 비었음. [서명·사진 출력 수정]
+        await waitForSheetImages(el)
         const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false })
         const { jsPDF } = window.jspdf
         const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true })

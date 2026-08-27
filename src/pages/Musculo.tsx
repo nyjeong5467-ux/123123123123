@@ -1,7 +1,7 @@
 // 근골격계 — 학교 목록 → 학교별 조사 이력(연도별) 위계 뷰. Risk.tsx(rkh-) 패턴 준용.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Activity, ArrowLeft, Camera, ChevronRight, ClipboardCheck, ClipboardList } from 'lucide-react'
+import { Activity, ArrowLeft, Camera, ChevronRight, ClipboardCheck } from 'lucide-react'
 import { api, getToken } from '../lib/api'
 import { useTableQuery, type FilterDef, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
@@ -14,11 +14,13 @@ import '../styles/hier.css'
 import '../styles/musculohier.css'
 
 // 증상조사표 검수(GET /musculo/{surveyId}/sheets → confirm)
+type PartAns = { duration?: number | null; intensity?: number | null; frequency?: number | null }
 type Sheet = {
   id: string
   person_name: string
   image_ref: string
-  marks: (number | null)[]   // 부위별 마킹(0/1). 앱 _bodyParts 순서.
+  marks: (number | null)[]   // 34칸 문항 응답값(0~5, 0=미응답). SYNC: MusculoReport buildMarks.
+  answers?: (PartAns | null)[] // 부위별 KOSHA 3문항. BODY_PARTS 순서.
   confidence: number
   review_status: string   // auto | needs_review | confirmed
 }
@@ -29,6 +31,28 @@ const SHEET_ST: Record<string, { label: string; cls: string }> = {
 }
 // 앱 musculo_screen.dart _bodyParts와 동일 순서. SYNC: app-field musculo_screen.dart.
 const BODY_PARTS = ['목', '어깨', '팔/팔꿈치', '손/손목', '허리', '다리/무릎']
+// marks 34칸의 부위별 슬롯 수: 목5·어깨6·팔6·손6·허리5·다리6 (목·허리는 좌우 문항 없음)
+const PART_SLOTS = [5, 6, 6, 6, 5, 6]
+
+// 통증 부위 도출 — answers(부위별 3문항) 우선, 없으면 marks에서 부위별 슬롯 그룹으로 판정.
+function painParts(sh: Sheet): string[] {
+  const fromAns = (sh.answers || [])
+    .map((a, i) => (a && (a.duration != null || a.intensity != null || a.frequency != null) ? BODY_PARTS[i] : null))
+    .filter((p): p is string => p != null)
+  if (fromAns.length) return fromAns
+  const marks = sh.marks || []
+  if (marks.length === BODY_PARTS.length) {
+    // 구 데이터: 부위별 0/1 6칸
+    return BODY_PARTS.filter((_, i) => marks[i] === 1)
+  }
+  const out: string[] = []
+  let off = 0
+  PART_SLOTS.forEach((n, i) => {
+    if (marks.slice(off, off + n).some((m) => (m ?? 0) > 0)) out.push(BODY_PARTS[i])
+    off += n
+  })
+  return out
+}
 
 function scanDownloadUrl(ref: string): string {
   return `/api/v1/files/musculo/download?path=${encodeURIComponent(ref)}`
@@ -613,9 +637,8 @@ export function Musculo() {
       <div className="bar">
         <h2><Activity size={20} /> 근골격계 부담작업</h2>
         <div className="sp" />
-        {/* 근골 하위 기능 진입 — 공정별 작업사진 · 증상조사표 통계(현장앱 연동 페이지) */}
+        {/* 근골 하위 기능 진입 — 공정별 작업사진. 증상조사표 입력·통계·공단 원본양식(xlsx)은 보고서 작성 플로우로 통합 이관 */}
         <Link className="btn btn-ghost" to="/musculo/photos"><Camera size={15} /> 공정별 작업사진</Link>
-        <Link className="btn btn-ghost" to="/musculo/stats"><ClipboardList size={15} /> 증상조사표 통계</Link>
         {/* [083] 상단 탭(조사 목록/부담작업 판정)·[근골격계 조사 생성] 버튼 제거 — 화면은 조사 현황 표 단일 흐름,
             조사 생성은 보고서 작성 플로우에서 수행 (구 JSX는 이 주석 아래 코드로 복원 가능 — createSurvey·tab state 잔존) */}
         {/* [084] 보고서 작성 버튼 — 안전점검의 [점검표 작성]과 동일한 위치(상단 바 우측)·색(btn-primary) */}
@@ -920,11 +943,11 @@ export function Musculo() {
                       <td><b>{sh.person_name}</b></td>
                       <td><ScanCell imageRef={sh.image_ref} /></td>
                       <td style={{ maxWidth: 220 }}>
-                        {(sh.marks || []).some((m) => m === 1) ? (
+                        {painParts(sh).length > 0 ? (
                           <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                            {sh.marks.map((m, i) => (m === 1
-                              ? <span key={i} className="pillx warn">{BODY_PARTS[i] ?? `문항${i + 1}`}</span>
-                              : null))}
+                            {painParts(sh).map((p) => (
+                              <span key={p} className="pillx warn">{p}</span>
+                            ))}
                           </span>
                         ) : <span className="muted">—</span>}
                       </td>

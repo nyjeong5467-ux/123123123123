@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FolderOpen, FileText, Download, Trash2, Plus, Search } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, getToken } from '../lib/api'
 import { Modal } from '../components/Modal'
+import { FilePicker } from '../components/FilePicker'
 
 type Category = '양식' | '지침' | '증빙' | '기타'
 
@@ -27,13 +28,6 @@ type ResourceCreate = {
 const CATS: Category[] = ['양식', '지침', '증빙', '기타']
 const PILL: Record<Category, string> = { 양식: 'doing', 지침: 'ok', 증빙: 'warn', 기타: 'todo' }
 
-// 비어 있을 때 1회만 심는 샘플 문서(데모용)
-const SEED: ResourceCreate[] = [
-  { title: '안전점검표 양식.hwp', category: '양식', size: '48 KB', content: '' },
-  { title: '위험성평가 실시 지침.pdf', category: '지침', size: '1.2 MB', content: '' },
-  { title: '교육 이수증 예시.jpg', category: '증빙', size: '320 KB', content: '' },
-]
-
 function humanSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
@@ -56,9 +50,6 @@ export function Resources({ embedded = false }: { embedded?: boolean } = {}) {
   const [formErr, setFormErr] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // 시드는 진짜로 비었을 때 딱 한 번만
-  const seededRef = useRef(false)
-
   const refetch = useCallback(() => {
     setLoading(true)
     setError('')
@@ -67,29 +58,7 @@ export function Resources({ embedded = false }: { embedded?: boolean } = {}) {
       .catch((e) => { setError(e instanceof Error ? e.message : '오류'); setLoading(false) })
   }, [])
 
-  useEffect(() => {
-    let alive = true
-    setLoading(true)
-    setError('')
-    ;(async () => {
-      try {
-        let list = await api<ResourceItem[]>('/resources')
-        if (list.length === 0 && !seededRef.current) {
-          seededRef.current = true
-          for (const s of SEED) {
-            await api<ResourceItem>('/resources', { method: 'POST', body: JSON.stringify(s) })
-          }
-          list = await api<ResourceItem[]>('/resources')
-        }
-        if (!alive) return
-        setDocs(list)
-        setLoading(false)
-      } catch (e) {
-        if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) }
-      }
-    })()
-    return () => { alive = false }
-  }, [])
+  useEffect(() => { refetch() }, [refetch])
 
   const view = docs.filter((d) => {
     const byCat = catFilter === '' || d.category === catFilter
@@ -156,6 +125,26 @@ export function Resources({ embedded = false }: { embedded?: boolean } = {}) {
       setError(e instanceof Error ? e.message : '다운로드 실패')
       return
     }
+    // 디스크 저장 파일(인증 필요): content 가 /api/v1/files/... 경로면 토큰으로 받아 blob 다운로드
+    if (full.content && full.content.startsWith('/api/v1/files/')) {
+      try {
+        const res = await fetch(full.content, { headers: { Authorization: `Bearer ${getToken()}` } })
+        if (!res.ok) throw new Error(String(res.status))
+        const blob = await res.blob()
+        const u = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = u
+        a.download = full.title
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(u)
+      } catch (e) {
+        setError('다운로드 실패: ' + (e instanceof Error ? e.message : ''))
+      }
+      return
+    }
+    // base64 dataURL(소용량 업로드) 또는 데모 폴백
     const a = document.createElement('a')
     let url: string
     if (full.content) {
@@ -321,10 +310,9 @@ export function Resources({ embedded = false }: { embedded?: boolean } = {}) {
           </div>
           <label className="field" style={{ marginTop: 14 }}>
             <span>파일 선택 *</span>
-            <input
-              type="file"
-              onChange={(e) => setFFile(e.target.files?.[0] ?? null)}
-              style={{ fontSize: 13, padding: '4px 0' }}
+            <FilePicker
+              fileName={fFile?.name}
+              onPick={(fl) => setFFile(fl?.[0] ?? null)}
             />
           </label>
           <p style={{ marginTop: 12, fontSize: 12, color: 'var(--muted)' }}>

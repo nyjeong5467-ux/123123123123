@@ -167,3 +167,41 @@
   justify-content: center;
   margin-top: 12px;
 }
+
+/* 영속 발급 내역 — 스코프 안내 + 행 관리 버튼 */
+.sess-scope-note {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-left: 10px;
+}
+.sess-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.sess-actions .sess-preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sess-preset:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.sess-preset:disabled:hover {
+  border-color: var(--line);
+  color: var(--ink-2);
+}
+.sess-preset.danger:hover {
+  border-color: var(--red-ink);
+  color: var(--red-ink);
+}
+/* 수정 모달 안내 문구 */
+.sess-note {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  line-height: 1.6;
+  margin: 0;
+}

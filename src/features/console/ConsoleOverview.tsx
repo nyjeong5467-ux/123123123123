@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
-import { Footprints, Megaphone, MessageSquare, Plus, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { Download, Footprints, Megaphone, MessageSquare, Monitor, Plus, ShieldAlert, ShieldCheck, TabletSmartphone } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useTableQuery, type FilterDef } from '../../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../../components/table'
@@ -27,6 +27,12 @@ const DASH_DEFAULT: DashContent = {
   directives: ['급식실 미이행 학교 5월 내 점검 완료', '고위험(9점↑) 공정 개선계획 제출'],
   requests: ['당직실 노후 소화기 교체 요청', '통학차량 승하차 안전요원 배치'],
 }
+
+// 프로그램 다운로드 — GET /release (무인증). url은 캐시버스팅 쿼리 포함 — 항상 그대로 사용.
+type ReleaseFile = { name: string; size: number; modified: string; url: string }
+const releaseLabel = (name: string) =>
+  name.endsWith('.exe') ? '서버 설치본(PC)' : name.endsWith('.apk') ? '현장앱(태블릿 APK)' : name
+const fmtMB = (bytes: number) => `${(bytes / 1048576).toFixed(1)} MB`
 
 type School = { id: string; name: string }
 type Invoice = { id: string; amount: number; status: string }
@@ -65,6 +71,7 @@ export default function ConsoleOverview() {
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [visits, setVisits] = useState<Visit[]>([])
   const [loading, setLoading] = useState(true)
+  const [releases, setReleases] = useState<ReleaseFile[] | null>(null) // null = 조회 실패(fail-soft)
 
   // 편집형 경영 콘텐츠 — 인플레이스 편집(기존 대시보드 UX 유지)
   const [dContent, setDContent] = useState<DashContent>(DASH_DEFAULT)
@@ -98,7 +105,8 @@ export default function ConsoleOverview() {
       api<Complaint[]>('/complaints').catch(() => [] as Complaint[]),
       api<Visit[]>('/visits').catch(() => [] as Visit[]),
       api<{ doc: Partial<DashContent> }>('/ops/docs/dashboard-content').catch(() => ({ doc: {} as Partial<DashContent> })),
-    ]).then(([s, inv, od, acc, usr, cmp, vis, doc]) => {
+      api<ReleaseFile[]>('/release').catch(() => null),
+    ]).then(([s, inv, od, acc, usr, cmp, vis, doc, rel]) => {
       if (!alive) return
       const list = Array.isArray(s) ? s : []
       setSchools(list)
@@ -111,6 +119,7 @@ export default function ConsoleOverview() {
       setVisits(Array.isArray(vis) ? vis : [])
       const d = doc?.doc || {}
       if (Object.keys(d).length) setDContent({ ...DASH_DEFAULT, ...d, ms: { ...DASH_DEFAULT.ms, ...(d.ms || {}) } })
+      setReleases(Array.isArray(rel) ? rel : null)
       setLoading(false)
     })
     return () => { alive = false }
@@ -357,6 +366,40 @@ export default function ConsoleOverview() {
 
         {/* ── 우: 편집형 경영 콘텐츠(관리체계·주요일정·지시/요청) ── */}
         <div className="console-side">
+          {/* 프로그램 다운로드 — /release 배포 파일(서버 설치본 exe · 현장앱 apk). url 필드 그대로 사용(캐시버스팅). */}
+          <div style={cardBox}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <Download size={18} strokeWidth={1.9} style={{ color: 'var(--violet)' }} />
+              <b style={{ fontSize: 14 }}>프로그램 다운로드</b>
+            </div>
+            {releases === null ? (
+              <div className="muted" style={{ fontSize: 12.5 }}>배포 파일 목록을 불러오지 못했습니다.</div>
+            ) : releases.length === 0 ? (
+              <div className="muted" style={{ fontSize: 12.5 }}>배포 파일 없음</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {releases.map((f) => (
+                  <div key={f.name} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    {f.name.endsWith('.apk')
+                      ? <TabletSmartphone size={16} strokeWidth={1.9} style={{ color: 'var(--muted)', flex: 'none' }} />
+                      : <Monitor size={16} strokeWidth={1.9} style={{ color: 'var(--muted)', flex: 'none' }} />}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {releaseLabel(f.name)}
+                      </div>
+                      <div className="muted" style={{ fontSize: 11 }}>
+                        {fmtMB(f.size)} · 갱신 {(f.modified || '').slice(0, 10)}
+                      </div>
+                    </div>
+                    <a className="btn btn-primary" style={{ flex: 'none', fontSize: 12, padding: '5px 12px' }} href={f.url} download>
+                      <Download size={13} /> 다운로드
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div style={{ ...cardBox, ...editOutline }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
               <ShieldCheck size={18} strokeWidth={1.9} style={{ color: 'var(--violet)' }} />

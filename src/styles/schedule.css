@@ -1,0 +1,141 @@
+/* 직원 근무표(/schedule) — 탭 허브 + 통계 그래프 전용 스타일. tokens.css 변수 기반.
+   캘린더(cal-*)·탭 pill 톤은 console.css와 동일한 디자인 언어를 따른다. */
+
+/* ── 상단 탭 pill ─────────────────────────────────────────────── */
+.sched-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 18px;
+}
+
+.sched-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  font: 700 12.5px var(--font);
+  padding: 9px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sched-tab:hover {
+  color: var(--ink);
+  border-color: var(--violet);
+}
+
+.sched-tab.active {
+  background: var(--grad-violet);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: var(--sh-violet);
+}
+
+/* ── 통계 요약 타일 ───────────────────────────────────────────── */
+.sched-sum {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+@media (max-width: 980px) { .sched-sum { grid-template-columns: repeat(2, 1fr); } }
+
+.sched-stat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: var(--sh-soft);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sched-stat .l { font-size: 12px; font-weight: 700; color: var(--muted); }
+.sched-stat .v {
+  font-size: 24px; font-weight: 800; color: var(--ink);
+  font-variant-numeric: tabular-nums; line-height: 1.15;
+}
+.sched-stat .v small { font-size: 13px; font-weight: 700; color: var(--ink-2); margin-left: 2px; }
+.sched-stat .d { font-size: 11.5px; color: var(--muted); }
+.sched-stat.hero .v { color: var(--violet); }
+
+/* ── 차트 카드 그리드 ─────────────────────────────────────────── */
+.sched-charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 1100px) { .sched-charts { grid-template-columns: 1fr; } }
+.sched-charts .wide { grid-column: 1 / -1; }
+
+.sched-chart {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: var(--sh-soft);
+  padding: 16px 20px 18px;
+}
+.sched-chart h3 {
+  margin: 0 0 4px;
+  font-size: 14px; font-weight: 800; color: var(--ink);
+  display: flex; align-items: center; gap: 7px;
+}
+.sched-chart .sub { font-size: 11.5px; color: var(--muted); margin-bottom: 14px; }
+
+/* 가로 막대(직원별) — 이름·트랙·값 3열. 값·이름은 텍스트 토큰, 막대만 브랜드색. */
+.hbar { display: flex; flex-direction: column; gap: 8px; }
+.hbar-row {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 10px;
+}
+.hbar-name {
+  font-size: 12.5px; font-weight: 700; color: var(--ink-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right;
+}
+.hbar-track {
+  height: 14px; border-radius: 4px;
+  background: var(--line-2);
+  overflow: hidden;
+}
+.hbar-fill {
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background: var(--grad-violet);
+  min-width: 2px;
+  transition: width 0.4s ease;
+}
+.hbar-row:hover .hbar-track { background: var(--violet-soft); }
+.hbar-val {
+  font-size: 12.5px; font-weight: 800; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.hbar-val small { font-weight: 700; color: var(--muted); font-size: 11px; }
+
+/* 주차별 세로 미니 칼럼 */
+.wchart {
+  display: flex; align-items: flex-end; gap: 18px;
+  height: 150px; padding: 6px 6px 0;
+}
+.wcol {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  gap: 6px; height: 100%; min-width: 0;
+}
+.wcol-val { font-size: 12px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.wcol-bar {
+  width: 100%; max-width: 64px;
+  border-radius: 4px 4px 0 0;
+  background: var(--grad-violet);
+  min-height: 2px;
+  transition: height 0.4s ease;
+}
+.wcol:hover .wcol-bar { filter: brightness(1.08); }
+.wcol-lbl { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+
+.sched-empty { font-size: 12.5px; color: var(--muted); padding: 12px 2px; }
