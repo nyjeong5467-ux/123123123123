@@ -102,3 +102,145 @@
    좌측 정렬로 콘솔 탭 아래 서브 컨트롤처럼 보이게 */
 .console-embed .bar .sp { display: none; }
 .console-embed .bar { justify-content: flex-start; gap: 10px; }
+
+/* ── 교육청 전송 — 업로드 진행 게이지바 (2026-08-27) ───────────── */
+/* 전송/재전송 버튼 바로 아래에 붙는 수평 진행바. 대기 건이 있는 동안 폴링으로 채워진다. */
+.eduoffice-send { display: flex; flex-direction: column; gap: 10px; padding: 14px 26px 2px; }
+.eduoffice-send .send-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.gauge { display: flex; flex-direction: column; gap: 6px; }
+.gauge-track {
+  display: flex; height: 14px; border-radius: 999px;
+  background: var(--line); overflow: hidden;
+}
+.gauge-fill { height: 100%; background: var(--grad-violet); transition: width 0.45s ease; }
+.gauge-fail { height: 100%; background: var(--red); transition: width 0.45s ease; }
+.gauge-meta {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12.5px; color: var(--muted);
+}
+.gauge-meta b { color: var(--ink); font-weight: 700; }
+.gauge-pct { font-weight: 800; color: var(--violet); font-variant-numeric: tabular-nums; }
+.gauge-live-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--violet); margin-right: 5px; vertical-align: middle;
+  animation: gauge-pulse 1.2s ease-in-out infinite;
+}
+@keyframes gauge-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .gauge-live-dot { animation: none; } }
+
+/* ── 근무 종합관리표 — 마스터 캘린더 (2026-08-27) ─────────────── */
+.cal-nav { display: inline-flex; align-items: center; gap: 6px; }
+
+.cal-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 12px; }
+.cal-legend-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; color: var(--ink-2);
+}
+.cal-swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+.cal { border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; }
+.cal-head, .cal-row { display: grid; grid-template-columns: repeat(7, 1fr); }
+.cal-hcell {
+  padding: 9px 0; text-align: center; font-weight: 800; font-size: 12.5px;
+  color: var(--muted); background: var(--card-2); border-bottom: 1px solid var(--line);
+}
+.cal-hcell.sun { color: var(--red-ink); }
+.cal-hcell.sat { color: var(--info-ink); }
+
+.cal-cell {
+  min-height: 118px; padding: 7px 8px;
+  border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  background: var(--card); display: flex; flex-direction: column; gap: 5px; overflow: hidden;
+}
+.cal-row > .cal-cell:last-child { border-right: none; }
+.cal-cell.weekend { background: var(--card-2); }
+.cal-cell.holiday { background: var(--red-soft); }
+.cal-cell.out { background: var(--line-2); }
+.cal-cell.today { box-shadow: inset 0 0 0 2px var(--violet); }
+
+.cal-daynum { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; color: var(--ink); }
+.cal-daynum .sun { color: var(--red-ink); }
+.cal-daynum .sat { color: var(--info-ink); }
+.cal-hol { font-size: 10.5px; font-weight: 700; color: var(--red-ink); }
+.cal-count {
+  margin-left: auto; font-size: 10.5px; font-weight: 800; color: var(--violet);
+  background: var(--violet-soft); border-radius: 999px; padding: 1px 7px;
+}
+
+.cal-chips { display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+.cal-chip {
+  border-left: 3px solid var(--violet); background: var(--card-2);
+  border-radius: 5px; padding: 3px 7px; font-size: 11.5px; line-height: 1.35;
+  display: flex; flex-direction: column;
+}
+.cal-chip b { font-weight: 800; }
+.cal-chip span { color: var(--ink-2); font-size: 11px; }
+.cal-more { font-size: 11px; font-weight: 700; color: var(--muted); padding-left: 3px; }
+
+@media (max-width: 720px) {
+  .cal-cell { min-height: 92px; padding: 5px 5px; }
+  .cal-chip { font-size: 10.5px; }
+}
+
+/* ── 근무 종합관리표 — 인원×날짜 매트릭스 ─────────────────────── */
+.mx-switch {
+  display: inline-flex; gap: 3px; background: var(--bg);
+  border-radius: 11px; padding: 3px; margin: 14px 22px 2px;
+}
+.mx-sw {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 0; background: transparent; color: var(--muted);
+  font: 700 12.5px var(--font); padding: 7px 13px; border-radius: 9px;
+  cursor: pointer; transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.mx-sw:hover { color: var(--ink); }
+.mx-sw.active { background: var(--card); color: var(--violet); box-shadow: var(--sh-soft); }
+
+.mx-wrap { overflow-x: auto; }
+.mx-tbl {
+  border-collapse: separate; border-spacing: 0;
+  min-width: 100%; font-size: 12px;
+}
+.mx-tbl th, .mx-tbl td {
+  border-bottom: 1px solid var(--line);
+  text-align: center; padding: 0; height: 36px;
+}
+.mx-h { background: var(--card-2); position: sticky; top: 0; z-index: 2; }
+.mx-name {
+  position: sticky; left: 0; z-index: 1; background: var(--card);
+  text-align: left; padding: 0 12px 0 10px; min-width: 96px; max-width: 150px;
+  font-weight: 700; font-size: 12.5px; white-space: nowrap;
+  border-right: 1px solid var(--line);
+}
+.mx-name .cal-swatch { margin-right: 7px; vertical-align: -1px; }
+th.mx-name { background: var(--card-2); z-index: 3; }
+.mx-day { min-width: 31px; width: 31px; }
+.mx-day.we { background: var(--card-2); }
+.mx-day.today { box-shadow: inset 2px 0 0 var(--violet), inset -2px 0 0 var(--violet); }
+th.mx-day { padding: 5px 0 4px; height: auto; }
+.mx-dnum { display: block; font-weight: 800; font-size: 12px; color: var(--ink); line-height: 1.2; }
+.mx-dow { display: block; font-weight: 700; font-size: 10px; color: var(--muted); }
+.mx-dnum.sun, .mx-dow.sun { color: var(--red-ink); }
+.mx-dnum.sat, .mx-dow.sat { color: var(--info-ink); }
+.mx-tot {
+  min-width: 46px; font-weight: 700; font-size: 12px; color: var(--ink-2);
+  border-left: 1px solid var(--line); background: var(--card);
+}
+th.mx-tot { font-size: 11px; color: var(--muted); }
+.mx-zero { color: var(--line-2); font-weight: 600; }
+.mx-tbl tbody tr:hover td { background: color-mix(in srgb, var(--violet) 6%, transparent); }
+.mx-tbl tbody tr:hover td.we { background: color-mix(in srgb, var(--violet) 10%, var(--card-2)); }
+
+.mx-chip {
+  display: inline-grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 7px;
+  font-weight: 800; font-size: 11.5px; cursor: default;
+}
+.mx-chip.off { background: var(--line-2); color: var(--muted); font-size: 10.5px; }
+
+.mx-f { background: var(--card-2); border-bottom: 0; height: 32px; }
+td.mx-name.mx-f { font-size: 11px; color: var(--muted); font-weight: 800; }
+.mx-fcell { font-weight: 800; font-size: 11.5px; color: var(--violet); }
+.mx-note { margin-top: 10px; font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+
