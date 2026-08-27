@@ -1,26 +1,34 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { type MouseEvent as ReactMouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   type LucideIcon,
   Activity,
   Bell,
   Building2,
+  CalendarRange,
   ChevronDown,
   ClipboardCheck,
+  CloudUpload,
   FileCheck2,
   FolderOpen,
+  Globe,
   GraduationCap,
   Home,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Mail,
   Moon,
+  Receipt,
+  ReceiptText,
   Search,
   Settings,
-  ShieldCheck,
+  Settings2,
   Siren,
   Sun,
+  TabletSmartphone,
   TriangleAlert,
+  Users,
 } from 'lucide-react'
 import { useTheme } from '../lib/theme'
 import { useAuth } from '../lib/auth'
@@ -55,6 +63,8 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { Icon: GraduationCap, label: '교육 진도표', to: '/education', sub: true, module: 'education' },
       { Icon: FileCheck2, label: '이행점검', to: '/compliance', sub: true, module: 'compliance' },
       { Icon: Siren, label: '산업재해', to: '/accidents', module: 'accidents' },
+      { Icon: ReceiptText, label: '세금계산서', to: '/billing', module: 'billing' },
+      { Icon: KeyRound, label: '세션코드', to: '/sessions', module: 'sessions' },
       { Icon: FolderOpen, label: '자료실', to: '/resources', module: 'resources' },
     ],
   },
@@ -75,6 +85,19 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   },
 ]
 
+// 경영 대시보드(회사 관리자 콘솔) 하위 탭 — 학교의 5대 업무 서브메뉴처럼 사이드바에 나열.
+// Dashboard.tsx의 TABS와 key·label을 맞춘다(?tab= 딥링크).
+const CONSOLE_SUBS: { key: string; label: string; Icon: LucideIcon }[] = [
+  { key: 'overview', label: '경영 현황', Icon: LayoutDashboard },
+  { key: 'billing', label: '청구·정산', Icon: Receipt },
+  { key: 'accounts', label: '계정·권한', Icon: Users },
+  { key: 'schedule', label: '근무 종합관리표', Icon: CalendarRange },
+  { key: 'app', label: '현장 앱 관리', Icon: TabletSmartphone },
+  { key: 'eduoffice', label: '교육청 전송', Icon: CloudUpload },
+  { key: 'content', label: '홈페이지·콘텐츠', Icon: Globe },
+  { key: 'system', label: '시스템', Icon: Settings2 },
+]
+
 type Me = { role: string; modules: string[] }
 const HQ_ROLES = ['hq_admin', 'executive']
 
@@ -90,6 +113,23 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { theme, toggle } = useTheme()
   const { logout, user } = useAuth()
   const nav = useNavigate()
+  const loc = useLocation()
+
+  // 경영 대시보드 하위 탭 메뉴 접기/펼치기(기본 펼침, localStorage 유지)
+  const [consoleOpen, setConsoleOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem('sb-console-open') !== '0' } catch { return true }
+  })
+  function toggleConsole(e: ReactMouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setConsoleOpen((o) => {
+      try { localStorage.setItem('sb-console-open', o ? '0' : '1') } catch { /* 무시 */ }
+      return !o
+    })
+  }
+  const onLedger = loc.pathname === '/ledger'
+  const ledgerTab = new URLSearchParams(loc.search).get('tab') ?? 'overview'
+
   const [notifOpen, setNotifOpen] = useState(false)
   const [profOpen, setProfOpen] = useState(false)
   const [alerts, setAlerts] = useState<Alert[]>([])
@@ -160,7 +200,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="sidebar">
         <NavLink to="/" className="logo">
           <span className="lg-ic">
-            <ShieldCheck size={23} strokeWidth={2.2} />
+            <img src="/woori-mark.png" alt="WOORI" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </span>
           <span>
             <span className="lg-org" style={{ display: 'block' }}>한국산업안전협회</span>
@@ -174,18 +214,54 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div key={grp.title}>
               <div className="sb-grp-title">{grp.title}</div>
               <nav className="sbnav">
-                {items.map(({ Icon, label, to, end, sub }) => (
-                  <NavLink
-                    key={label}
-                    to={to}
-                    end={end}
-                    className={({ isActive }) => 'sbi' + (sub ? ' sub' : '') + (isActive ? ' active' : '')}
-                    title={label}
-                  >
-                    <Icon size={sub ? 17 : 19} strokeWidth={1.9} />
-                    <span>{label}</span>
-                  </NavLink>
-                ))}
+                {items.map(({ Icon, label, to, end, sub }) => {
+                  // 경영 대시보드: 학교의 5대 업무처럼 하위 탭을 나열하고, 셰브론으로 접기/펼치기
+                  if (to === '/ledger') {
+                    return (
+                      <div key={label} style={{ display: 'contents' }}>
+                        <NavLink
+                          to={to}
+                          className={'sbi' + (onLedger && !consoleOpen ? ' active' : '')}
+                          title={label}
+                        >
+                          <Icon size={19} strokeWidth={1.9} />
+                          <span>{label}</span>
+                          <button
+                            className={'sb-caret' + (consoleOpen ? '' : ' closed')}
+                            onClick={toggleConsole}
+                            title={consoleOpen ? '하위 메뉴 접기' : '하위 메뉴 펼치기'}
+                            aria-label={consoleOpen ? '하위 메뉴 접기' : '하위 메뉴 펼치기'}
+                          >
+                            <ChevronDown size={15} strokeWidth={2.2} />
+                          </button>
+                        </NavLink>
+                        {consoleOpen && CONSOLE_SUBS.map(({ key, label: sl, Icon: SIcon }) => (
+                          <NavLink
+                            key={key}
+                            to={key === 'overview' ? '/ledger' : '/ledger?tab=' + key}
+                            className={'sbi sub' + (onLedger && ledgerTab === key ? ' active' : '')}
+                            title={sl}
+                          >
+                            <SIcon size={17} strokeWidth={1.9} />
+                            <span>{sl}</span>
+                          </NavLink>
+                        ))}
+                      </div>
+                    )
+                  }
+                  return (
+                    <NavLink
+                      key={label}
+                      to={to}
+                      end={end}
+                      className={({ isActive }) => 'sbi' + (sub ? ' sub' : '') + (isActive ? ' active' : '')}
+                      title={label}
+                    >
+                      <Icon size={sub ? 17 : 19} strokeWidth={1.9} />
+                      <span>{label}</span>
+                    </NavLink>
+                  )
+                })}
               </nav>
             </div>
           )
