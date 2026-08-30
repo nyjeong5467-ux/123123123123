@@ -2,7 +2,7 @@
 // 구성: 연간 법정업무 사이클 히어로 · 공지사항 · 산재 알림(익명) · 학교 방문률 ·
 //       월간 캘린더(계획=localStorage, 실적=/visits) · 오늘 방문 · 기한 알림 · 담당 학교 표.
 // 스타일: 보라 디자인 시스템(tokens.css) 기반 hm- 클래스(home.css) + 기존 .page/.ledger/.tbl 재사용.
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Activity,
@@ -19,6 +19,8 @@ import {
   Paperclip,
   Plus,
   Siren,
+  Smartphone,
+  StickyNote,
   X,
 } from 'lucide-react'
 import { api } from '../lib/api'
@@ -389,6 +391,38 @@ export function Home() {
     api<{ doc: SchedDoc | null }>('/ops/docs/schedules').then((d) => setSched(d.doc || {})).catch(() => {})
   }, [])
 
+  /* ---- 홈 하단: 현장 메모 피드 + 현장 앱 APK 링크 [H-10] ---- */
+  type FeedMemo = { school_id: string; school_name: string; id: string; ts: string; by: string; text: string; type: string; due?: string | null; done: boolean }
+  const [memoFeed, setMemoFeed] = useState<FeedMemo[]>([])
+  const [apkUrl, setApkUrl] = useState('')
+  useEffect(() => {
+    let alive = true
+    api<{ memos: FeedMemo[] }>('/field/school-memos/feed')
+      .then((d) => { if (alive) setMemoFeed(Array.isArray(d.memos) ? d.memos : []) })
+      .catch(() => {})
+    // 릴리스 목록(무인증 공개 API)에서 현장앱 APK 링크만 — 경영 콘솔의 전체 다운로드 중 현장앱 발췌
+    api<{ name: string; url: string }[]>('/release')
+      .then((files) => {
+        if (!alive) return
+        const apk = (files || []).find((f) => f.name.endsWith('.apk'))
+        if (apk) setApkUrl(apk.url)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [dataReload])
+
+  async function toggleMemoDone(m: FeedMemo) {
+    const next = !m.done
+    setMemoFeed((list) => list.map((x) => (x.id === m.id && x.school_id === m.school_id ? { ...x, done: next } : x)))
+    try {
+      await api(`/field/school-memos/${m.id}?school_id=${m.school_id}`, {
+        method: 'PATCH', body: JSON.stringify({ done: next }),
+      })
+    } catch {
+      setMemoFeed((list) => list.map((x) => (x.id === m.id && x.school_id === m.school_id ? { ...x, done: m.done } : x)))
+    }
+  }
+
   // 캘린더 근무표 오버레이 대상 선택 — 본사(hq_admin·executive)는 조사원별 일정을 골라 볼 수 있다.
   // 조사원은 본인 일정만(현행 유지). '' = 내 일정(myName).
   const isHqUser = myRole === 'hq_admin' || myRole === 'executive'
@@ -508,37 +542,72 @@ export function Home() {
     return mine.length > 0 ? new Set(mine.map((s) => s.id)) : null // null = 담당 배정 없음 → 전체 표시
   }, [schools, user])
 
+  // 근무표(점검 일정)에서 특정 날짜의 방문 학교를 꺼낸다 — 캘린더와 동일 연동 규칙 [H-6b]:
+  // 조사원 선택(schedWho) 시 그 사람, 조사원 계정은 본인, 본사 관리자 미선택 시 전체 조사원 합산.
+  const schedSchoolsOn = useCallback((key: string): { school: string; who: string }[] => {
+    const month = sched[key.slice(0, 7)] || {}
+    const pickOne = (nm: string) =>
+      ((month[nm] || {})[key]?.schools ?? []).map((s) => ({ school: s, who: nm }))
+    if (schedWho) return pickOne(schedWho)
+    if (!isHqUser) return pickOne(myName)
+    const out: { school: string; who: string }[] = []
+    for (const [nm, days] of Object.entries(month)) {
+      for (const s of (days[key]?.schools ?? [])) out.push({ school: s, who: nm })
+    }
+    return out
+  }, [sched, schedWho, isHqUser, myName])
+
   const todayItems = useMemo(() => {
     const isMine = (id?: string) => !myIds || !id || myIds.has(id) // 학교 미연결(자유 입력) 계획은 유지
     const done = (visitsByDate.get(TODAY_YMD) ?? []).filter((d) => isMine(d.school_id))
     const doneIds = new Set(done.map((d) => d.school_id))
     const planned = (plans[TODAY_YMD] ?? []).filter((p) => isMine(p.school_id) && (!p.school_id || !doneIds.has(p.school_id)))
-    // 점검 일정(본인)의 오늘 학교도 포함
-    const ym = TODAY_YMD.slice(0, 7)
-    const schedToday = ((sched[ym] || {})[myName] || {})[TODAY_YMD]?.schools ?? []
+    // 점검 일정(근무표)의 오늘 학교도 포함 — 캘린더 선택 대상과 동일 규칙 [H-6b]
+    const schedToday = schedSchoolsOn(TODAY_YMD)
     const seen = new Set([...done.map((d) => d.name), ...planned.map((p) => p.name)])
     // 점검 일정은 학교명만 있음 → 학교 목록에서 id 매칭(정확→시작일치→포함)해 업무 상태를 불러올 수 있게 함
     return [
       ...done.map((d) => ({ key: 'v-' + d.school_id, name: d.name, school_id: d.school_id as string | undefined, done: true })),
       ...planned.map((p) => ({ key: 'p-' + p.id, name: p.name, school_id: p.school_id, done: false })),
-      ...schedToday.filter((nm) => !seen.has(nm)).map((nm, i) => ({ key: 's-' + i, name: nm, school_id: findSid(nm), done: false })),
+      ...schedToday.filter((e) => !seen.has(e.school)).map((e, i) => ({
+        key: 's-' + i,
+        name: e.school + (isHqUser && !schedWho ? ` — ${e.who}` : ''),
+        school_id: findSid(e.school),
+        done: false,
+      })),
     ]
-  }, [visitsByDate, plans, TODAY_YMD, myIds, sched, myName, schools, findSid])
+  }, [visitsByDate, plans, TODAY_YMD, myIds, schedSchoolsOn, isHqUser, schedWho, findSid])
 
-  /* ---- 이번 주 방문 예정: 내일부터 7일간의 계획(날짜별 그룹) ---- */
+  /* ---- 이번 주 방문 예정: 내일부터 7일간 — 캘린더 계획 + 근무표(점검 일정) 병합.
+     근무표 대상은 캘린더와 동일 연동(조사원 선택 시 그 사람, 본사 미선택 시 전원 합산) [H-6b] ---- */
   const weekPlans = useMemo(() => {
     const out: { ymd: string; label: string; entries: Plan[] }[] = []
-    for (let i = 1; i <= 7; i++) {
+    // 오늘 포함 7일 — 캘린더에 오늘 업무가 있으면 위젯에도 바로 보인다 [H-6c]
+    for (let i = 0; i <= 6; i++) {
       const d = new Date(today)
       d.setDate(today.getDate() + i)
       const key = toYmd(d)
-      const entries = plans[key] ?? []
-      if (entries.length) out.push({ ymd: key, label: `${d.getMonth() + 1}/${d.getDate()} (${DOW_LABELS[d.getDay()]})`, entries })
+      const planned = plans[key] ?? []
+      const seen = new Set(planned.map((p) => p.name))
+      const entries: Plan[] = [
+        ...planned,
+        ...schedSchoolsOn(key).filter((e) => !seen.has(e.school)).map((e, j) => (
+          {
+            id: `sched-${key}-${j}`,
+            name: e.school + (isHqUser && !schedWho ? ` — ${e.who}` : ''),
+            school_id: findSid(e.school),
+          } as Plan
+        )),
+      ]
+      if (entries.length) {
+        const base = `${d.getMonth() + 1}/${d.getDate()} (${DOW_LABELS[d.getDay()]})`
+        out.push({ ymd: key, label: i === 0 ? `오늘 · ${base}` : base, entries })
+      }
     }
     return out
     // today는 렌더 간 고정
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plans])
+  }, [plans, schedSchoolsOn, isHqUser, schedWho, findSid])
   const weekCount = weekPlans.reduce((a, d) => a + d.entries.length, 0)
 
   /* ---- 공지 등록 모달 (본사 관리자) ---- */
@@ -908,7 +977,7 @@ export function Home() {
               <div className="hm-r">{weekCount}건</div>
             </div>
             {weekCount === 0 && (
-              <div className="hm-empty">다가오는 7일간 방문 계획이 없습니다. 캘린더에서 일정을 추가하세요.</div>
+              <div className="hm-empty">다가오는 7일간 방문 계획이 없습니다. 캘린더 또는 업무 &gt; 근무표에서 일정을 추가하세요.</div>
             )}
             {weekPlans.map((day) => (
               <div key={day.ymd}>
@@ -1006,6 +1075,65 @@ export function Home() {
             {renderBlock(b.id)}
           </div>
         ))}
+      </div>
+
+      {/* ===== 홈 하단: 현장 메모 피드 + 현장 앱 다운로드 [H-10] ===== */}
+      <div className="hm-bottom">
+        <div className="hm-card hm-bottom-memos">
+          <div className="hm-ch">
+            <span className="hm-ic v"><StickyNote size={16} /></span>
+            <h3>현장 메모</h3>
+            <div className="hm-r">{memoFeed.length}건 · 조사원 앱과 실시간 공유</div>
+          </div>
+          {memoFeed.length === 0 && (
+            <div className="hm-empty">아직 현장 메모가 없습니다. 조사원 앱의 [메모] 버튼으로 남기면 여기에 표시됩니다.</div>
+          )}
+          {memoFeed.slice(0, 12).map((m) => (
+            <div className="hm-todo" key={m.school_id + m.id} style={{ alignItems: 'flex-start' }}>
+              {m.type === 'todo' ? (
+                <input type="checkbox" checked={m.done} style={{ accentColor: 'var(--violet)', marginTop: 3 }}
+                  onChange={() => { void toggleMemoDone(m) }} title="할 일 완료 체크" />
+              ) : (
+                <span style={{ width: 13, flex: 'none' }} />
+              )}
+              <div className="hm-todo-main" style={{ minWidth: 0 }}>
+                <div className="nm" style={{ textDecoration: m.type === 'todo' && m.done ? 'line-through' : undefined, opacity: m.type === 'todo' && m.done ? 0.55 : 1 }}>
+                  {m.text}
+                </div>
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {m.school_name} · {m.by} · {m.ts.slice(5, 16).replace('T', ' ')}
+                  {m.type === 'todo' && (
+                    <b style={{ marginLeft: 6, color: m.due === 'today' ? 'var(--red, #c0392b)' : 'var(--violet, #7C5CFB)' }}>
+                      {m.due === 'today' ? '오늘 할 일' : m.due === 'tomorrow' ? '내일 할 일' : '할 일'}
+                    </b>
+                  )}
+                </div>
+              </div>
+              <span className="hm-go" role="button" tabIndex={0}
+                onClick={() => nav('/schools/' + m.school_id)}
+                onKeyDown={(e) => { if (e.key === 'Enter') nav('/schools/' + m.school_id) }}>학교 →</span>
+            </div>
+          ))}
+        </div>
+        <div className="hm-card hm-bottom-app">
+          <div className="hm-ch">
+            <span className="hm-ic g"><Smartphone size={16} /></span>
+            <h3>현장 앱 다운로드</h3>
+          </div>
+          <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
+            조사원 태블릿·휴대폰에 설치하는 현장 점검 앱(APK)입니다. 안드로이드에서 아래 버튼으로 받아 설치하세요.
+          </div>
+          {apkUrl ? (
+            <a className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }} href={apkUrl} download>
+              <Smartphone size={15} /> 현장 앱 받기 (안드로이드 APK)
+            </a>
+          ) : (
+            <div className="hm-empty">앱 파일을 찾을 수 없습니다 — 관리자에게 문의하세요.</div>
+          )}
+          <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+            설치 시 "출처를 알 수 없는 앱" 허용이 필요할 수 있습니다. 이미 설치돼 있으면 덮어쓰기 설치로 업데이트됩니다.
+          </div>
+        </div>
       </div>
 
       {/* ===== 공지 등록 모달 ===== */}

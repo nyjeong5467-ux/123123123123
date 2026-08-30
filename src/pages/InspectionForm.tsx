@@ -3,9 +3,10 @@
 // 경로: /inspection/new?school=<id>
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { api } from '../lib/api'
+import { api, getToken } from '../lib/api'
 import { InspectionMailModal } from '../components/InspectionMailModal'
 import { SignImage } from '../components/SignImage'
+import { SignaturePadModal, type SignStrokes } from '../components/SignaturePadModal'
 import type { SheetData } from '../components/InspectionSheetView'
 import { resolveExtra, type InspExtra } from '../lib/inspExtra'
 import '../styles/inspectform.css'
@@ -43,11 +44,15 @@ export const PARTDEF: PartDef[] = [
 /* ===================== 학교 특징 → 점검표 항목 자동 해당없음 매핑 (EXCL_RULES) ===================== */
 const EXCL_RULES: { key: string; feat?: string; why: string; hit: Record<string, number[]> }[] = [
   { key: '엘리베이터', feat: '엘리베이터', why: '엘리베이터 없음', hit: { 시설: [5, 6] } },
-  { key: '대형 곰솥', feat: '대형 곰솥', why: '대형 곰솥 없음', hit: { 급식: [32] } },
+  // feat는 학교 대장 특징 데이터 키(기존 저장값 '대형 곰솥')와 일치해야 하므로 유지 — 표시 문구만 '국솥'으로 교정.
+  { key: '대형 국솥', feat: '대형 곰솥', why: '대형 국솥 없음', hit: { 급식: [32] } },
   { key: '계단 (2층 이상)', feat: '계단 (2층 이상)', why: '계단 없음', hit: { 급식: [5] } },
   { key: '덤웨이터', feat: '덤웨이터', why: '덤웨이터 없음', hit: { 급식: [13] } },
   { key: '미화 종사원', why: '미화 종사원 없음', hit: { 미화: [3, 7] } },
   { key: 'LPG 사용', feat: 'LPG 사용', why: 'LPG 미사용', hit: { 급식: [22, 23] } },
+  // 08-28 조사원 피드백: 거울 미설치·고소작업 없는 학교 대응 (미화-7 사다리, 미화-8 세면대·변기 위 작업 = 고소작업 항목)
+  { key: '충돌방지용 거울', feat: '충돌방지용 거울', why: '충돌방지용 거울 없음', hit: { 미화: [3] } },
+  { key: '미화 고소작업', feat: '미화 고소작업', why: '미화 고소작업 없음', hit: { 미화: [7, 8] } },
 ]
 
 type FeatMap = Record<string, unknown> | null
@@ -89,6 +94,7 @@ type PrevSig = { signer: string; signed_at?: string | null; image_ref?: string |
 type PrevInsp = {
   id?: string; part: string; status?: string; items: PrevItem[]
   signatures?: PrevSig[]; submitted_at?: string | null; signed_at?: string | null
+  eduoffice_submit_status?: string // 수정 모드: 전송완료(success) 건 재전송 확인 흐름에 사용
 }
 // 이어서 작성(resume): 저장된 결과값 → 폼 답변 역매핑 (구 시드 ok/fix 값도 방어적으로 수용)
 const RES_INV: Record<string, Ans> = { good: '양호', poor: '미흡', na: '해당없음', ok: '양호', fix: '미흡' }
@@ -117,6 +123,11 @@ export function InspectionForm() {
   const [approval, setApproval] = useState<ApprovalStep[]>([])
   const [prevVals, setPrevVals] = useState<Record<string, string>>({})
   const [feat, setFeat] = useState<FeatMap>(null)
+  // [비고 연속성] 과거 방문 이력 — 날짜별 비고 묶음. 어느 방문에서 불러올지 사용자가 고른다.
+  const [pastVisits, setPastVisits] = useState<{ date: string; parts: string[]; remarks: Record<string, string>; count: number }[]>([])
+  const [histOpen, setHistOpen] = useState(false)
+  const [histPick, setHistPick] = useState(0)
+  const [histOverwrite, setHistOverwrite] = useState(false)
 
   // 작성 상태
   const [enabled, setEnabled] = useState<Record<string, boolean>>({})
@@ -130,6 +141,10 @@ export function InspectionForm() {
   const [inspectDate, setInspectDate] = useState(today)
   const [signerName, setSignerName] = useState('')
   const [signed, setSigned] = useState(false)
+  // [G-6] 웹 서명패드 — 그린 서명 PNG(dataURL)·원본 스트로크(앱 동일 스키마). 서명 시 백엔드로 전송.
+  const [signImage, setSignImage] = useState('')
+  const [signStrokes, setSignStrokes] = useState<SignStrokes | null>(null)
+  const [padOpen, setPadOpen] = useState(false)
   const [followupOn, setFollowupOn] = useState(false)
   // 수신 데이터(현장앱 제출분) — 이어서 작성/수정 모드에서 표시·보존 [서명·사진 출력 수정]
   // recvSigs: part key → 주서명(이미지 저장경로 포함), recvLines: 다중 결재란(서명 이미지 포함)
@@ -141,11 +156,41 @@ export function InspectionForm() {
   // 전남교육청 업로드 진행 팝업(게이지) — 완료 시 자동 사라짐
   const [prog, setProg] = useState<null | { done: number; total: number; label: string; phase: 'run' | 'done' | 'err'; msg: string }>(null)
   const [draftIds, setDraftIds] = useState<Record<string, string>>({}) // 임시저장으로 생성된 파트별 점검 ID [047]
+  // 수정 모드에서 이전에 교육청 전송완료(success)였던 점검 ID들 — 저장 시 재서명·재제출을
+  // 건너뛰어 전송상태를 보존하고, 저장 후 확인창으로 재전송(request-eduoffice) 여부를 묻는다.
+  const [eduSuccessIds, setEduSuccessIds] = useState<string[]>([])
   const [draftNote, setDraftNote] = useState('')
   const [submitErr, setSubmitErr] = useState('')
   const [statuses, setStatuses] = useState<Record<string, PartStatus>>({})
   const [doneAll, setDoneAll] = useState(false)
   const [mailOpen, setMailOpen] = useState(false) // [062] 학교 메일 전송 모달
+  const [pdfIds, setPdfIds] = useState<string[]>([]) // 제출 완료 후 점검표 PDF 대상 ids
+  const [pdfBusy, setPdfBusy] = useState(false)
+
+  // 완성 점검표 PDF — 백엔드 아카이브(GET /inspections/{id}/report.pdf). 수정 모드는
+  // 기존 점검(editIds), 신규는 제출 완료 후(pdfIds) 활성.
+  const pdfTargetId = pdfIds[0] || editIds[0] || ''
+  async function downloadFormPdf() {
+    if (!pdfTargetId) return
+    setPdfBusy(true)
+    try {
+      const res = await fetch(`/api/v1/inspections/${pdfTargetId}/report.pdf`, {
+        headers: { Authorization: `Bearer ${getToken() ?? ''}` },
+      })
+      if (!res.ok) throw new Error(`${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `안전점검표_${(schools.find((s) => s.id === sid)?.name || '학교')}_${new Date().toISOString().slice(0, 10)}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setSubmitErr(e instanceof Error ? `PDF 생성 실패: ${e.message}` : 'PDF 생성 실패')
+    } finally {
+      setPdfBusy(false)
+    }
+  }
 
   /* 학교 목록 + 기본 선택 */
   useEffect(() => {
@@ -164,8 +209,10 @@ export function InspectionForm() {
   /* 학교 변경 → 대장·결재선·지난 점검값·학교 특징 로드 + 작성 상태 초기화 */
   useEffect(() => {
     setLedger(null); setAnswers({}); setRemarks({}); setPhotos({}); setStatuses({})
+    setPastVisits([]); setHistOpen(false)
     setSigned(false); setDoneAll(false); setMailOpen(false); setSubmitErr(''); setPrevVals({}); setLoadErr('')
-    setRecvSigs({}); setRecvLines([])
+    setRecvSigs({}); setRecvLines([]); setEduSuccessIds([])
+    setSignImage(''); setSignStrokes(null); setPadOpen(false)
     if (!sid) return
     let alive = true
     api<Ledger>(`/schools/${sid}/ledger`)
@@ -181,6 +228,25 @@ export function InspectionForm() {
         const pv: Record<string, string> = {}
         for (const insp of list) for (const it of insp.items || []) if (CARRY_VALUE[it.code] && it.remark) pv[it.code] = it.remark
         setPrevVals(pv)
+        // [비고 연속성] 과거 방문 목록 구성 — 날짜별 그룹(현재 수정 중인 점검은 제외),
+        // 비고가 1칸이라도 있는 방문만. 최신 방문이 앞.
+        {
+          const editSet = new Set(editIds)
+          const byDate = new Map<string, { parts: Set<string>; remarks: Record<string, string> }>()
+          for (const insp of list) {
+            if (insp.id && editSet.has(insp.id)) continue
+            const d = String(insp.submitted_at || insp.signed_at || '').slice(0, 10)
+            if (!d) continue
+            const g = byDate.get(d) ?? { parts: new Set<string>(), remarks: {} }
+            g.parts.add(insp.part)
+            for (const it of insp.items || []) if (it.remark) g.remarks[it.code] = it.remark
+            byDate.set(d, g)
+          }
+          setPastVisits([...byDate.entries()]
+            .map(([date, g]) => ({ date, parts: [...g.parts], remarks: g.remarks, count: Object.keys(g.remarks).length }))
+            .filter((v) => v.count > 0)
+            .sort((a, b) => (a.date < b.date ? 1 : -1)))
+        }
         // 이어서 작성: 대상 점검의 기존 결과·비고를 폼에 프리필 (코드가 폼 규격과 일치하는 항목만)
         const prefill = (targets: PrevInsp[]) => {
           const pa: Record<string, Ans | undefined> = {}
@@ -249,6 +315,10 @@ export function InspectionForm() {
           if (targets.length) {
             prefill(targets)
             loadReceived(targets)
+            // 전송완료(success) 건 기록 — 저장 시 상태 보존 + 저장 후 재전송 확인 흐름 [F-2]
+            setEduSuccessIds(targets
+              .filter((t) => t.eduoffice_submit_status === 'success' && t.id)
+              .map((t) => t.id as string))
             const ids: Record<string, string> = {}
             for (const t of targets) {
               const def = PARTDEF.find((x) => x.key === t.part)
@@ -444,13 +514,17 @@ export function InspectionForm() {
     setStatuses((p) => ({ ...p, [label]: { st, note } }))
   }
 
-  /* [057] 부가정보 저장 — 기본정보·점검대상·기타의견·사진대지·확인자를 점검표 단위로 함께 보존 (양식 보기용) */
-  async function saveExtras(ids: string[]) {
+  /* [057] 부가정보 저장 — 기본정보·점검대상·기타의견·사진대지·확인자를 점검표 단위로 함께 보존 (양식 보기용)
+     [G-6] strokesRef: 이번 서명에서 백엔드가 저장한 스트로크 JSON 참조 — 없으면 기존 항목 값 보존
+     (백엔드 sign이 이미 기록한 sign_strokes_ref를 웹 재저장이 덮어쓰며 지우지 않게). */
+  async function saveExtras(ids: string[], strokesRef = '') {
     if (ids.length === 0) return
     try {
       const cur = await api<{ doc: Record<string, InspExtra[]> }>('/ops/docs/inspection-extras').catch(() => ({ doc: {} as Record<string, InspExtra[]> }))
       const doc = cur.doc && typeof cur.doc === 'object' ? cur.doc : {}
       const list = Array.isArray(doc[sid]) ? doc[sid] : []
+      const idx = list.findIndex((e) => Array.isArray(e.ids) && e.ids.some((id) => ids.includes(id)))
+      const keepStrokesRef = strokesRef || (idx >= 0 ? list[idx].sign_strokes_ref || '' : '')
       const entry: InspExtra = {
         ids,
         info: {
@@ -463,8 +537,9 @@ export function InspectionForm() {
         signer: signed ? signerName.trim() : '',
         // 현장앱 결재선(서명 이미지 경로) 보존 — 웹에서 재저장해도 수신 서명이 유실되지 않게 [서명·사진 출력 수정]
         ...(recvLines.length ? { approval_lines: recvLines } : {}),
+        // 서명 원본 스트로크 참조 보존/기록 — 교육청 봇이 웹 서명도 획 재생 [G-6]
+        ...(keepStrokesRef ? { sign_strokes_ref: keepStrokesRef } : {}),
       }
-      const idx = list.findIndex((e) => Array.isArray(e.ids) && e.ids.some((id) => ids.includes(id)))
       if (idx >= 0) list[idx] = entry
       else list.push(entry)
       doc[sid] = list
@@ -534,6 +609,7 @@ export function InspectionForm() {
     setProg({ done: 0, total: activeDefs.length, label: '', phase: 'run', msg: '전송을 준비합니다…' })
     let okAll = true
     const usedIds: string[] = []
+    let strokesRefOut = '' // [G-6] 백엔드가 저장한 서명 스트로크 참조 — saveExtras에 보존 전달
     for (const d of activeDefs) {
       const q = d.q!
       const exl = ex[d.label] || {}
@@ -578,30 +654,84 @@ export function InspectionForm() {
             })
           }
         }
-        setStatus(d.label, 'run', '서명')
-        await api(`/inspections/${created.id}/sign`, {
-          method: 'POST',
-          body: JSON.stringify({ signer: signerName.trim(), image_ref: '' }),
-        })
-        const sub = await api<{ status: string; eduoffice: string | null }>(`/inspections/${created.id}/submit`, { method: 'POST' })
-        usedIds.push(created.id)
-        setStatus(d.label, 'done', sub.eduoffice === 'pending' ? '제출 완료 · 교육청 전송 대기' : '제출 완료')
+        if (eduSuccessIds.includes(created.id)) {
+          // 이미 교육청 전송완료(success)된 점검의 수정 — 재서명·재제출을 건너뛰어
+          // 상태(submitted)·전송상태(success)·기존 서명을 보존하고 항목만 갱신한다.
+          // 재전송 여부는 저장 완료 후 확인창에서 명시적으로 결정(request-eduoffice) [F-2].
+          usedIds.push(created.id)
+          setStatus(d.label, 'done', '수정 저장 완료 (교육청 전송완료 건)')
+        } else {
+          setStatus(d.label, 'run', '서명')
+          // [G-6] 서명패드로 그린 서명이 있으면 PNG(b64)+스트로크를 함께 전송 —
+          // 백엔드가 앱(field/sync)과 같은 규약으로 저장(sign_<iid>.png / .strokes.json).
+          // 이름만 서명(그림 없음)은 기존 그대로 image_ref '' 텍스트 서명.
+          const signRes = await api<{ status: string; image_ref?: string; sign_strokes_ref?: string }>(`/inspections/${created.id}/sign`, {
+            method: 'POST',
+            body: JSON.stringify({
+              signer: signerName.trim(),
+              image_ref: '',
+              ...(signImage ? { sign_image_b64: signImage.split(',')[1] || '' } : {}),
+              ...(signStrokes ? { sign_strokes: signStrokes } : {}),
+            }),
+          })
+          if (signRes.sign_strokes_ref) strokesRefOut = signRes.sign_strokes_ref
+          const sub = await api<{ status: string; eduoffice: string | null }>(`/inspections/${created.id}/submit`, { method: 'POST' })
+          usedIds.push(created.id)
+          setStatus(d.label, 'done', sub.eduoffice === 'pending' ? '제출 완료 · 교육청 전송 대기' : '제출 완료')
+        }
       } catch (e) {
         okAll = false
         setStatus(d.label, 'err', e instanceof Error ? e.message : '제출 실패')
       }
       setProg((p) => (p ? { ...p, done: p.done + 1 } : p))
     }
-    await saveExtras(usedIds) // 기타의견·사진대지·확인자 등 부가정보 함께 저장 [057]
+    await saveExtras(usedIds, strokesRefOut) // 기타의견·사진대지·확인자 등 부가정보 함께 저장 [057]
     setBusy(false)
     if (okAll) {
-      setProg((p) => (p ? { ...p, phase: 'done', msg: '전남교육청 전송 대기 등록 완료' } : p))
+      // 전송완료(success) 건이 포함된 수정 저장 — 교육청 재전송(기존 건 수정) 여부 확인 [F-2]
+      const affected = usedIds.filter((id) => eduSuccessIds.includes(id))
+      let resent = false
+      if (affected.length && window.confirm('이미 교육청에 전송된 점검입니다. 수정 내용을 교육청에 재전송(기존 건 수정)할까요?')) {
+        try {
+          for (const id of affected) {
+            await api(`/inspections/${id}/request-eduoffice`, { method: 'POST' })
+          }
+          resent = true
+          setDraftNote('재전송 대기 등록 — 봇이 기존 교육청 건을 수정합니다')
+        } catch (e) {
+          setSubmitErr(e instanceof Error ? `재전송 등록 실패: ${e.message}` : '재전송 등록에 실패했습니다. 점검 현황 상세에서 [교육청 재전송(수정)]으로 다시 시도하세요.')
+        }
+      }
+      setProg((p) => (p ? {
+        ...p,
+        phase: 'done',
+        msg: affected.length
+          ? (resent ? '수정 저장 + 교육청 재전송 대기 등록 완료' : '수정 저장 완료 (교육청 재전송 안 함)')
+          : '전남교육청 전송 대기 등록 완료',
+      } : p))
       setDoneAll(true)
+      setPdfIds(usedIds) // 제출 완료 → [PDF 변환] 활성(백엔드 아카이브 report.pdf)
       window.setTimeout(() => { setProg(null); setMailOpen(true) }, 1400) // 완료 잠깐 보여주고 자동 사라짐 → 메일창
     } else {
       setProg((p) => (p ? { ...p, phase: 'err', msg: '일부 파트 전송 실패 — 상태 확인 후 다시 시도하세요' } : p))
       setSubmitErr('일부 파트 제출에 실패했습니다. 상태를 확인하세요.')
     }
+  }
+
+  // [비고 연속성] 선택한 과거 방문의 비고를 현재 폼에 적용 — 기본은 빈 칸만 채움.
+  function applyPastRemarks() {
+    const v = pastVisits[histPick]
+    if (!v) return
+    const next = { ...remarks }
+    let applied = 0
+    for (const [code, rem] of Object.entries(v.remarks)) {
+      if (!histOverwrite && (next[code] ?? '').toString().trim()) continue
+      if (next[code] !== rem) { next[code] = rem; applied++ }
+    }
+    setRemarks(next)
+    setHistOpen(false)
+    setSubmitErr('')
+    setDraftNote(`지난 비고 불러옴 — ${v.date} 방문 기준 ${applied}칸 적용${histOverwrite ? ' (기존 입력 덮어씀)' : ' (빈 칸만 채움)'}`)
   }
 
   /* ===================== 렌더 ===================== */
@@ -683,7 +813,16 @@ export function InspectionForm() {
 
         <div className="insf-ch" style={{ borderTop: '1px solid var(--line-2)', marginTop: 14 }}>
           <i className="insf-sq" /><h3>점검대상</h3>
-          <div className="r">종사자 현황에 따라 자동 선택 · 없는 파트도 추가할 수 있습니다</div>
+          <div className="r" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span>종사자 현황에 따라 자동 선택 · 없는 파트도 추가할 수 있습니다</span>
+            {pastVisits.length > 0 && (
+              <button type="button" className="btn" style={{ padding: '4px 10px', fontSize: 12 }}
+                title="이 학교의 과거 점검 비고를 골라서 현재 폼에 채웁니다"
+                onClick={() => { setHistPick(0); setHistOverwrite(false); setHistOpen(true) }}>
+                🕘 지난 비고 불러오기 ({pastVisits.length}회)
+              </button>
+            )}
+          </div>
         </div>
         <div className="insf-targets">
           {PARTDEF.map((d) => {
@@ -830,10 +969,36 @@ export function InspectionForm() {
                 {slots.map((s, i) => (
                   <div className="insf-phitem" key={i}>
                     <div className="insf-phnum">사진 {String(i + 1).padStart(2, '0')}</div>
-                    <label className="insf-ph">
-                      {s.dataUrl ? <img src={s.dataUrl} alt={s.name} /> : '+ 사진 추가'}
-                      <input type="file" accept="image/*" hidden onChange={(e) => onPickPhoto(d.label, i, e)} />
-                    </label>
+                    {/* 업로드됨: 클릭=다운로드(교체·삭제는 우상단 버튼) · 빈칸: 클릭=업로드 [H-1] */}
+                    {s.dataUrl ? (
+                      <div className="insf-ph" style={{ position: 'relative', cursor: 'pointer' }}
+                        title="클릭하면 사진을 다운로드합니다"
+                        onClick={() => {
+                          const a = document.createElement('a')
+                          a.href = s.dataUrl
+                          a.download = s.name || `${d.name}_사진${String(i + 1).padStart(2, '0')}.jpg`
+                          a.click()
+                        }}>
+                        <img src={s.dataUrl} alt={s.name} />
+                        <span style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 4 }}
+                          onClick={(e) => e.stopPropagation()}>
+                          <label title="사진 교체" style={{ cursor: 'pointer', background: 'rgba(22,22,42,.62)', color: '#fff', borderRadius: 7, padding: '3px 8px', fontSize: 11, fontWeight: 700 }}>
+                            교체
+                            <input type="file" accept="image/*" hidden onChange={(e) => onPickPhoto(d.label, i, e)} />
+                          </label>
+                          <button type="button" title="사진 삭제"
+                            style={{ cursor: 'pointer', background: 'rgba(192,57,43,.85)', color: '#fff', border: 'none', borderRadius: 7, padding: '3px 8px', fontSize: 11, fontWeight: 700 }}
+                            onClick={() => patchSlot(d.label, i, { dataUrl: '', name: '' })}>
+                            ✕
+                          </button>
+                        </span>
+                      </div>
+                    ) : (
+                      <label className="insf-ph">
+                        {'+ 사진 추가'}
+                        <input type="file" accept="image/*" hidden onChange={(e) => onPickPhoto(d.label, i, e)} />
+                      </label>
+                    )}
                     {s.name && <div className="insf-phname">{s.name}</div>}
                     <textarea
                       className="insf-phcap"
@@ -862,20 +1027,29 @@ export function InspectionForm() {
           <label className="field">
             <span>담당자</span>
             <input className="input" placeholder="학교 업무담당자 성명" value={signerName}
-              onChange={(e) => { setSignerName(e.target.value); setSigned(false) }} />
+              onChange={(e) => { setSignerName(e.target.value); setSigned(false); setSignImage(''); setSignStrokes(null) }} />
           </label>
           <label className="field">
             <span>서명</span>
+            {/* [G-6] 클릭 → 서명패드(직접 그리기). 그린 서명은 썸네일로 표시, 이름만 서명도 패드에서 선택 가능 */}
             <div
               className={'insf-signbox' + (signed ? ' signed' : '')}
               onClick={() => {
                 if (!signerName.trim()) { setSubmitErr('담당자 성명을 먼저 입력하세요.'); return }
                 setSubmitErr('')
-                setSigned((v) => !v)
+                setPadOpen(true)
               }}
+              title={signed ? '클릭하면 다시 서명합니다' : '클릭하여 서명패드 열기'}
             >
-              {signed ? `${signerName.trim()} ✓` : '클릭하여 서명하기'}
+              {signImage
+                ? <img src={signImage} alt="서명" style={{ maxHeight: 40, maxWidth: 170, objectFit: 'contain', verticalAlign: 'middle' }} />
+                : signed ? `${signerName.trim()} ✓` : '클릭하여 서명하기'}
             </div>
+            <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
+              {signed
+                ? (signImage ? '손글씨 서명 완료 — 클릭하면 다시 그립니다' : '이름 서명 완료 — 클릭하면 손글씨로 서명할 수 있습니다')
+                : '서명패드에서 직접 그리거나, 이름만으로도 서명할 수 있습니다'}
+            </span>
           </label>
         </div>
         {/* 수신된 서명 — 현장앱이 제출한 손글씨 서명(주서명·결재선)을 그대로 표시 [서명·사진 출력 수정] */}
@@ -901,6 +1075,16 @@ export function InspectionForm() {
           </div>
         )}
       </div>
+
+      {/* [G-6] 서명패드 모달 — 마우스/터치로 서명 그리기 → 적용 시 PNG+스트로크 보관(저장 시 전송) */}
+      {padOpen && (
+        <SignaturePadModal
+          signer={signerName.trim()}
+          onApply={(png, strokes) => { setSignImage(png); setSignStrokes(strokes); setSigned(true); setPadOpen(false) }}
+          onNameOnly={() => { setSignImage(''); setSignStrokes(null); setSigned(true); setPadOpen(false) }}
+          onClose={() => setPadOpen(false)}
+        />
+      )}
 
       {/* [062] 학교 메일 전송 모달 — 점검표 PDF 자동 첨부 + 학교 이메일 자동 입력 */}
       {mailOpen && (
@@ -946,58 +1130,91 @@ export function InspectionForm() {
             <input type="checkbox" checked={followupOn} onChange={(e) => setFollowupOn(e.target.checked)} /> 추후보완
           </label>
           <button className="btn" disabled={!ledger} onClick={() => setMailOpen(true)}>✉ 메일</button>
-          <button className="btn" disabled title="PDF 변환은 제출 후 백엔드에서 생성됩니다">▤ PDF 변환</button>
-          {/* 임시저장 버튼은 상단 헤더에만 — 하단 중복 버튼 제거 [061] */}
-          <button className="btn btn-primary" disabled={busy || !ledger} onClick={submitAll}>
-            {busy ? '업로드 중…' : '전남교육청 업로드'}
+          <button className="btn" disabled={!pdfTargetId || pdfBusy}
+            title={pdfTargetId ? '완성된 안전점검표 PDF(결재란·항목·사진대지·서명 포함) 다운로드' : 'PDF 변환은 제출 후 가능합니다'}
+            onClick={() => void downloadFormPdf()}>
+            {pdfBusy ? 'PDF 생성 중…' : '▤ PDF 변환'}
           </button>
+          {/* 임시저장 버튼은 상단 헤더에만 — 하단 중복 버튼 제거 [061] */}
+          {/* 업로드 버튼 자체가 진행형 — 게이지·성공·실패를 버튼에 내장(팝업 제거) [G-8 웹] */}
+          {(() => {
+            const phase = prog?.phase
+            const pct = prog ? (phase === 'done' ? 100 : Math.round((prog.done / Math.max(1, prog.total)) * 100)) : 0
+            const isRun = phase === 'run'
+            const isDone = phase === 'done'
+            const isErr = phase === 'err'
+            return (
+              <button
+                className="btn btn-primary"
+                disabled={(!isErr && busy) || !ledger}
+                onClick={isErr ? () => setProg(null) : submitAll}
+                title={isErr ? (prog?.msg || '실패 — 눌러서 초기화 후 다시 시도') : isRun ? prog?.msg : undefined}
+                style={{
+                  position: 'relative', overflow: 'hidden', minWidth: 168,
+                  ...(isDone ? { background: 'var(--ok-ink,#1b7a44)', borderColor: 'var(--ok-ink,#1b7a44)' } : {}),
+                  ...(isErr ? { background: 'var(--red-ink,#c0392b)', borderColor: 'var(--red-ink,#c0392b)' } : {}),
+                }}>
+                <style>{`@keyframes uplspin{to{transform:rotate(360deg)}}`}</style>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, position: 'relative', zIndex: 1 }}>
+                  {isRun && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" style={{ animation: 'uplspin 1s linear infinite', flex: 'none' }}><path d="M21 12a9 9 0 1 1-6.2-8.5" /></svg>
+                  )}
+                  {isDone && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}><path d="M20 6 9 17l-5-5" /></svg>
+                  )}
+                  {isErr && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" style={{ flex: 'none' }}><path d="M18 6 6 18M6 6l12 12" /></svg>
+                  )}
+                  {isRun ? `업로드 중 ${prog!.done}/${prog!.total}${prog!.label ? ` · ${prog!.label}` : ''}`
+                    : isDone ? '전송 대기 등록 완료'
+                    : isErr ? '실패 · 다시 시도'
+                    : '전남교육청 업로드'}
+                </span>
+                {isRun && (
+                  <span style={{ position: 'absolute', left: 0, bottom: 0, height: 3, width: `${pct}%`, background: 'rgba(255,255,255,.85)', borderRadius: 99, transition: 'width .35s ease', zIndex: 0 }} />
+                )}
+              </button>
+            )
+          })()}
         </div>
       </div>
 
-      {prog && (() => {
-        const pct = prog.phase === 'done' ? 100 : Math.round((prog.done / Math.max(1, prog.total)) * 100)
-        const isErr = prog.phase === 'err'
-        const isDone = prog.phase === 'done'
-        return (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'grid', placeItems: 'center', background: 'rgba(22,22,42,.34)', backdropFilter: 'blur(2px)' }}>
-            <style>{`@keyframes uplspin{to{transform:rotate(360deg)}}`}</style>
-            <div style={{ width: 400, maxWidth: '90vw', background: 'var(--card,#fff)', borderRadius: 18, boxShadow: '0 24px 64px rgba(22,22,42,.30)', padding: '22px 24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 15 }}>
-                <span style={{ width: 42, height: 42, borderRadius: 13, display: 'grid', placeItems: 'center', flex: 'none',
-                  background: isErr ? 'var(--red-soft,#fdeced)' : isDone ? 'var(--ok-soft,#e7f6ee)' : 'var(--violet-soft,#efeaff)',
-                  color: isErr ? 'var(--red-ink,#c0392b)' : isDone ? 'var(--ok-ink,#1b7a44)' : 'var(--violet,#7C5CFB)' }}>
-                  {isDone ? (
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                  ) : isErr ? (
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-                  ) : (
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" style={{ animation: 'uplspin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.2-8.5" /></svg>
-                  )}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 15.5, color: 'var(--ink,#20232e)' }}>전남교육청 업로드</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted,#7a8090)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {prog.msg}{prog.label && !isDone && !isErr ? ` · ${prog.label}` : ''}
-                  </div>
+      {/* [비고 연속성] 지난 비고 불러오기 — 방문(날짜) 선택 + 빈 칸만/덮어쓰기 */}
+      {histOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 210, display: 'grid', placeItems: 'center', background: 'rgba(22,22,42,.34)', backdropFilter: 'blur(2px)' }}
+          onClick={() => setHistOpen(false)}>
+          <div style={{ width: 460, maxWidth: '92vw', maxHeight: '80vh', overflowY: 'auto', background: 'var(--card,#fff)', borderRadius: 16, boxShadow: '0 24px 64px rgba(22,22,42,.30)', padding: '20px 22px' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 800, fontSize: 15.5, marginBottom: 4 }}>🕘 지난 비고 불러오기</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+              이 학교의 과거 점검에서 비고(보완계획)를 가져와 현재 폼에 채웁니다. 어느 방문까지 거슬러 갈지 선택하세요.
+            </div>
+            {pastVisits.map((v, i) => (
+              <label key={v.date} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 10, cursor: 'pointer',
+                border: '1px solid ' + (i === histPick ? 'var(--violet,#7C5CFB)' : 'var(--line,#e7e9f2)'),
+                background: i === histPick ? 'var(--violet-soft,#efeaff)' : 'transparent', marginBottom: 6 }}>
+                <input type="radio" name="histpick" checked={i === histPick} onChange={() => setHistPick(i)} style={{ accentColor: 'var(--violet)' }} />
+                <div style={{ flex: 1 }}>
+                  <b style={{ fontSize: 13.5 }}>{v.date}</b>
+                  <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+                    {v.parts.map((p) => PARTDEF.find((d) => d.label === p || d.key === p)?.name ?? p).join(' · ')}
+                  </span>
                 </div>
-                <div style={{ fontWeight: 900, fontSize: 16, color: isErr ? 'var(--red-ink,#c0392b)' : 'var(--violet,#7C5CFB)' }}>{pct}%</div>
-              </div>
-              <div style={{ height: 10, borderRadius: 99, background: 'var(--line,#e7e9f2)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${pct}%`, borderRadius: 99, transition: 'width .35s ease',
-                  background: isErr ? 'var(--red-ink,#c0392b)' : isDone ? 'var(--ok-ink,#1b7a44)' : 'linear-gradient(90deg,#9b83ff,#7C5CFB)' }} />
-              </div>
-              <div style={{ marginTop: 9, fontSize: 12, color: 'var(--muted,#7a8090)' }}>
-                {isDone ? '봇이 곧 전남교육청 SHM System에 전송합니다.' : isErr ? '일부 파트 전송에 실패했습니다.' : `${prog.done} / ${prog.total} 파트 처리 중…`}
-              </div>
-              {isErr && (
-                <div style={{ marginTop: 15, textAlign: 'right' }}>
-                  <button className="btn" onClick={() => setProg(null)}>닫기</button>
-                </div>
-              )}
+                <span className="pillx doing" style={{ flex: 'none' }}>비고 {v.count}칸</span>
+              </label>
+            ))}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, margin: '10px 2px 14px' }}>
+              <input type="checkbox" checked={histOverwrite} onChange={(e) => setHistOverwrite(e.target.checked)} style={{ accentColor: 'var(--violet)' }} />
+              이미 입력한 비고도 덮어쓰기 <span className="muted">(기본: 빈 칸만 채움)</span>
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setHistOpen(false)}>취소</button>
+              <button className="btn btn-primary" onClick={applyPastRemarks}>불러오기</button>
             </div>
           </div>
-        )
-      })()}
+        </div>
+      )}
+
     </div>
   )
 }

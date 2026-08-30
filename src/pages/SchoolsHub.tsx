@@ -54,6 +54,23 @@ type MusLite = { needs_review: number; created_at?: string | null }
 type CompSheetLite = { status?: string }
 type CompDoc = Record<string, Record<string, CompSheetLite>>
 
+/* [perf-0828] 동시 요청 상한 헬퍼 — limit개씩 배치로 순차 실행해 학교별 API 폭주를 방지.
+   isAlive가 false면(언마운트·effect 재실행) 남은 배치를 중단하고, onBatch로 배치마다
+   중간 결과를 반영할 수 있다(전체 학교 대상일 때 숫자가 점진적으로 채워짐). */
+async function mapLimit<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>,
+  isAlive: () => boolean = () => true,
+  onBatch?: () => void,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += limit) {
+    if (!isAlive()) return
+    await Promise.all(items.slice(i, i + limit).map(fn))
+    onBatch?.()
+  }
+}
+
 const WORKS: { key: keyof WorkBadges | 'edu'; label: string; path: string }[] = [
   { key: 'insp', label: '안전점검', path: '/inspection' },
   { key: 'risk', label: '위험성평가', path: '/risk' },
@@ -151,19 +168,20 @@ export function SchoolsHub() {
         const schools = await api<School[]>('/schools')
         const list = Array.isArray(schools) ? schools : []
         // [060] 대장 요약 조회를 담당 학교로 한정 — 전체 783교 학교별 조회 과부하 방지
-        // (배지 집계 [038]과 동일 규칙: 담당 배정이 없는 계정은 기존대로 전체 조회)
+        // (배지 집계 [038]과 동일 규칙: 담당 배정이 없는 계정은 전체 조회하되 [perf-0828] 배치 제한)
         const mine = list.filter((s) => s.assigned_inspector_id === login)
         const targets = new Set((mine.length > 0 ? mine : list).map((s) => s.id))
-        const details = await Promise.all(
-          list.map(async (s): Promise<Row> => {
-            if (!targets.has(s.id)) return { school: s, total: null, mismatch: false }
-            const led = await api<Ledger>(`/schools/${s.id}/ledger`).catch(() => null)
-            return {
-              school: s,
-              total: led ? led.worker_total : null,
-              mismatch: !!led?.headcount_mismatch,
-            }
-          }),
+        // [perf-0828] 대장 요약도 동시 8건 배치로 제한 — 담당 미배정 계정(본사)이 전체 학교
+        // 대장을 한꺼번에 발사하던 폭주 방지. 결과(종사자수·인원대조)는 동일, 배치로 순차 수집.
+        const details: Row[] = list.map((s) => ({ school: s, total: null, mismatch: false }))
+        await mapLimit(
+          details.filter((d) => targets.has(d.school.id)),
+          8,
+          async (d) => {
+            const led = await api<Ledger>(`/schools/${d.school.id}/ledger`).catch(() => null)
+            if (led) { d.total = led.worker_total; d.mismatch = !!led.headcount_mismatch }
+          },
+          () => alive,
         )
         // 기본 정렬: 학교명 가나다순
         details.sort((a, b) => a.school.name.localeCompare(b.school.name, 'ko'))
@@ -197,11 +215,14 @@ export function SchoolsHub() {
     setScopeInit(true)
   }, [loading, meLoaded, mineCount, scopeInit])
 
-  // 5대 업무 상태 배지 — 학교별 3개 API + 이행점검 조사지 문서 1회 병렬 조회 (실패 시 해당 배지만 생략)
-  // 집계 대상은 담당 학교로 한정 (업무 바로가기 컬럼·배너 도넛 모두 담당 기준 — 전체 783교 조회는 과부하)
+  // 5대 업무 상태 배지 — 집계 대상은 담당 학교(없으면 전체) 기준. [perf-0828]
+  // 안전점검은 집계 1콜(GET /inspections/summary — 학교별 경량 항목)로 대체하고 이행점검 문서도 1콜.
+  // 위험성평가·근골격계는 집계 API가 없어 학교별 조회를 유지하되 동시 8건 배치로 제한 —
+  // 담당 미배정 계정(본사 관리자)이 전체 771교 × 3API를 한꺼번에 발사해 백엔드를 프리즈시키던 폭주 해소.
+  // 배치마다 중간 반영하므로 전체 학교 대상일 때 배너 숫자가 점진적으로 채워진다.
   useEffect(() => {
     if (rows.length === 0) { setBadges({}); return }
-    // [060] 같은 rows 스냅샷이면 캐시 재사용 — 탭 재진입 시 담당 학교 3개 API 재조회 생략
+    // [060] 같은 rows 스냅샷이면 캐시 재사용 — 탭 재진입 시 담당 학교 API 재조회 생략
     if (hubBadgeCache && hubBadgeCache.forRows === rows) { setBadges(hubBadgeCache.badges); return }
     const mine = rows.filter((r) => isMine(r.school))
     const target = mine.length > 0 ? mine : rows
@@ -210,23 +231,21 @@ export function SchoolsHub() {
     const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     const halfKey = `${now.getFullYear()}_${now.getMonth() + 1 <= 6 ? 'h1' : 'h2'}`
     ;(async () => {
-      const compDoc = await api<{ doc: CompDoc }>('/ops/docs/compliance-sheets').catch(() => ({ doc: {} as CompDoc }))
-      const pairs = await Promise.all(
-        target.map(async (r) => {
-          const id = r.school.id
-          const [insp, risk, mus] = await Promise.all([
-            api<InspLite[]>(`/inspections?school_id=${id}`).catch(() => [] as InspLite[]),
-            api<StatusLite[]>(`/risk?school_id=${id}`).catch(() => [] as StatusLite[]),
-            api<MusLite[]>(`/musculo?school_id=${id}`).catch(() => [] as MusLite[]),
-          ])
-          return [id, deriveBadges(insp, risk, mus, compDoc.doc?.[id]?.[halfKey], ym)] as const
-        }),
-      )
-      if (alive) {
-        const map = Object.fromEntries(pairs)
-        hubBadgeCache = { forRows: rows, badges: map }
-        setBadges(map)
+      // 위험성·근골도 집계 1콜(/risk/summary·/musculo/summary)로 — 학교별 배치 조회 제거 [H-5]
+      const [compDoc, inspSum, riskSum, musSum] = await Promise.all([
+        api<{ doc: CompDoc }>('/ops/docs/compliance-sheets').catch(() => ({ doc: {} as CompDoc })),
+        api<Record<string, InspLite[]>>('/inspections/summary').catch(() => ({} as Record<string, InspLite[]>)),
+        api<Record<string, StatusLite[]>>('/risk/summary').catch(() => ({} as Record<string, StatusLite[]>)),
+        api<Record<string, MusLite[]>>('/musculo/summary').catch(() => ({} as Record<string, MusLite[]>)),
+      ])
+      if (!alive) return
+      const acc: Record<string, WorkBadges> = {}
+      for (const r of target) {
+        const id = r.school.id
+        acc[id] = deriveBadges(inspSum[id] ?? [], riskSum[id] ?? [], musSum[id] ?? [], compDoc.doc?.[id]?.[halfKey], ym)
       }
+      hubBadgeCache = { forRows: rows, badges: acc } // 완주한 경우에만 캐시 확정
+      setBadges(acc)
     })()
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps

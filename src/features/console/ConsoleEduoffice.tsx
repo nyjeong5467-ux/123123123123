@@ -126,6 +126,29 @@ export default function ConsoleEduoffice() {
 
   useEffect(() => { void load() }, [load])
 
+  // ── 봇 실시간 상태(하트비트) — 처리 중 단계·최근 완료 건 계측 [H-3 2단계] ──
+  type BotActive = { stage: string; detail?: string; elapsed_ms?: number; account?: string; school_id?: string; school_name?: string }
+  type BotRecent = { job_key: string; success: boolean; total_ms?: number; stage_ms?: Record<string, number>; error_kind?: string; finished_at?: string }
+  const [botStat, setBotStat] = useState<{ active: Record<string, BotActive>; recent: BotRecent[] } | null>(null)
+  useEffect(() => {
+    let alive = true
+    const tick = () => {
+      api<{ active: Record<string, BotActive>; recent: BotRecent[] }>('/eduoffice/bot-status')
+        .then((d) => { if (alive) setBotStat(d) })
+        .catch(() => { /* 미지원/일시 오류 — 패널 숨김 유지 */ })
+    }
+    tick()
+    const id = setInterval(tick, 5000)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
+  const botActive = Object.entries(botStat?.active ?? {})
+  const botRecent = (botStat?.recent ?? []).slice(0, 5)
+  const avgMs = useMemo(() => {
+    const done = (botStat?.recent ?? []).filter((r) => r.success && r.total_ms)
+    if (!done.length) return null
+    return Math.round(done.reduce((a, r) => a + (r.total_ms || 0), 0) / done.length / 1000)
+  }, [botStat])
+
   // 대기(pending) 건이 남아 있는 동안 2초마다 큐 폴링 → 게이지바가 완료율을 실시간 반영.
   // 대기 0이 되면 effect 정리로 인터벌 해제(중복 인터벌 없음).
   const pendingCount = useMemo(() => queue.filter((j) => j.status === 'pending').length, [queue])
@@ -321,6 +344,37 @@ export default function ConsoleEduoffice() {
           <div className="d">{kpi.fail ? '재전송 필요' : '이상 없음'}</div>
         </div>
       </div>
+
+      {/* 봇 실시간 상태 — 처리 중 단계 + 최근 처리 계측 [H-3 2단계] */}
+      {(botActive.length > 0 || botRecent.length > 0) && (
+        <div className="ledger" style={{ marginBottom: 20 }}>
+          <div className="lh">
+            <h2>🤖 봇 실시간 상태</h2>
+            <div className="sp" />
+            {avgMs !== null && <span className="pillx na">최근 성공 평균 {avgMs}초/건</span>}
+            <span className={'pillx ' + (botActive.length ? 'doing' : 'ok')}>
+              {botActive.length ? `처리 중 ${botActive.length}건` : '대기 중'}
+            </span>
+          </div>
+          {botActive.map(([key, a]) => (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px', fontSize: 13 }}>
+              <span className="pillx doing">{a.stage}</span>
+              <b>{a.school_name || a.school_id || key}</b>
+              <span className="muted">{a.detail || ''}</span>
+              <div className="sp" />
+              {a.account && <span className="muted" style={{ fontSize: 11 }}>계정 {a.account}</span>}
+              {a.elapsed_ms != null && <span className="muted" style={{ fontSize: 11 }}>{Math.round(a.elapsed_ms / 1000)}초 경과</span>}
+            </div>
+          ))}
+          {botActive.length === 0 && botRecent.length > 0 && (
+            <div style={{ fontSize: 12 }} className="muted">
+              최근 처리: {botRecent.map((r) => (
+                `${r.success ? '성공' : `실패(${r.error_kind || '오류'})`} ${r.total_ms ? Math.round(r.total_ms / 1000) + '초' : ''}`
+              )).join(' · ')}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 안전점검 자동 전송 대기 */}
       <div className="ledger" style={{ marginBottom: 20 }}>

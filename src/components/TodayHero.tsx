@@ -4,12 +4,23 @@
 // 조회 실패 시 해당 칩만 생략(화면은 항상 렌더).
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Activity, AlertTriangle, BookOpen, CheckCircle2, ChevronRight, ClipboardCheck, FileCheck2, ListTodo } from 'lucide-react'
+import { Activity, AlertTriangle, BookOpen, CheckCircle2, ChevronRight, ClipboardCheck, FileCheck2, ListTodo, StickyNote } from 'lucide-react'
 import { api } from '../lib/api'
 import { hasMusDraft } from '../lib/musDraft'
 
 export type TodayItem = { key: string; name: string; school_id?: string; done: boolean }
 type SchoolLite = { id: string; name: string; school_level?: string; manager?: string }
+
+// [G-5] 현장 할 일 — 조사원 앱 메모(type=todo) 전 학교 집계 (/field/school-memos/todos)
+type FieldTodo = {
+  school_id: string; school_name: string; id: string; ts: string
+  by: string; text: string; due: 'today' | 'tomorrow' | null; done: boolean
+}
+const FT_GROUPS: { due: FieldTodo['due']; label: string }[] = [
+  { due: 'today', label: '오늘' },
+  { due: 'tomorrow', label: '내일' },
+  { due: null, label: '기한 없음' },
+]
 
 type TaskChip = { label: string; cls: 'warn' | 'doing' | 'bad' | 'muted' }
 type InspRow = { status: string; submitted_at?: string | null; signed_at?: string | null }
@@ -85,6 +96,29 @@ export function TodayHero(p: {
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey])
+
+  // [G-5] 현장 할 일 로드 — 조사원 앱 메모 시트의 [할 일]과 실시간 공유
+  const [fieldTodos, setFieldTodos] = useState<FieldTodo[]>([])
+  useEffect(() => {
+    let alive = true
+    api<{ todos: FieldTodo[] }>('/field/school-memos/todos')
+      .then((d) => { if (alive) setFieldTodos(Array.isArray(d.todos) ? d.todos : []) })
+      .catch(() => { if (alive) setFieldTodos([]) })
+    return () => { alive = false }
+  }, [])
+
+  async function toggleFieldTodo(t: FieldTodo) {
+    const next = !t.done
+    setFieldTodos((prev) => prev.map((x) => (x.id === t.id ? { ...x, done: next } : x)))
+    try {
+      await api(`/field/school-memos/${t.id}?school_id=${t.school_id}`, {
+        method: 'PATCH', body: JSON.stringify({ done: next }),
+      })
+    } catch {
+      setFieldTodos((prev) => prev.map((x) => (x.id === t.id ? { ...x, done: t.done } : x)))
+    }
+  }
+  const ftOpen = fieldTodos.filter((t) => !t.done).length
 
   return (
     <div className="hm-card hm-today">
@@ -208,6 +242,45 @@ export function TodayHero(p: {
           })
         )}
       </div>
+
+      {/* [G-5] 현장 할 일 — 조사원 앱 메모(할 일)와 실시간 공유, 기한별 그룹 */}
+      {fieldTodos.length > 0 && (
+        <div className="hm-ft">
+          <div className="hm-ft-head">
+            <StickyNote size={14} strokeWidth={2} />
+            <h3>현장 할 일</h3>
+            <span className={'hm-td-chip' + (ftOpen > 0 ? ' warn' : ' muted')}>
+              {ftOpen > 0 ? `미완료 ${ftOpen}건` : '모두 완료'}
+            </span>
+            <span className="hm-ft-src">조사원 앱 [메모 → 할 일]과 실시간 공유</span>
+          </div>
+          {FT_GROUPS.map((g) => {
+            const rows = fieldTodos.filter((t) => (t.due ?? null) === g.due)
+            if (rows.length === 0) return null
+            return (
+              <div className="hm-ft-group" key={g.label}>
+                <div className="hm-ft-glabel">{g.label}</div>
+                {rows.map((t) => (
+                  <label className={'hm-ft-row' + (t.done ? ' done' : '')} key={t.id}>
+                    <input
+                      type="checkbox"
+                      checked={t.done}
+                      onChange={() => void toggleFieldTodo(t)}
+                    />
+                    <span className="sc" role="link" tabIndex={0}
+                      onClick={(e) => { e.preventDefault(); nav('/schools/' + t.school_id) }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') nav('/schools/' + t.school_id) }}>
+                      {t.school_name}
+                    </span>
+                    <span className="tx">{t.text}</span>
+                    {t.by && <span className="by">{t.by}</span>}
+                  </label>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

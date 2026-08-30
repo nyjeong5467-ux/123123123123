@@ -325,6 +325,9 @@
   gap: 10px;
   align-items: baseline;
   padding: 4px 0;
+  /* 공통 .kv(양끝 정렬+밑줄) 누수 차단 — 라벨·값이 화면 양끝으로 찢어져 보이던 레이아웃 깨짐 수정 */
+  justify-content: flex-start;
+  border-bottom: 0;
 }
 .shub-infogrid.view .kv b {
   flex: none;
@@ -333,7 +336,7 @@
   color: var(--muted);
   font-weight: 700;
 }
-.shub-infogrid.view .kv span { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.shub-infogrid.view .kv span { font-size: 13.5px; font-weight: 600; color: var(--ink); text-align: left; }
 
 /* ---------- 허브: 업무 바로가기 색 범례 [041] ---------- */
 .shub-legend {

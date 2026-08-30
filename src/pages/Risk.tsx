@@ -35,8 +35,10 @@ type School = {
   assigned_inspector_id?: string
 }
 // [073] 모듈 스코프 세션 캐시 — 탭 재진입 시 전 학교 GET /risk·/risk/survey(N+1) 재발사 방지 ([060] 패턴)
-let riskSession: { account: string; schools: School[]; map: Record<string, RiskItem[]> } | null = null
-let riskDocSession: { account: string; schools: School[]; map: Record<string, { d: SurveyData; updated: string }> } | null = null
+// [088] fetchedAt 추가 — 오래된 캐시는 재진입 시 백그라운드 재검증(현장 앱 제출분 반영).
+let riskSession: { account: string; schools: School[]; map: Record<string, RiskItem[]>; fetchedAt: number } | null = null
+let riskDocSession: { account: string; schools: School[]; map: Record<string, { d: SurveyData; updated: string }>; fetchedAt: number } | null = null
+const RISK_CACHE_TTL = 60_000
 
 // [076] 담당 학교 한정 조회 — 담당 배정이 있는 계정은 담당 학교만 학교별 API를 조회(N+1 축소, [060] 규칙).
 // 배정이 없는 계정은 기존대로 전체 조회. 리스트에는 조회된 학교의 작성물만 표시됨.
@@ -341,22 +343,26 @@ export function Risk() {
   const [docLoading, setDocLoading] = useState(false)
   useEffect(() => {
     if (!schools.length) return
-    if (riskDocSession && riskDocSession.schools === schools) return // 캐시 적중 [073]
+    // 캐시 적중 + 신선 — 재조회 0건 [073]. 오래되면 백그라운드 재검증 [088].
+    if (riskDocSession && riskDocSession.schools === schools
+      && Date.now() - riskDocSession.fetchedAt < RISK_CACHE_TTL) return
     let alive = true
-    setDocLoading(true)
-    void Promise.all(
-      scopeToAssigned(schools, user?.login).map(async (s) => { // [076] 담당 학교 한정
-        const r = await api<SurveyGetResp>(`/risk/survey?school_id=${s.id}`).catch(() => null)
-        return { id: s.id, doc: r ? { d: mergeSurvey(r.sections ?? {}), updated: r.updated_at || '' } : null }
-      }),
-    ).then((list) => {
-      if (!alive) return
-      const m: Record<string, { d: SurveyData; updated: string }> = {}
-      for (const it of list) if (it.doc) m[it.id] = it.doc
-      riskDocSession = { account: user?.login ?? '', schools, map: m } // [073]
-      setDocMap(m)
-      setDocLoading(false)
-    })
+    if (!Object.keys(docMap).length) setDocLoading(true)
+    // 학교별 병렬 발사 → 집계 1콜(/risk/survey/summary). 저장된 조사표만 온다 [H-5].
+    void api<Record<string, { sections?: Record<string, unknown>; updated_at?: string }>>('/risk/survey/summary')
+      .then((bySchool) => {
+        if (!alive) return
+        const assigned = new Set(scopeToAssigned(schools, user?.login).map((s) => s.id)) // [076]
+        const m: Record<string, { d: SurveyData; updated: string }> = {}
+        for (const [sid2, r] of Object.entries(bySchool)) {
+          if (!assigned.has(sid2)) continue
+          m[sid2] = { d: mergeSurvey((r.sections ?? {}) as never), updated: r.updated_at || '' }
+        }
+        riskDocSession = { account: user?.login ?? '', schools, map: m, fetchedAt: Date.now() } // [073]
+        setDocMap(m)
+        setDocLoading(false)
+      })
+      .catch(() => { if (alive) setDocLoading(false) }) // 실패 시 기존 캐시 유지
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schools])
@@ -531,22 +537,22 @@ export function Risk() {
   // 전 학교 평가 목록 로드 → 학교 행 요약(건수/최근일)과 2단계 그룹에 사용
   useEffect(() => {
     if (!schools.length) return
-    if (riskSession && riskSession.schools === schools) return // 캐시 적중 — 재조회 0건 [073]
+    // 캐시 적중 + 신선 — 재조회 0건 [073]. 오래되면 백그라운드 재검증 [088].
+    if (riskSession && riskSession.schools === schools
+      && Date.now() - riskSession.fetchedAt < RISK_CACHE_TTL) return
     let alive = true
-    setSumLoading(true)
-    Promise.all(
-      scopeToAssigned(schools, user?.login).map((s) => // [076] 담당 학교 한정
-        api<RiskItem[]>(`/risk?school_id=${s.id}`)
-          .then((d) => [s.id, Array.isArray(d) ? d : []] as const)
-          .catch(() => [s.id, []] as const),
-      ),
-    ).then((entries) => {
-      if (!alive) return
-      const map = Object.fromEntries(entries)
-      riskSession = { account: user?.login ?? '', schools, map } // [073]
-      setRiskMap(map)
-      setSumLoading(false)
-    })
+    if (!Object.keys(riskMap).length) setSumLoading(true)
+    // 학교 수만큼 병렬 발사하던 N+1 폭주 → 집계 1콜(/risk/summary) [H-5].
+    api<Record<string, RiskItem[]>>('/risk/summary')
+      .then((bySchool) => {
+        if (!alive) return
+        const map: Record<string, RiskItem[]> = {}
+        for (const s of scopeToAssigned(schools, user?.login)) map[s.id] = bySchool[s.id] ?? [] // [076]
+        riskSession = { account: user?.login ?? '', schools, map, fetchedAt: Date.now() } // [073]
+        setRiskMap(map)
+        setSumLoading(false)
+      })
+      .catch(() => { if (alive) setSumLoading(false) }) // 실패 시 기존 캐시 유지
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schools])

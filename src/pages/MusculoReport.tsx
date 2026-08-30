@@ -202,6 +202,27 @@ function buildMarks(form: PersonForm): number[] {
   return out
 }
 
+// 서버 marks(34칸) → PersonForm 역변환(buildMarks 의 역) — 현장 앱 제출 조사표 프리필용.
+function formFromMarks(marks: (number | null)[]): PersonForm {
+  const parts: Record<string, Answers> = {}
+  let i = 0
+  let any = false
+  for (const b of BODY) {
+    const qs: (keyof Answers)[] = NO_SIDE.includes(b)
+      ? ['q2', 'q3', 'q4', 'q5', 'q6']
+      : ['q1', 'q2', 'q3', 'q4', 'q5', 'q6']
+    const a: Answers = { q1: 0, q2: 0, q3: 0, q4: 0, q5: 0, q6: 0 }
+    let has = false
+    for (const q of qs) {
+      const v = marks[i++] ?? 0
+      a[q] = v
+      if (v) has = true
+    }
+    if (has) { parts[b] = a; any = true }
+  }
+  return { pain: any ? 2 : 1, parts }
+}
+
 function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T
 }
@@ -330,15 +351,61 @@ export function MusculoReport() {
     api<{ workers: Worker[] }>(`/schools/${sid}/ledger`)
       .then((led) => rosterFromWorkers(Array.isArray(led.workers) ? led.workers : []))
       .catch(() => [] as Person[])   // 대장 조회 실패 시 빈 명단(초안 행은 병합으로 유지)
-      .then((base) => {
+      .then(async (base) => {
         if (!alive) return
         let d = defaultDraft()
         const raw = localStorage.getItem(DRAFT_KEY + sid)
         if (raw) {
           try { d = { ...d, ...(JSON.parse(raw) as Partial<Draft>) } } catch { /* 손상된 초안은 무시 */ }
         }
+        let roster = mergeRoster(base, d.roster)
+        // ── 현장 앱 제출분 프리필 — 서버 최신 조사(부담작업 체크·증상조사표)를 불러와
+        //    프리셋(MU_INIT)·명단에 반영한다. 앱 제출이 있으면 그것이 사실의 원천:
+        //    · 부담작업: 웹에서 체크를 만지지 않았을 때만(초안 chk == MU_INIT) 서버 값으로 대체.
+        //      앱 조사는 있는데 체크가 없으면 프리셋 대신 전부 해제(가짜 체크 방지).
+        //    · 증상조사표: 시트 marks → 조사표 폼 역변환해 명단에 병합(이름 기준, 기존 폼 유지).
+        try {
+          type SvRow = { id: string; sheets: number; created_at?: string; burden?: { process: string; clauses: number[] }[] }
+          const svs = await api<SvRow[]>(`/musculo?school_id=${sid}`)
+          if (alive && Array.isArray(svs) && svs.length) {
+            const sorted = [...svs].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+            if (JSON.stringify(d.chk) === JSON.stringify(MU_INIT)) {
+              const withB = sorted.find((s) => (s.burden || []).length > 0)
+              const byApi: Record<string, number[]> = {}
+              for (const b of withB?.burden || []) byApi[b.process] = b.clauses || []
+              const next = { ...d.chk }
+              for (const pd of MU_PARTS) {
+                const hit = withB ? (byApi[pd.api || ''] || []) : []
+                next[pd.key] = Array.from({ length: 11 }, (_, i) => (hit.includes(i + 1) ? 1 : 0))
+              }
+              d.chk = next
+            }
+            const withS = sorted.find((s) => (s.sheets || 0) > 0)
+            if (withS) {
+              type ServerSheet = { id: string; person_name: string; image_ref: string; marks: (number | null)[]; review_status: string }
+              const sheets = await api<ServerSheet[]>(`/musculo/${withS.id}/sheets`).catch(() => [] as ServerSheet[])
+              for (const s of sheets) {
+                const form = formFromMarks(s.marks || [])
+                const res: Judgment[] = BODY.map((b) => (form.pain === 2 ? judge(form.parts[b]) : '정상'))
+                const detail = BODY.map((b) => {
+                  const a = form.parts[b]
+                  return form.pain === 2 && a && a.q2 && a.q3 && a.q4 ? `기간${a.q2}·강도${a.q3}·빈도${a.q4}` : '—'
+                })
+                const st: PStat = s.review_status === 'needs_review' ? 'review' : 'done'
+                const via: Via = s.image_ref ? 'omr' : 'mob'
+                const idx = roster.findIndex((p) => p.n === s.person_name)
+                if (idx >= 0) {
+                  if (!roster[idx].form) roster[idx] = { ...roster[idx], form, res, detail, st, via }
+                } else {
+                  roster = [...roster, { n: s.person_name, a: 0, g: '—', d: '현장 앱 제출', via, st, res, detail, form }]
+                }
+              }
+            }
+          }
+        } catch { /* 서버 프리필 실패는 무시 — 로컬 초안으로 계속 */ }
+        if (!alive) return
         setParts(d.parts); setChk(d.chk); setAb(d.ab); setHz(d.hz); setCaps(d.caps)
-        setShots(d.shots); setCutN(d.cutN ?? {}); setRoster(mergeRoster(base, d.roster)); setPlan(d.plan); setSurveyId(d.surveyId); setDate(d.date)
+        setShots(d.shots); setCutN(d.cutN ?? {}); setRoster(roster); setPlan(d.plan); setSurveyId(d.surveyId); setDate(d.date)
         setSyOpen(-1); setFormIdx(-1); setForm(null); setSubLog([])
         setHydrated(true)
       })

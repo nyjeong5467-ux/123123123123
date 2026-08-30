@@ -23,6 +23,7 @@ type HistRow = {
   date: string
   status: string
   title: string
+  count?: number  // 같은 방문(작성자·업무·학교·일자)으로 통합된 원본 레코드 수
 }
 
 const MODULE_LABEL: Record<string, string> = {
@@ -156,7 +157,14 @@ export default function ConsoleStaffHistory() {
                           title="학교 상세로 이동">
                           <td>{r.date ? r.date.slice(0, 10) : '—'}</td>
                           <td><span className={'pillx ' + (MODULE_PILL[r.module] || 'na')}>{r.title || MODULE_LABEL[r.module] || r.module}</span></td>
-                          <td><b>{r.school_name}</b></td>
+                          <td>
+                            <b>{r.school_name}</b>
+                            {(r.count ?? 1) > 1 && (
+                              <span className="muted" style={{ fontSize: 11, marginLeft: 6 }} title="같은 방문의 제출 기록을 통합해 1건으로 표시">
+                                제출 {r.count}회 통합
+                              </span>
+                            )}
+                          </td>
                           <td>{r.status ? (STATUS_LABEL[r.status] || r.status) : '—'}</td>
                         </tr>
                       ))}

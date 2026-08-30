@@ -55,6 +55,9 @@ type Ledger = {
 const FEAT_GROUPS: Record<string, string[]> = {
   '급식 설비': ['대형 곰솥', 'LPG 사용', '가스 튀김기', '스팀 오븐', '덤웨이터'],
   '건물 시설': ['엘리베이터', '계단 (2층 이상)', '지하 기계실', '옥상 출입', '별도 당직실'],
+  // 08-28 조사원 피드백 — 미화 점검표 자동 해당없음 규칙(InspectionForm EXCL_RULES)과 연동:
+  // 체크 = 있음(항목 점검), 미체크 = 없음(미화-3 / 미화-7·8 자동 해당없음)
+  '미화 작업': ['충돌방지용 거울', '미화 고소작업'],
 }
 const FEAT_KEYS = Object.values(FEAT_GROUPS).flat()
 
@@ -74,6 +77,21 @@ type WorkSummary = { key: string; name: string; summary: string; date: string; c
 
 // ---- 월별 방문 기록 ----
 type Visit = { id: string; school_id: string; date: string; visitor: string; purpose: string }
+
+// ---- 현장 메모 (앱 조사원이 종사자 이야기를 듣고 남긴 기록 — /field/school-memos 공유) ----
+// [G-5] type: 'note'(기본)|'todo'. 할 일은 done(체크)·due('today'|'tomorrow'|null) 보유.
+type FieldMemo = {
+  id: string; ts: string; by: string; text: string
+  type?: 'note' | 'todo'; done?: boolean; due?: 'today' | 'tomorrow' | null
+}
+const MEMO_DUE_LABEL: Record<string, string> = { today: '오늘', tomorrow: '내일' }
+
+function fmtMemoTs(ts: string): string {
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return ts.slice(0, 16)
+  const two = (v: number) => String(v).padStart(2, '0')
+  return `${d.getFullYear()}.${two(d.getMonth() + 1)}.${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`
+}
 
 function latestDate(dates: (string | null | undefined)[]): string {
   const ds = dates.filter((d): d is string => !!d).map((d) => d.slice(0, 10)).sort()
@@ -96,6 +114,7 @@ function parseManagerCsv(text: string): ManagerRow[] {
 // 페이지 내 섹션 바로가기 — 앵커 칩 & 해시(#sd-...) 스크롤 대상
 const SD_SECTIONS: { id: string; label: string }[] = [
   { id: 'sd-info', label: '학교 정보' },
+  { id: 'sd-memos', label: '현장 메모' },
   { id: 'sd-workers', label: '종사자' },
   { id: 'sd-approval', label: '결재선' },
   { id: 'sd-history', label: '담당자 이력' },
@@ -151,6 +170,12 @@ export function SchoolDetail() {
   const [works, setWorks] = useState<WorkSummary[]>([])
   const [worksLoaded, setWorksLoaded] = useState(false)
   const [visits, setVisits] = useState<Visit[]>([])
+
+  // 현장 메모 — 앱(플로팅 메모)과 같은 /field/school-memos 문서를 열람·작성
+  const [memos, setMemos] = useState<FieldMemo[]>([])
+  const [memoText, setMemoText] = useState('')
+  const [memoBusy, setMemoBusy] = useState(false)
+  const [memoErr, setMemoErr] = useState('')
 
   useEffect(() => {
     let alive = true
@@ -277,6 +302,57 @@ export function SchoolDetail() {
     })()
     return () => { alive = false }
   }, [id])
+
+  // 현장 메모 로드 — 필드 겸용 엔드포인트(로그인 토큰은 그대로 통과)
+  useEffect(() => {
+    let alive = true
+    api<{ memos: FieldMemo[] }>(`/field/school-memos?school_id=${id}`)
+      .then((d) => { if (alive) setMemos(Array.isArray(d.memos) ? d.memos : []) })
+      .catch(() => { if (alive) setMemos([]) })
+    return () => { alive = false }
+  }, [id])
+
+  async function addMemo() {
+    const text = memoText.trim()
+    if (!text || memoBusy) return
+    setMemoBusy(true)
+    setMemoErr('')
+    try {
+      const r = await api<{ memo: FieldMemo }>('/field/school-memos', {
+        method: 'POST', body: JSON.stringify({ school_id: id, text }),
+      })
+      setMemos((prev) => [r.memo, ...prev])
+      setMemoText('')
+    } catch (e) {
+      setMemoErr(e instanceof Error ? e.message : '메모 저장 실패')
+    } finally {
+      setMemoBusy(false)
+    }
+  }
+
+  // [G-5] 할 일 완료 토글 — 낙관적 반영 후 PATCH, 실패 시 되돌림 (앱과 실시간 공유)
+  async function toggleMemoDone(m: FieldMemo) {
+    const next = !m.done
+    setMemos((prev) => prev.map((x) => (x.id === m.id ? { ...x, done: next } : x)))
+    try {
+      await api(`/field/school-memos/${m.id}?school_id=${id}`, {
+        method: 'PATCH', body: JSON.stringify({ done: next }),
+      })
+    } catch (e) {
+      setMemos((prev) => prev.map((x) => (x.id === m.id ? { ...x, done: m.done } : x)))
+      setMemoErr(e instanceof Error ? e.message : '완료 표시 실패')
+    }
+  }
+
+  async function delMemo(m: FieldMemo) {
+    if (!window.confirm('이 메모를 삭제할까요?')) return
+    try {
+      await api(`/field/school-memos/${m.id}?school_id=${id}`, { method: 'DELETE' })
+      setMemos((prev) => prev.filter((x) => x.id !== m.id))
+    } catch (e) {
+      setMemoErr(e instanceof Error ? e.message : '삭제 실패')
+    }
+  }
 
   // 월별 방문 기록 — GET /visits에서 school_id 필터
   useEffect(() => {
@@ -560,11 +636,11 @@ export function SchoolDetail() {
             </div>
           )}
 
-          {/* 담당자 이메일(메일 수신자 기본값) — /mail/school-contacts, 메일 쓰기·앱 발송 프리필 */}
+          {/* 행정선생님(담당자) — /mail/school-contacts, 메일 수신자 프리필 + 앱 확인자 결재란 서명자 프리필 */}
           <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-              <b style={{ fontSize: 13.5 }}>담당자 이메일 (업무 메일 수신자)</b>
-              <span className="muted" style={{ fontSize: 11.5 }}>메일 쓰기·현장앱 발송 시 받는 사람으로 자동 입력됩니다</span>
+              <b style={{ fontSize: 13.5 }}>행정선생님(담당자) — 메일 수신·결재란 자동 입력</b>
+              <span className="muted" style={{ fontSize: 11.5 }}>메일 쓰기·현장앱 발송의 받는 사람과 앱 점검표 확인자 결재란 이름으로 자동 입력됩니다</span>
             </div>
             <div className="formrow">
               <label className="field" style={{ minWidth: 240 }}>
@@ -589,6 +665,71 @@ export function SchoolDetail() {
                 {ctMsg && <span className={'pillx ' + (ctMsg.ok ? 'ok' : 'late')} style={{ marginBottom: 6 }}>{ctMsg.text}</span>}
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ===== 현장 메모 — 앱 플로팅 메모와 동일 문서(/field/school-memos) 열람·작성 ===== */}
+      <div className="ledger" id="sd-memos" style={{ marginBottom: 24 }}>
+        <div className="lh">
+          <h2>현장 메모</h2>
+          <span className="pillx na">{memos.length}건</span>
+          <div className="sp" />
+          <span className="muted" style={{ fontSize: 11.5 }}>조사원 앱의 [메모] 버튼과 실시간 공유 — 종사자 요청·조치 사항 기록</span>
+        </div>
+        <div className="card-body">
+          {memoErr && <div className="login-err" style={{ marginBottom: 12 }}>{memoErr}</div>}
+          {memos.length
+            ? (
+              <ul className="shub-notes" style={{ marginBottom: 14 }}>
+                {memos.map((m) => {
+                  const todo = (m.type ?? 'note') === 'todo'
+                  const due = m.due ? MEMO_DUE_LABEL[m.due] : null
+                  return (
+                    <li key={m.id}>
+                      {/* [G-5] 할 일 체크박스 + 유형 배지 + 기한 필 — 앱 메모 시트와 실시간 공유 */}
+                      {todo && (
+                        <input
+                          type="checkbox"
+                          checked={!!m.done}
+                          onChange={() => void toggleMemoDone(m)}
+                          title={m.done ? '미완료로 되돌리기' : '완료 처리'}
+                          style={{ accentColor: 'var(--violet)', marginTop: 3, cursor: 'pointer' }}
+                        />
+                      )}
+                      <span className={'pillx ' + (todo ? (m.done ? 'ok' : 'warn') : 'na')} style={{ whiteSpace: 'nowrap' }}>
+                        {todo ? (m.done ? '완료' : '할 일') : '메모'}
+                      </span>
+                      {todo && due && !m.done && <span className="pillx late" style={{ whiteSpace: 'nowrap' }}>{due}</span>}
+                      <span className="dt" style={{ whiteSpace: 'nowrap' }}>{fmtMemoTs(m.ts)}{m.by ? ` · ${m.by}` : ''}</span>
+                      <span
+                        className="tx"
+                        style={{
+                          whiteSpace: 'pre-wrap',
+                          ...(todo && m.done ? { textDecoration: 'line-through', color: 'var(--muted)' } : {}),
+                        }}
+                      >
+                        {m.text}
+                      </span>
+                      <button className="shub-del" title="삭제" onClick={() => void delMemo(m)}>✕</button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )
+            : <div className="tstate" style={{ marginBottom: 14 }}>아직 현장 메모가 없습니다. 조사원 앱 또는 아래 입력으로 남길 수 있습니다.</div>}
+          <div className="shub-noteform">
+            <input
+              className="input"
+              placeholder="메모 입력 (예: 급식실 ○○님 요청 — 안전화 치수표 파일 송부)"
+              value={memoText}
+              maxLength={2000}
+              onChange={(e) => setMemoText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void addMemo() }}
+            />
+            <button className="btn btn-primary" onClick={() => void addMemo()} disabled={memoBusy || !memoText.trim()}>
+              {memoBusy ? '저장 중…' : '메모 추가'}
+            </button>
           </div>
         </div>
       </div>

@@ -917,6 +917,11 @@
   padding: 22px 26px;
   border-bottom: 1px solid var(--line);
 }
+/* 카드 본문 공통 여백 — 정의가 없어 내용이 카드 좌우 모서리에 붙어 보이던 문제 수정.
+   학교 상세(학교 정보·현장 메모·학교 특징·결재선 등)·설정·청구 등 10개 화면 공통. */
+.card-body {
+  padding: 18px 26px 22px;
+}
 .lh h2 {
   font-size: 19px;
   font-weight: 800;

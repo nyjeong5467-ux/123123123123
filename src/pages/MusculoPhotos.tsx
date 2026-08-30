@@ -7,7 +7,7 @@ import { ArrowLeft, Camera, Download, School as SchoolIcon } from 'lucide-react'
 import { api, getToken } from '../lib/api'
 
 type School = { id: string; name: string; manager?: string; school_level?: string }
-type Photo = { ref: string; name: string; ts?: string; by?: string; cid?: string }
+type Photo = { ref: string; name: string; ts?: string; by?: string; cid?: string; hz?: string[] }
 // school_id → area → process → Photo[]
 type PhotoDoc = Record<string, Record<string, Record<string, Photo[]>>>
 
@@ -33,6 +33,9 @@ const AREAS: { name: string; processes: { name: string; hazards: string[] }[] }[
     ],
   },
 ]
+// 알려진 영역 표시 순서(프리셋 우선) — 이 외 키는 가나다순으로 뒤에 붙는다.
+const AREA_ORDER = ['급식실', '시설관리', '미화', '통학', '당직']
+const areaRank = (n: string) => { const i = AREA_ORDER.indexOf(n); return i === -1 ? AREA_ORDER.length : i }
 const DOC_KEY = 'musculo-photos'
 
 function downloadUrl(ref: string): string {
@@ -89,7 +92,7 @@ export function MusculoPhotos() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [sel, setSel] = useState<string>('') // school_id
-  const [area, setArea] = useState(0)
+  const [area, setArea] = useState<string>('') // area name
 
   useEffect(() => {
     let alive = true
@@ -121,7 +124,28 @@ export function MusculoPhotos() {
   }, [doc, nameOf])
 
   const selAreas = sel ? (doc[sel] || {}) : {}
-  const areaName = AREAS[area].name
+
+  // 영역 탭 = 프리셋(급식실·시설관리) ∪ 실제 문서 키. 알려진 순서 우선, 그 외는 가나다순.
+  const areaTabs = useMemo(() => {
+    const set = new Set<string>([...AREAS.map((a) => a.name), ...Object.keys(selAreas)])
+    return [...set].sort((a, b) => {
+      const ra = areaRank(a), rb = areaRank(b)
+      return ra !== rb ? ra - rb : a.localeCompare(b, 'ko')
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel, doc])
+  const areaName = areaTabs.includes(area) ? area : (areaTabs[0] || '')
+
+  // 현재 영역의 공정 목록 = 프리셋 순서 우선 + 실제 문서에만 있는 커스텀 공정은 가나다순으로 뒤에.
+  const areaPreset = AREAS.find((a) => a.name === areaName)
+  const presetProcNames = (areaPreset?.processes || []).map((p) => p.name)
+  const procNames = [
+    ...presetProcNames,
+    ...Object.keys(selAreas[areaName] || {})
+      .filter((n) => !presetProcNames.includes(n))
+      .sort((a, b) => a.localeCompare(b, 'ko')),
+  ]
+  const hazardsOf = (proc: string) => areaPreset?.processes.find((p) => p.name === proc)?.hazards || []
 
   return (
     <div className="page rv">
@@ -132,7 +156,7 @@ export function MusculoPhotos() {
         <h2><Camera size={20} /> 공정별 작업사진</h2>
         <div className="sp" />
         <span className="pillx doing" style={{ whiteSpace: 'normal' }}>
-          현장 앱에서 올린 급식실·시설관리 공정별 부담작업·유해위험요인 사진
+          현장 앱에서 올린 작업영역(급식실·시설관리·미화·통학·당직 등)×공정별 부담작업·유해위험요인 사진
         </span>
       </div>
 
@@ -150,7 +174,7 @@ export function MusculoPhotos() {
               <thead><tr><th>학교</th><th>담당자</th><th className="c">사진 수</th><th /></tr></thead>
               <tbody>
                 {withPhotos.map((r) => (
-                  <tr key={r.id} onClick={() => { setSel(r.id); setArea(0) }} style={{ cursor: 'pointer' }}>
+                  <tr key={r.id} onClick={() => { setSel(r.id); setArea('') }} style={{ cursor: 'pointer' }}>
                     <td><b>{r.school?.name || r.id}</b></td>
                     <td>{r.school?.manager || '—'}</td>
                     <td className="c">{r.total}장</td>
@@ -174,24 +198,31 @@ export function MusculoPhotos() {
             <span className="rkh-schoolmgr">담당자 {nameOf(sel)?.manager || '—'}</span>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, margin: '12px 0 4px' }}>
-            {AREAS.map((a, i) => (
-              <button key={a.name} className={'btn ' + (i === area ? 'btn-primary' : '')} onClick={() => setArea(i)}>
-                {a.name}
+          <div style={{ display: 'flex', gap: 8, margin: '12px 0 4px', flexWrap: 'wrap' }}>
+            {areaTabs.map((a) => (
+              <button key={a} className={'btn ' + (a === areaName ? 'btn-primary' : '')} onClick={() => setArea(a)}>
+                {a}
               </button>
             ))}
           </div>
 
-          {AREAS[area].processes.map((p) => {
-            const photos = (selAreas[areaName]?.[p.name] || []) as Photo[]
+          {procNames.map((pn) => {
+            const photos = (selAreas[areaName]?.[pn] || []) as Photo[]
+            // [088] 현장이 촬영 시점에 실제 선택한 유해위험요인(hz, 커스텀 포함)을 우선 표시 —
+            // 없으면(구 데이터) 기존처럼 프리셋을 보여준다.
+            const fieldHz = [...new Set(photos.flatMap((p) => p.hz ?? []))]
+            const hzChips = fieldHz.length ? fieldHz : hazardsOf(pn)
             return (
-              <div className="ledger" key={p.name} style={{ marginTop: 12 }}>
+              <div className="ledger" key={pn} style={{ marginTop: 12 }}>
                 <div className="lh">
-                  <h2 style={{ fontSize: 15 }}>{p.name}</h2>
+                  <h2 style={{ fontSize: 15 }}>{pn}</h2>
                   <span className="pillx doing">{photos.length}장</span>
                   <div className="sp" />
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                    {p.hazards.map((h) => (
+                    {fieldHz.length > 0 && (
+                      <span className="pillx" style={{ background: 'var(--ok-soft)', color: 'var(--ok-ink)' }}>현장 선택</span>
+                    )}
+                    {hzChips.map((h) => (
                       <span key={h} className="pillx" style={{ background: 'var(--red-soft)', color: 'var(--red-ink)' }}>{h}</span>
                     ))}
                   </div>

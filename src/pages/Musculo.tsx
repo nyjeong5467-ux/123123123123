@@ -108,7 +108,10 @@ type Survey = {
 type Part = 'catering' | 'facility' | 'cleaning' | 'commute' | 'night_duty'
 
 // [073] 모듈 스코프 세션 캐시 — 탭 재진입 시 전 학교 GET /musculo(N+1) 재발사 방지 ([060] 패턴)
-let musSession: { account: string; schools: School[]; map: Record<string, Survey[]> } | null = null
+// [088] fetchedAt 추가 — 캐시가 오래되면(현장 앱이 그 사이 제출) 재진입 시 백그라운드 재검증.
+//       과거엔 탭을 새로고침(F5)하기 전까지 앱 제출분이 영영 안 보였다("웹에 아무 반응이 없다" 신고).
+let musSession: { account: string; schools: School[]; map: Record<string, Survey[]>; fetchedAt: number } | null = null
+const MUS_CACHE_TTL = 60_000 // 1분 — 이내 재진입은 캐시만(N+1 억제), 지나면 재검증
 
 // [076] 담당 학교 한정 조회 — 담당 배정이 있는 계정은 담당 학교만 학교별 API를 조회(N+1 축소, [060] 규칙).
 // 배정이 없는 계정은 기존대로 전체 조회. 리스트에는 조회된 학교의 작성물만 표시됨.
@@ -324,27 +327,31 @@ export function Musculo() {
   }, [])
 
   // 전 학교 조사 목록 로드 → 학교 행 요약(건수/검수대기)과 2단계 그룹에 사용
+  const [reloadKey, setReloadKey] = useState(0)
   useEffect(() => {
     if (!schools.length) return
-    if (musSession && musSession.schools === schools) return // 캐시 적중 — 재조회 0건 [073]
+    // 캐시 적중 + 신선(TTL 이내) — 재조회 0건 [073]. 오래된 캐시는 표시 유지한 채
+    // 백그라운드 재검증(stale-while-revalidate) [088] — 앱 제출분이 재진입 시 반영된다.
+    const fresh = musSession && musSession.schools === schools
+      && Date.now() - musSession.fetchedAt < MUS_CACHE_TTL
+    if (fresh && !reloadKey) return
     let alive = true
-    setSumLoading(true)
-    Promise.all(
-      scopeToAssigned(schools, user?.login).map((s) => // [076] 담당 학교 한정
-        api<Survey[]>(`/musculo?school_id=${s.id}`)
-          .then((d) => [s.id, Array.isArray(d) ? d : []] as const)
-          .catch(() => [s.id, []] as const),
-      ),
-    ).then((entries) => {
-      if (!alive) return
-      const map = Object.fromEntries(entries)
-      musSession = { account: user?.login ?? '', schools, map } // [073]
-      setSurveyMap(map)
-      setSumLoading(false)
-    })
+    if (!Object.keys(surveyMap).length) setSumLoading(true) // 데이터 있으면 표 유지(백그라운드 갱신)
+    // 학교 수만큼 병렬 발사하던 N+1 폭주 → 집계 1콜(/musculo/summary). 필드 토큰은
+    // 서버가 배정 학교만 반환하므로 클라이언트 스코프 필터가 따로 필요 없다 [H-5].
+    api<Record<string, Survey[]>>('/musculo/summary')
+      .then((bySchool) => {
+        if (!alive) return
+        const map: Record<string, Survey[]> = {}
+        for (const s of scopeToAssigned(schools, user?.login)) map[s.id] = bySchool[s.id] ?? []
+        musSession = { account: user?.login ?? '', schools, map, fetchedAt: Date.now() } // [073]
+        setSurveyMap(map)
+        setSumLoading(false)
+      })
+      .catch(() => { if (alive) setSumLoading(false) }) // 실패 시 기존 캐시 유지
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schools])
+  }, [schools, reloadKey])
 
   // 특정 학교만 재조회 (조사 생성 후 / 학교 진입 시 최신화) — 세션 캐시도 함께 갱신 [073]
   const refetchSchool = useCallback((schoolId: string) => {
@@ -669,6 +676,10 @@ export function Musculo() {
               <h2><Activity size={18} /> 작성된 조사</h2>
               <span className="pillx doing">{rq.total}건</span>
               <div className="sp" />
+              {/* [088] 수동 새로고침 — 현장 앱 제출 직후 즉시 반영 확인용 */}
+              <button className="btn btn-ghost" onClick={() => setReloadKey((k) => k + 1)} disabled={sumLoading}>
+                {sumLoading ? '갱신 중…' : '새로고침'}
+              </button>
             </div>
             <div className="twrap">
               <table className="tbl">

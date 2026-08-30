@@ -386,6 +386,83 @@
   color: var(--amber-ink);
 }
 
+/* ---- [G-5] 현장 할 일 — 조사원 앱 메모(type=todo) 집계 블록 ---- */
+.hm-ft {
+  border-top: 1px solid var(--line);
+  padding: 12px 16px 16px;
+}
+.hm-ft-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+  color: var(--ink-2);
+}
+.hm-ft-head h3 {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.hm-ft-src {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+.hm-ft-group {
+  margin-bottom: 8px;
+}
+.hm-ft-glabel {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  margin: 6px 2px 4px;
+}
+.hm-ft-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card-2);
+  cursor: pointer;
+  margin-bottom: 5px;
+}
+.hm-ft-row input[type='checkbox'] {
+  flex: 0 0 auto;
+  accent-color: var(--violet);
+  transform: translateY(1px);
+}
+.hm-ft-row .sc {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--violet-d);
+}
+.hm-ft-row .sc:hover {
+  text-decoration: underline;
+}
+.hm-ft-row .tx {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.hm-ft-row .by {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+.hm-ft-row.done {
+  opacity: 0.62;
+}
+.hm-ft-row.done .tx {
+  text-decoration: line-through;
+}
+
 /* ---- 이번 주 방문 예정 — 날짜 구분 헤더 ---- */
 .hm-wk-day {
   font-size: 11px;
@@ -1406,3 +1483,23 @@
   padding: 5px 10px;
   font-size: 12px;
 }
+
+/* ===== 홈 하단: 현장 메모 피드 + 현장 앱 다운로드 [H-10] ===== */
+.hm-bottom {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+@media (max-width: 1080px) {
+  .hm-bottom { grid-template-columns: 1fr; }
+}
+.hm-ic.g { background: var(--ok-soft, #e7f6ee); color: var(--ok-ink, #1b7a44); }
+/* 하단 카드 본문 여백 — 헤더(.hm-ch) 아래 내용이 카드 모서리에 붙지 않게 */
+.hm-bottom .hm-card { padding-bottom: 16px; }
+.hm-bottom .hm-card > :not(.hm-ch) { margin-left: 20px; margin-right: 20px; }
+.hm-bottom .hm-card > .hm-empty { margin-top: 12px; }
+.hm-bottom-memos .hm-todo { gap: 9px; }
+.hm-bottom-memos .hm-todo:first-of-type { margin-top: 10px; }
+.hm-bottom-app .muted:first-of-type { margin-top: 12px; }
+.hm-bottom-app a.btn { text-decoration: none; }

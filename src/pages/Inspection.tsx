@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, ClipboardCheck, Trash2 } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, getToken } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { Modal } from '../components/Modal'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
@@ -57,9 +57,22 @@ type Inspection = {
 }
 type School = { id: string; name: string; manager?: string; school_level?: string; address?: string; assigned_inspector_id?: string }
 
-// [073] 모듈 스코프 세션 캐시 — 탭 재진입 때마다 전 학교 학교별 GET /inspections(N+1)이
-// 재발사되어 목서버가 밀리던 문제 방지 ([060] 학교 허브와 동일 패턴). 브라우저 새로고침 시 소멸.
-let insSession: { account: string; schools: School[]; map: Record<string, Inspection[]> } | null = null
+// [perf-0828] 목록 요약은 GET /inspections/summary 1콜의 경량 항목(items/followups 없음).
+// 상세·실물양식 등 전체 데이터가 필요한 경로는 해당 학교 1곳만 GET /inspections?school_id= 로 지연 조회.
+type InsSummary = Omit<Inspection, 'items' | 'followups'> & { school_id?: string; inspector_id?: string }
+const liteToInspection = (e: InsSummary): Inspection => ({ ...e, items: [], followups: [] })
+
+// [073] 모듈 스코프 세션 캐시 — 탭 재진입 때마다 요약 API가 재발사되지 않게 유지. 브라우저 새로고침 시 소멸.
+// full: 학교별 전체 목록(items 포함)을 이미 받아둔 학교 표시 — 지연 조회 중복 방지 [perf-0828]
+// [088] fetchedAt 추가 — 오래된 캐시는 재진입 시 백그라운드 재검증(현장 앱 제출분 반영).
+let insSession: {
+  account: string
+  schools: School[]
+  map: Record<string, Inspection[]>
+  full: Record<string, true>
+  fetchedAt: number
+} | null = null
+const INS_CACHE_TTL = 60_000
 
 // [076] 담당 학교 한정 조회 — 담당 배정이 있는 계정은 담당 학교만 학교별 API를 조회(N+1 축소, [060] 규칙).
 // 배정이 없는 계정은 기존대로 전체 조회. 리스트에는 조회된 학교의 작성물만 표시됨.
@@ -255,13 +268,24 @@ export function Inspection() {
   // 점검 삭제 — 삭제 중 잠금(id) + 결과 토스트
   const [delBusy, setDelBusy] = useState('')
   const [delMsg, setDelMsg] = useState('')
+  // 교육청 재전송(수정) — 전송완료 건을 수정 후 다시 대기열에 등재(봇이 기존 건 수정)
+  const [resendBusy, setResendBusy] = useState(false)
   const [sheetView, setSheetView] = useState<SheetData | null>(null) // 실물 양식 보기 [054]
   // 부가정보(기타의견·사진대지·확인자 등)를 함께 불러와 양식에 표시 [057]
   async function openSheet(school: School, date: string, parts: Inspection[]) {
+    // [perf-0828] 요약 캐시의 parts에는 items(점검 항목·사진 참조)가 없다 —
+    // 이 학교 1곳만 전체 목록을 지연 조회해 실물양식용 완전판으로 교체(1클릭=1콜).
+    let fullParts = parts
+    try {
+      const full = await ensureFull(school.id)
+      const wanted = new Set(parts.map((p) => p.id))
+      const found = full.filter((f) => wanted.has(f.id))
+      if (found.length) fullParts = found
+    } catch { /* 조회 실패 시 보유분으로 표시 */ }
     let extra: InspExtra | undefined
     try {
       const r = await api<{ doc: Record<string, InspExtra[]> }>('/ops/docs/inspection-extras')
-      const ids = new Set(parts.map((p) => p.id))
+      const ids = new Set(fullParts.map((p) => p.id))
       // id 직매칭 → 같은 점검일 → 학교 항목 사진 병합 폴백 (앱 파트별 제출로 ids가 어긋나도 사진 표시)
       extra = resolveExtra(r.doc?.[school.id], ids, date)
     } catch { /* 부가정보 없으면 기본 표시 */ }
@@ -271,7 +295,7 @@ export function Inspection() {
       const a = await api<{ steps: { title: string; name: string }[] }>(`/schools/${school.id}/approval-line`)
       if (a?.steps?.length) approval = a.steps
     } catch { /* 결재선 없으면 담당자 1칸 */ }
-    setSheetView({ schoolName: school.name, manager: school.manager, date, parts, extra, approval })
+    setSheetView({ schoolName: school.name, manager: school.manager, date, parts: fullParts, extra, approval })
   }
 
   // 상세 모달 열릴 때 해당 점검의 사진대지 로드 — resolveExtra 폴백으로 앱 파트별 제출도 커버
@@ -316,38 +340,65 @@ export function Inspection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 전 학교 점검 목록 병렬 로드 → 학교 행 요약(건수/상태 분포/최근일)과 2단계 그룹에 사용
+  // [perf-0828] 전 학교 점검 요약 로드 — 학교별 GET /inspections를 학교 수(700+)만큼 병렬 발사해
+  // 운영 백엔드를 프리즈시키던 N+1 폭주를 집계 1콜(GET /inspections/summary)로 대체.
+  // 응답은 경량 항목({id, part, status, eduoffice, signed/submitted_at, signatures})이라
+  // 요약(건수/상태 분포/최근일)·점검표 그룹핑(dateOf)에는 충분하고, items가 필요한 경로는 지연 조회.
   useEffect(() => {
     if (!schools.length) return
-    if (insSession && insSession.schools === schools) return // 캐시 적중 — 탭 재진입 시 재조회 0건 [073]
+    // 캐시 적중 + 신선(TTL 이내) — 재조회 0건 [073]. 오래되면 표시는 유지한 채
+    // 요약 1콜만 재발사(stale-while-revalidate) [088] — 현장 앱 제출분이 재진입 시 반영.
+    const fresh = insSession && insSession.schools === schools
+      && Date.now() - insSession.fetchedAt < INS_CACHE_TTL
+    if (fresh) return
     let alive = true
-    setSumLoading(true)
-    Promise.all(
-      scopeToAssigned(schools, user?.login).map((s) => // [076] 담당 학교 한정
-        api<Inspection[]>(`/inspections?school_id=${s.id}`)
-          .then((d) => [s.id, Array.isArray(d) ? d : []] as const)
-          .catch(() => [s.id, []] as const),
-      ),
-    ).then((entries) => {
-      if (!alive) return
-      const map = Object.fromEntries(entries)
-      insSession = { account: user?.login ?? '', schools, map } // [073]
-      setInsMap(map)
-      setSumLoading(false)
-    })
+    if (!Object.keys(insMap).length) setSumLoading(true) // 데이터 있으면 표 유지(백그라운드 갱신)
+    api<Record<string, InsSummary[]>>('/inspections/summary')
+      .then((d) => {
+        if (!alive) return
+        // HQ는 전체가 오므로 기존 scopeToAssigned와 동일하게 클라이언트에서 담당 학교로 한정 [076]
+        const scoped = scopeToAssigned(schools, user?.login)
+        const allowed = new Set(scoped.map((s) => s.id))
+        const map: Record<string, Inspection[]> = {}
+        for (const s of scoped) map[s.id] = []
+        for (const [sid, list] of Object.entries(d ?? {})) {
+          if (!allowed.has(sid)) continue
+          map[sid] = (Array.isArray(list) ? list : []).map(liteToInspection)
+        }
+        insSession = { account: user?.login ?? '', schools, map, full: {}, fetchedAt: Date.now() } // [073]
+        setInsMap(map)
+        setSumLoading(false)
+      })
+      .catch(() => { if (alive) setSumLoading(false) })
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schools])
 
-  // 특정 학교만 재조회 (생성 후 / 학교 진입 시 최신화) — 세션 캐시도 함께 갱신 [073]
+  // 특정 학교만 전체(items 포함) 재조회 (생성 후 / 학교 진입 시 최신화) — 세션 캐시도 함께 갱신 [073]
   const refetchSchool = useCallback((schoolId: string) => {
     api<Inspection[]>(`/inspections?school_id=${schoolId}`)
       .then((d) => {
         const arr = Array.isArray(d) ? d : []
-        if (insSession) insSession.map = { ...insSession.map, [schoolId]: arr }
+        if (insSession) {
+          insSession.map = { ...insSession.map, [schoolId]: arr }
+          insSession.full = { ...insSession.full, [schoolId]: true }
+        }
         setInsMap((m) => ({ ...m, [schoolId]: arr }))
       })
       .catch(() => { /* 캐시 유지 */ })
+  }, [])
+
+  // [perf-0828] 전체 데이터 보장 — 요약 캐시(items 없음)인 학교만 1곳 지연 조회(1클릭=1콜).
+  const ensureFull = useCallback(async (schoolId: string): Promise<Inspection[]> => {
+    if (insSession?.full[schoolId] && insSession.map[schoolId]) return insSession.map[schoolId]
+    const d = await api<Inspection[]>(`/inspections?school_id=${schoolId}`)
+    const arr = Array.isArray(d) ? d : []
+    if (insSession) {
+      insSession.map = { ...insSession.map, [schoolId]: arr }
+      insSession.full = { ...insSession.full, [schoolId]: true }
+    }
+    setInsMap((m) => ({ ...m, [schoolId]: arr }))
+    return arr
   }, [])
 
   // 점검 삭제 — 서명·사진 파일과 부가정보까지 백엔드에서 함께 정리(DELETE /inspections/{id}).
@@ -371,6 +422,49 @@ export function Inspection() {
       setTimeout(() => setDelMsg(''), 4000)
     } finally {
       setDelBusy('')
+    }
+  }
+
+  // 완성 점검표 PDF 다운로드 — 백엔드 아카이브(GET /inspections/{id}/report.pdf, Bearer 필요라 blob 경유)
+  const [pdfBusy, setPdfBusy] = useState(false)
+  async function downloadReportPdf(iid: string) {
+    setPdfBusy(true)
+    try {
+      const res = await fetch(`/api/v1/inspections/${iid}/report.pdf`, {
+        headers: { Authorization: `Bearer ${getToken() ?? ''}` },
+      })
+      if (!res.ok) throw new Error(`${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `안전점검표_${dateOf(detail!) || iid.slice(0, 8)}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setDelMsg(e instanceof Error ? `PDF 생성 실패: ${e.message}` : 'PDF 생성 실패')
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+
+  // 전송완료(success) 건의 교육청 재전송(수정) — POST /inspections/{id}/request-eduoffice.
+  // SUCCESS→PENDING 재대기열: 봇이 교육청 사이트의 기존 건을 수정 업로드한다(F-2).
+  async function resendEduoffice(id: string, schoolId: string) {
+    if (!id || resendBusy) return
+    if (!window.confirm('이미 교육청에 전송된 점검입니다. 수정 내용을 교육청에 재전송(기존 건 수정)할까요?')) return
+    setResendBusy(true)
+    try {
+      await api<{ eduoffice: string }>(`/inspections/${id}/request-eduoffice`, { method: 'POST' })
+      setDelMsg('재전송 대기 등록 — 봇이 기존 교육청 건을 수정합니다')
+      setTimeout(() => setDelMsg(''), 4000)
+      setDetail(null)
+      if (schoolId) refetchSchool(schoolId)
+    } catch (e) {
+      setDelMsg(e instanceof Error ? `재전송 등록 실패: ${e.message}` : '재전송 등록 실패')
+      setTimeout(() => setDelMsg(''), 4000)
+    } finally {
+      setResendBusy(false)
     }
   }
 
@@ -465,6 +559,19 @@ export function Inspection() {
     refetchSchool(s.id)
   }
 
+  // [perf-0828] 상세 모달 — 요약(경량) 행이 클릭될 수 있으므로 즉시 표시 후 전체 데이터로 승격.
+  // openSchool이 진입 시 전체를 재조회하므로 보통은 캐시 적중(추가 호출 0건).
+  function openDetail(r: Inspection) {
+    setDetail(r)
+    if (!sel) return
+    ensureFull(sel.id)
+      .then((full) => {
+        const f = full.find((x) => x.id === r.id)
+        if (f) setDetail((cur) => (cur && cur.id === r.id ? f : cur))
+      })
+      .catch(() => { /* 보유분 유지 */ })
+  }
+
   // 학교 탭 바로가기(?school=id) — 학교 목록 로드 후 해당 학교 컨텍스트 자동 진입
   const [linkParams] = useSearchParams()
   useEffect(() => {
@@ -516,7 +623,7 @@ export function Inspection() {
                     const eo = EDUOFFICE[r.eduoffice_submit_status] || { label: r.eduoffice_submit_status, cls: 'todo' }
                     const signed = r.signatures.length > 0
                     return (
-                      <tr key={r.id} onClick={() => setDetail(r)}>
+                      <tr key={r.id} onClick={() => openDetail(r)}>
                         <td><b>{PART_LABEL[r.part] || r.part}</b></td>
                         <td className="c">{r.items.length}</td>
                         <td className="c"><span className={'pillx ' + (signed ? 'ok' : 'todo')}>{signed ? '서명완료' : '미서명'}</span></td>
@@ -536,7 +643,7 @@ export function Inspection() {
                             <button
                               className="btn btn-ghost"
                               style={{ height: 30, padding: '0 12px', fontSize: 12 }}
-                              onClick={(e) => { e.stopPropagation(); setDetail(r) }}
+                              onClick={(e) => { e.stopPropagation(); openDetail(r) }}
                             >
                               보기
                             </button>
@@ -839,6 +946,25 @@ export function Inspection() {
               >
                 <Trash2 size={15} /> {delBusy === detail.id ? '삭제 중…' : '삭제'}
               </button>
+              {detail.eduoffice_submit_status === 'success' && (
+                <button
+                  className="btn btn-ghost"
+                  disabled={resendBusy}
+                  onClick={() => void resendEduoffice(detail.id, sel?.id ?? '')}
+                >
+                  {resendBusy ? '등록 중…' : '교육청 재전송(수정)'}
+                </button>
+              )}
+              {detail.status === 'submitted' && (
+                <button
+                  className="btn"
+                  disabled={pdfBusy}
+                  title="완성된 안전점검표 PDF(결재란·항목·사진대지·서명 포함) 다운로드"
+                  onClick={() => void downloadReportPdf(detail.id)}
+                >
+                  {pdfBusy ? 'PDF 생성 중…' : '▤ 점검표 PDF'}
+                </button>
+              )}
               <button className="btn btn-primary" onClick={() => setDetail(null)}>닫기</button>
             </>
           )}
@@ -887,8 +1013,14 @@ export function Inspection() {
                         <img
                           src={s.dataUrl}
                           alt={s.caption || s.name || '사진'}
-                          title={s.caption || s.name}
-                          style={{ width: 104, height: 104, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line, #ddd)', display: 'block' }}
+                          title={(s.caption || s.name || '사진') + ' — 클릭하면 다운로드'}
+                          style={{ width: 104, height: 104, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line, #ddd)', display: 'block', cursor: 'pointer' }}
+                          onClick={() => {
+                            const a = document.createElement('a')
+                            a.href = s.dataUrl
+                            a.download = s.name || `${g.label}_사진${String(i + 1).padStart(2, '0')}.jpg`
+                            a.click()
+                          }}
                         />
                         {(s.caption || s.name) && (
                           <figcaption style={{ fontSize: 11, color: 'var(--muted, #888)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
