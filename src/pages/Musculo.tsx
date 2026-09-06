@@ -1,8 +1,9 @@
 // 근골격계 — 학교 목록 → 학교별 조사 이력(연도별) 위계 뷰. Risk.tsx(rkh-) 패턴 준용.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Activity, ArrowLeft, Camera, ChevronRight, ClipboardCheck } from 'lucide-react'
+import { Activity, ArrowLeft, Camera, ChevronRight, ClipboardCheck, Send } from 'lucide-react'
 import { api, getToken } from '../lib/api'
+import { SelfDispatchModal } from '../features/musculo/SelfDispatchModal'
 import { useTableQuery, type FilterDef, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
@@ -286,6 +287,8 @@ export function Musculo() {
 
   // 위계 상태: 선택 학교(2단계) · 접힌 연도 그룹 · 학교 컨텍스트 탭
   const [sel, setSel] = useState<School | null>(null)
+  // 근골격계 자가작성 개인별 일괄전송 모달(Phase 2)
+  const [dispatchOpen, setDispatchOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [tab, setTab] = useState<'list' | 'burden'>('list')
 
@@ -650,6 +653,11 @@ export function Musculo() {
             조사 생성은 보고서 작성 플로우에서 수행 (구 JSX는 이 주석 아래 코드로 복원 가능 — createSurvey·tab state 잔존) */}
         {/* [084] 보고서 작성 버튼 — 안전점검의 [점검표 작성]과 동일한 위치(상단 바 우측)·색(btn-primary) */}
         {sel && (
+          <button className="btn btn-ghost" onClick={() => setDispatchOpen(true)}>
+            <Send size={15} /> 자가작성 발송(개인별)
+          </button>
+        )}
+        {sel && (
           <Link className="btn btn-primary" to={'/musculo/report?school=' + sel.id}>
             보고서 작성
           </Link>
@@ -932,6 +940,11 @@ export function Musculo() {
             </>
           )}
         </>
+      )}
+
+      {/* ── 근골격계 자가작성 개인별 일괄전송 모달(Phase 2) ── */}
+      {dispatchOpen && sel && (
+        <SelfDispatchModal school={sel} onClose={() => setDispatchOpen(false)} />
       )}
 
       {/* ── 증상조사표 검수 모달 ── */}
