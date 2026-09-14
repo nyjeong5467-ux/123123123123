@@ -240,7 +240,7 @@ function groupByYear(items: Survey[]): YearGroup[] {
 // 근골격계부담작업 11개 호 (고용노동부 고시)
 const CLAUSE_NUMS: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 const CLAUSE_LABELS: Record<number, string> = {
-  1: '하루 4시간↑ 키보드/마우스 반복',
+  1: '하루 총 4시간↑ 집중 자료 입력(마우스·키보드)',
   2: '하루 2시간↑ 목·어깨·팔·손목 반복',
   3: '하루 2시간↑ 팔꿈치 어깨위/머리위',
   4: '하루 2시간↑ 목·허리 구부림·비틀기',

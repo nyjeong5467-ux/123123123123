@@ -15,7 +15,7 @@ import '../styles/musculoreport.css'
 
 // 근골격계부담작업 1~11호 (프로토타입 HO — <b> 강조 포함 11개 문항)
 const HO: [number, string][] = [
-  [1, '하루 4시간 이상 집중 <b>VDT 작업</b>'],
+  [1, '하루에 총 4시간 이상 집중적인 <b>자료 입력 작업</b>(마우스, 키보드 사용)'],
   [2, '하루 총 2시간 이상 목·어깨·팔꿈치·손목의 <b>반복 작업</b>'],
   [3, '하루 총 2시간 이상 머리 위에 손, 팔꿈치가 <b>어깨 위</b>·몸통 뒤쪽'],
   [4, '하루 총 2시간 이상 목·허리를 <b>구부리거나 비트는</b> 자세'],
@@ -727,6 +727,22 @@ export function MusculoReport() {
   }
 
   /* ---- 6. 개선계획서 ---- */
+  // 개선대상 = 총점(A×B) 12점 이상인 작업 중 점수 상위 2개(발주처 확인 기준).
+  // SYNC: app work_condition_screen.dart _targets(_kTargetTopN=2)
+  const improveTargets = (() => {
+    const scored: { k: string; t: number }[] = []
+    for (const p of activeParts) {
+      for (const j of p.jobs) {
+        const k = `${p.key}-${j}`
+        const [A, Bv] = ab[k] || [3, 3]
+        const t = A * Bv
+        if (t >= 12) scored.push({ k, t })
+      }
+    }
+    scored.sort((a, b) => b.t - a.t)
+    return new Set(scored.slice(0, 2).map((s) => s.k))
+  })()
+
   function autoPlan() {
     const out: PlanRow[] = []
     for (const p of activeParts) {
@@ -734,7 +750,7 @@ export function MusculoReport() {
         const k = `${p.key}-${j}`
         const [A, Bv] = ab[k] || [3, 3]
         const t = A * Bv
-        if (t >= 12) {
+        if (improveTargets.has(k)) {
           out.push({
             src: '작업조건', part: p.name, target: j,
             problem: `작업부하 총점 ${t}점 (부하 ${A} × 빈도 ${Bv})` + ((hz[k] || []).length ? ` · ${(hz[k] || []).join(', ')}` : ''),
@@ -1002,7 +1018,7 @@ export function MusculoReport() {
                   const k = `${p.key}-${j}`
                   const [A, Bv] = ab[k] || [3, 3]
                   const t = A * Bv
-                  const cls = t >= 12 ? 'hi' : t >= 6 ? 'mid' : 'lo'
+                  const cls = improveTargets.has(k) ? 'hi' : t >= 6 ? 'mid' : 'lo'
                   return (
                     <tr key={k}>
                       <td style={{ paddingLeft: 22 }}>{j}</td>
@@ -1017,7 +1033,7 @@ export function MusculoReport() {
                         </select>
                       </td>
                       <td className="c"><span className={'mur-score ' + cls}>{t}</span></td>
-                      <td style={{ color: 'var(--muted)', fontSize: 11 }}>{t >= 12 ? '개선계획서 작성 대상' : t >= 6 ? '경과 관찰' : '—'}</td>
+                      <td style={{ color: 'var(--muted)', fontSize: 11 }}>{improveTargets.has(k) ? '개선계획서 작성 대상' : t >= 6 ? '경과 관찰' : '—'}</td>
                     </tr>
                   )
                 }),
@@ -1350,7 +1366,7 @@ export function MusculoReport() {
         <div className="mur-ch">
           <span className="num">6</span><h3>작업환경 개선계획서</h3>
           <div className="r">
-            총점 12점 이상 작업과 통증호소자를 근거로 개선계획을 세웁니다
+            총점 12점 이상 중 상위 2개 작업과 통증호소자를 근거로 개선계획을 세웁니다
             <button className="mur-btn-sm" onClick={autoPlan}>개선 대상 자동 구성</button>
             <button className="mur-btn-sm" onClick={() => setPlan((r) => [...r, { src: '수동', part: '', target: '', problem: '', measure: '', due: '', owner: '' }])}>
               <Plus size={12} /> 행 추가
@@ -1358,7 +1374,7 @@ export function MusculoReport() {
           </div>
         </div>
         {plan.length === 0 ? (
-          <div className="mur-noitem">「개선 대상 자동 구성」을 누르면 작업조건 조사(총점 12점 이상)와 증상조사표(통증호소자) 결과에서 개선 대상을 자동으로 추려 채웁니다.</div>
+          <div className="mur-noitem">「개선 대상 자동 구성」을 누르면 작업조건 조사(총점 12점 이상 중 상위 2개)와 증상조사표(통증호소자) 결과에서 개선 대상을 자동으로 추려 채웁니다.</div>
         ) : (
           <table className="mur-plan">
             <thead>
