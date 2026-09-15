@@ -23,7 +23,9 @@ type SentRow = {
 }
 type SchoolLite = { id: string; name: string }
 type SchoolContact = { email: string; name?: string; phone?: string }
-type MailDefaults = { default_subject_prefix?: string; signature?: string; default_body?: string }
+// 메일 템플릿 카드 — 이름·제목·본문(회사 공통 /mail/defaults·개인 /mail/my-templates 공통 shape)
+type MailTemplate = { id: string; name: string; subject: string; body: string }
+type MailDefaults = { default_subject_prefix?: string; signature?: string; default_body?: string; templates?: MailTemplate[] }
 
 const MODULE_LABEL: Record<string, string> = {
   inspection: '안전점검', risk: '위험성평가', musculo: '근골격계', education: '교육', compliance: '이행점검',
@@ -380,6 +382,34 @@ function ComposeModal({
   const [err, setErr] = useState('')
   const [needSetup, setNeedSetup] = useState(false)
 
+  // 템플릿 선택기 — 회사 공통(/mail/defaults) + 개인(/mail/my-templates)을 모달 열 때 함께 로드.
+  const [companyTpls, setCompanyTpls] = useState<MailTemplate[]>(defaults.templates ?? [])
+  const [myTpls, setMyTpls] = useState<MailTemplate[]>([])
+  useEffect(() => {
+    let alive = true
+    api<{ defaults: MailDefaults }>('/mail/defaults')
+      .then((d) => { if (alive) setCompanyTpls(d.defaults?.templates ?? []) })
+      .catch(() => { /* 회사 템플릿 미설정/권한 없음 — 개인 템플릿만 표시 */ })
+    api<{ login_id: string; templates: MailTemplate[] }>('/mail/my-templates')
+      .then((d) => { if (alive) setMyTpls(Array.isArray(d.templates) ? d.templates : []) })
+      .catch(() => { if (alive) setMyTpls([]) })
+    return () => { alive = false }
+  }, [])
+
+  // 선택한 템플릿으로 제목·본문 채우기(제목엔 접두어, 본문 끝엔 서명 적용 — 기존 규칙 유지).
+  function applyTemplate(val: string) {
+    if (!val) return
+    const kind = val.slice(0, 2)
+    const id = val.slice(2)
+    const t = (kind === 'c:' ? companyTpls : myTpls).find((x) => x.id === id)
+    if (!t) return
+    const subj = (t.subject || '').trim()
+    if (!subj) setSubject(prefix ? `${prefix} ` : '')
+    else setSubject(prefix && !subj.startsWith(prefix) ? `${prefix} ${subj}` : subj)
+    const sig = defaults.signature ? `\n\n${defaults.signature}` : ''
+    setBody((t.body || '') + sig)
+  }
+
   function pickSchool(id: string) {
     setSchoolId(id)
     if (id) {
@@ -490,6 +520,29 @@ function ComposeModal({
           </select>
         </label>
       </div>
+      {(companyTpls.length > 0 || myTpls.length > 0) && (
+        <label className="field" style={{ marginTop: 10, display: 'block' }}>
+          <span>템플릿 불러오기 (선택 시 제목·본문 자동 채움)</span>
+          <select className="select" value="" style={{ width: '100%' }}
+            onChange={(e) => applyTemplate(e.target.value)}>
+            <option value="">템플릿 선택…</option>
+            {companyTpls.length > 0 && (
+              <optgroup label="회사 공통">
+                {companyTpls.map((t) => (
+                  <option key={`c-${t.id}`} value={`c:${t.id}`}>{t.name || '(이름 없음)'}</option>
+                ))}
+              </optgroup>
+            )}
+            {myTpls.length > 0 && (
+              <optgroup label="개인">
+                {myTpls.map((t) => (
+                  <option key={`m-${t.id}`} value={`m:${t.id}`}>{t.name || '(이름 없음)'}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </label>
+      )}
       <label className="field" style={{ marginTop: 10, display: 'block' }}>
         <span>받는 사람 (여러 명은 쉼표로 구분)</span>
         <input className="input" value={to} placeholder="school@example.kr, admin@example.kr"

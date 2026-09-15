@@ -10,6 +10,7 @@ import {
   BarChart3,
   Building2,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
@@ -590,16 +591,34 @@ export function Home() {
     const seen = new Set([...done.map((d) => d.name), ...planned.map((p) => p.name)])
     // 점검 일정은 학교명만 있음 → 학교 목록에서 id 매칭(정확→시작일치→포함)해 업무 상태를 불러올 수 있게 함
     return [
-      ...done.map((d) => ({ key: 'v-' + d.school_id, name: d.name, school_id: d.school_id as string | undefined, done: true })),
-      ...planned.map((p) => ({ key: 'p-' + p.id, name: p.name, school_id: p.school_id, done: false })),
+      ...done.map((d) => ({ key: 'v-' + d.school_id, name: d.name, school_id: d.school_id as string | undefined, done: true, who: '' })),
+      ...planned.map((p) => ({ key: 'p-' + p.id, name: p.name, school_id: p.school_id, done: false, who: '' })),
       ...schedToday.filter((e) => !seen.has(e.school)).map((e, i) => ({
         key: 's-' + i,
         name: e.school + (isHqUser && !schedWho ? ` — ${e.who}` : ''),
         school_id: findSid(e.school),
         done: false,
+        // 담당자(조사원)별 그룹핑 키 — 본사에서 전체 조사원 일정을 볼 때만 이름이 채워진다. [visit-fold]
+        who: isHqUser && !schedWho ? e.who : '',
       })),
     ]
   }, [visitsByDate, plans, TODAY_YMD, myIds, schedSchoolsOn, isHqUser, schedWho, findSid])
+
+  // 담당자(조사원)별 그룹 — 본사에서 전체 조사원 일정을 볼 때 목록이 길어지므로 접이식으로 묶는다. [visit-fold]
+  // 방문 완료(done) 건은 목록에서 제외(TodayHero와 동일 규칙). '기타' = 담당자 미상(자유 계획 등).
+  const todayGroups = useMemo(() => {
+    const pending = todayItems.filter((i) => !i.done)
+    const map = new Map<string, typeof pending>()
+    for (const it of pending) {
+      const k = it.who || '기타'
+      const arr = map.get(k) ?? []
+      arr.push(it)
+      map.set(k, arr)
+    }
+    return Array.from(map.entries())
+      .map(([who, items]) => ({ who, items }))
+      .sort((a, b) => (a.who === '기타' ? 1 : b.who === '기타' ? -1 : a.who.localeCompare(b.who)))
+  }, [todayItems])
 
   /* ---- 이번 주 방문 예정: 내일부터 7일간 — 캘린더 계획 + 근무표(점검 일정) 병합.
      근무표 대상은 캘린더와 동일 연동(조사원 선택 시 그 사람, 본사 미선택 시 전원 합산) [H-6b] ---- */
@@ -713,11 +732,108 @@ export function Home() {
 
   const ALERT_ICON: Record<HomeAlert['level'], string> = { danger: '!', warn: '!', info: 'i' }
 
+  /* ---- 방문 위젯 접이식 폴드 상태 (localStorage 기억 · 기본 접힘) [visit-fold] ---- */
+  const [folds, setFolds] = useState<Record<string, boolean>>({})
+  const readFold = (key: string) => {
+    try { return localStorage.getItem(key) === '1' } catch { return false }
+  }
+  const isOpen = (key: string) => folds[key] ?? readFold(key)
+  const toggleFold = (key: string) =>
+    setFolds((f) => {
+      const next = !(f[key] ?? readFold(key))
+      try { localStorage.setItem(key, next ? '1' : '0') } catch { /* ignore */ }
+      return { ...f, [key]: next }
+    })
+
   /* ---- 홈 블록 렌더 (레이아웃 커스텀용 조각) [031] ---- */
   const renderBlock = (id: HomeBlockId) => {
     switch (id) {
-      case 'today':
-        return <TodayHero today={today} items={todayItems} schools={schools} unvisited={unvisited} />
+      case 'today': {
+        // 담당자(조사원) 그룹이 하나뿐이면(조사원 로그인 또는 특정 조사원 선택) 기존 리치 뷰 유지.
+        // 여러 명이면(본사에서 전체 조사원 일정 열람) 담당자별 접이식 폴드로 묶어 목록 과밀을 해소한다. [visit-fold]
+        if (todayGroups.length <= 1) {
+          return <TodayHero today={today} items={todayItems} schools={schools} unvisited={unvisited} />
+        }
+        const doneCount = todayItems.filter((i) => i.done).length
+        const pendingCount = todayItems.length - doneCount
+        return (
+          <div className="hm-card hm-today">
+            <div className="hm-strip" />
+            <div className="hm-cyc-head">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h2>오늘의 할 일</h2>
+                <div className="hm-tagline">
+                  {today.getMonth() + 1}월 {today.getDate()}일 ({DOW_LABELS[today.getDay()]}) · 담당자 {todayGroups.length}명 · 방문 예정 {pendingCount}곳 · 완료 {doneCount}곳
+                </div>
+              </div>
+              <div className="hm-td-sum">
+                <div className="n">
+                  {doneCount}
+                  <small> / {todayItems.length}곳</small>
+                </div>
+                <div className="s">오늘 방문</div>
+              </div>
+            </div>
+            <div className="hm-td-list">
+              {todayGroups.map((g) => {
+                const fkey = 'hm-visitfold-' + g.who
+                const open = isOpen(fkey)
+                const gname = g.who === '기타' ? '기타 일정' : g.who
+                return (
+                  <div key={g.who}>
+                    {/* 폴드 헤더 — 담당자 이름 + 건수 배지 · 클릭 시 펼침/접힘 (기본 접힘) */}
+                    <div
+                      className="hm-td-row hm-clickable"
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={open}
+                      onClick={() => toggleFold(fkey)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') toggleFold(fkey) }}
+                    >
+                      <span className="hm-td-st">{open ? <ChevronDown size={17} /> : <ChevronRight size={17} />}</span>
+                      <div className="hm-td-main">
+                        <div className="t" style={{ fontWeight: 800 }}>{gname}</div>
+                      </div>
+                      <span className="hm-td-pill">{g.items.length}곳</span>
+                    </div>
+                    {open &&
+                      g.items.map((it, idx) => {
+                        const sc = it.school_id ? schools.find((s) => s.id === it.school_id) : undefined
+                        const label =
+                          it.who && it.name.endsWith(' — ' + it.who)
+                            ? it.name.slice(0, it.name.length - (' — ' + it.who).length)
+                            : it.name
+                        const clickable = !!it.school_id
+                        return (
+                          <div
+                            key={it.key}
+                            className={'hm-td-row' + (clickable ? ' hm-clickable' : '')}
+                            role={clickable ? 'button' : undefined}
+                            tabIndex={clickable ? 0 : undefined}
+                            onClick={() => { if (it.school_id) nav('/schools/' + it.school_id) }}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && it.school_id) nav('/schools/' + it.school_id) }}
+                            style={{ paddingLeft: 34 }}
+                          >
+                            <span className="hm-td-st">{idx + 1}</span>
+                            <div className="hm-td-main">
+                              <div className="t">
+                                {label}
+                                {sc?.school_level && <i>{sc.school_level}</i>}
+                                {sc?.manager && <span className="mg">담당 {sc.manager}</span>}
+                              </div>
+                            </div>
+                            <span className="hm-td-pill">방문 예정</span>
+                            {clickable && <ChevronRight size={16} className="hm-td-arr" />}
+                          </div>
+                        )
+                      })}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      }
       case 'notices':
         return (
           <div className="hm-card">
@@ -1020,43 +1136,62 @@ export function Home() {
           </div>
         </div>
         )
-      case 'week':
+      case 'week': {
+        // 접이식 폴드 — 헤더 클릭으로 목록 펼침/접힘 (localStorage 기억 · 기본 접힘) [visit-fold]
+        const wkKey = 'hm-visitfold-__week__'
+        const wkOpen = isOpen(wkKey)
         return (
           <div className="hm-card">
-            <div className="hm-ch">
+            <div
+              className="hm-ch hm-clickable"
+              role="button"
+              tabIndex={0}
+              aria-expanded={wkOpen}
+              style={{ cursor: 'pointer' }}
+              onClick={() => toggleFold(wkKey)}
+              onKeyDown={(e) => { if (e.key === 'Enter') toggleFold(wkKey) }}
+            >
               <span className="hm-ic y"><CalendarDays size={16} /></span>
               <h3>이번 주 방문 예정</h3>
-              <div className="hm-r">{weekCount}건</div>
+              <div className="hm-r" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {weekCount}건
+                {wkOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </div>
             </div>
-            {weekCount === 0 && (
-              <div className="hm-empty">다가오는 7일간 방문 계획이 없습니다. 캘린더 또는 업무 &gt; 근무표에서 일정을 추가하세요.</div>
-            )}
-            {weekPlans.map((day) => (
-              <div key={day.ymd}>
-                <div className="hm-wk-day">{day.label}</div>
-                {day.entries.map((p) => (
-                  <div
-                    className="hm-todo"
-                    key={p.id}
-                    role={p.school_id ? 'button' : undefined}
-                    tabIndex={p.school_id ? 0 : undefined}
-                    onClick={() => {
-                      if (p.school_id) nav('/schools/' + p.school_id)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && p.school_id) nav('/schools/' + p.school_id)
-                    }}
-                  >
-                    <div className="hm-todo-main">
-                      <div className="nm">{p.name}</div>
-                    </div>
-                    {p.school_id && <span className="hm-go">대장 →</span>}
+            {wkOpen && (
+              <>
+                {weekCount === 0 && (
+                  <div className="hm-empty">다가오는 7일간 방문 계획이 없습니다. 캘린더 또는 업무 &gt; 근무표에서 일정을 추가하세요.</div>
+                )}
+                {weekPlans.map((day) => (
+                  <div key={day.ymd}>
+                    <div className="hm-wk-day">{day.label}</div>
+                    {day.entries.map((p) => (
+                      <div
+                        className="hm-todo"
+                        key={p.id}
+                        role={p.school_id ? 'button' : undefined}
+                        tabIndex={p.school_id ? 0 : undefined}
+                        onClick={() => {
+                          if (p.school_id) nav('/schools/' + p.school_id)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && p.school_id) nav('/schools/' + p.school_id)
+                        }}
+                      >
+                        <div className="hm-todo-main">
+                          <div className="nm">{p.name}</div>
+                        </div>
+                        {p.school_id && <span className="hm-go">대장 →</span>}
+                      </div>
+                    ))}
                   </div>
                 ))}
-              </div>
-            ))}
+              </>
+            )}
           </div>
         )
+      }
       case 'deadlines':
         return (
           <div className="hm-card">

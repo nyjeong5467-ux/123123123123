@@ -15,7 +15,6 @@ import {
   Download,
   ExternalLink,
   FileText,
-  KeyRound,
   Link2,
   Paperclip,
   Plus,
@@ -70,7 +69,6 @@ function isLinked(a: Accident): boolean {
 const KOSHA_ROWS = 10
 type KoshaCase = { title: string; contents: string; business: string; boardno: string | number }
 type KoshaCasesResp = { items: KoshaCase[]; total: number; page: number; size: number }
-type KoshaSettings = { endpoint: string; has_service_key: boolean }
 
 // useTableQuery 접근자 — 렌더 간 안정적이어야 하므로 모듈 상수
 const ACC_SEARCH = [
@@ -502,22 +500,11 @@ export function Accidents() {
   const [kLoading, setKLoading] = useState(false)
   const [kError, setKError] = useState('')
   const [kExpanded, setKExpanded] = useState<KoshaCase | null>(null)
-  const [kSettings, setKSettings] = useState<KoshaSettings | null>(null)
-  const [kSettingsOpen, setKSettingsOpen] = useState(false)
-  const [kKeyInput, setKKeyInput] = useState('')
-  const [kEndpoint, setKEndpoint] = useState('')
-  const [kSettingsBusy, setKSettingsBusy] = useState(false)
-  const [kSettingsMsg, setKSettingsMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  // KOSHA 탭 최초 진입 시 설정 로드 + 첫 조회 트리거
+  // KOSHA 탭 최초 진입 시 첫 조회 트리거 (serviceKey는 서버 기본값 공용 — 사용자 설정 불필요)
   useEffect(() => {
     if (tab !== 'kosha' || kSearch !== null) return
-    let alive = true
-    api<{ settings: KoshaSettings }>('/accidents/kosha/settings')
-      .then((d) => { if (alive && d?.settings) { setKSettings(d.settings); setKEndpoint(d.settings.endpoint || '') } })
-      .catch(() => { if (alive) setKSettings(null) })
     setKSearch({ business: '', keyword: '', pageNo: 1 })
-    return () => { alive = false }
   }, [tab, kSearch])
 
   // 조회 파라미터 변경 시 국내재해사례 목록 조회
@@ -561,36 +548,6 @@ export function Accidents() {
     const headers = ['업종', '제목', '내용', '글번호']
     const rows = kCases.map((c) => [c.business || '', c.title || '', c.contents || '', String(c.boardno ?? '')])
     downloadCsv('국내재해사례', headers, rows)
-  }
-
-  function openKoshaSettings() {
-    setKSettingsMsg(null)
-    setKKeyInput('')
-    setKEndpoint(kSettings?.endpoint || '')
-    setKSettingsOpen(true)
-  }
-
-  async function saveKoshaSettings() {
-    setKSettingsBusy(true)
-    setKSettingsMsg(null)
-    try {
-      const body: { service_key?: string; endpoint?: string } = {}
-      if (kKeyInput.trim()) body.service_key = kKeyInput.trim()
-      if (kEndpoint.trim()) body.endpoint = kEndpoint.trim()
-      const d = await api<{ ok: boolean; settings: KoshaSettings }>('/accidents/kosha/settings', {
-        method: 'PUT',
-        body: JSON.stringify(body),
-      })
-      setKSettings(d.settings)
-      setKKeyInput('')
-      setKSettingsMsg({ ok: true, text: 'serviceKey 설정을 저장했습니다.' })
-      // 키 저장 직후 현재 조건으로 재조회
-      setKSearch((s) => (s ? { ...s } : { business: '', keyword: '', pageNo: 1 }))
-    } catch (e) {
-      setKSettingsMsg({ ok: false, text: e instanceof Error ? e.message : '저장에 실패했습니다.' })
-    } finally {
-      setKSettingsBusy(false)
-    }
   }
 
   return (
@@ -768,12 +725,6 @@ export function Accidents() {
             <div className="lh">
               <h2><BookOpen size={19} /> 국내재해사례 (안전보건공단)</h2>
               <div className="sp" />
-              <button className="btn btn-ghost" onClick={openKoshaSettings} title="공공데이터포털 serviceKey 설정">
-                <KeyRound size={14} /> serviceKey 설정
-                <span className="muted" style={{ marginLeft: 6, fontWeight: 600 }}>
-                  {kSettings ? (kSettings.has_service_key ? '설정됨' : '미설정') : '…'}
-                </span>
-              </button>
               <button
                 className="btn btn-ghost"
                 onClick={exportKosha}
@@ -811,14 +762,11 @@ export function Accidents() {
               </button>
             </div>
 
-            {/* 조회 오류(주로 serviceKey 미설정/무효) 안내 */}
+            {/* 조회 오류 안내 */}
             {kError && (
               <div className="tstate" style={{ margin: '0 14px 8px', color: 'var(--red-ink)' }}>
-                국내재해사례를 불러오지 못했습니다. serviceKey가 설정되지 않았거나 유효하지 않을 수 있습니다.
+                국내재해사례를 불러오지 못했습니다.
                 <span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 11.5 }}>({kError})</span>
-                <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={openKoshaSettings}>
-                  <KeyRound size={14} /> serviceKey 설정하기
-                </button>
               </div>
             )}
 
@@ -837,7 +785,7 @@ export function Accidents() {
                     <th style={{ width: 150 }}>업종</th>
                     <th>제목</th>
                     <th className="c" style={{ width: 90 }}>글번호</th>
-                    <th className="c" style={{ width: 80 }}>내용</th>
+                    <th className="c" style={{ width: 120 }}>내용</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -847,13 +795,26 @@ export function Accidents() {
                       <td><span className="acc-sum">{c.title || '—'}</span></td>
                       <td className="c"><span className="muted" style={{ fontSize: 12 }}>{c.boardno ?? '—'}</span></td>
                       <td className="c">
-                        <button
-                          className="btn btn-ghost"
-                          style={{ padding: '2px 8px' }}
-                          onClick={(e) => { e.stopPropagation(); setKExpanded(c) }}
-                        >
-                          보기
-                        </button>
+                        <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                          <button
+                            className="btn btn-ghost"
+                            style={{ padding: '2px 8px' }}
+                            onClick={(e) => { e.stopPropagation(); setKExpanded(c) }}
+                          >
+                            보기
+                          </button>
+                          <button
+                            className="btn btn-ghost"
+                            style={{ padding: '2px 6px' }}
+                            title="산업안전포털에서 보기"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              window.open('https://portal.kosha.or.kr/archive/disaster-case/accident-case', '_blank', 'noopener')
+                            }}
+                          >
+                            <ExternalLink size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -887,7 +848,7 @@ export function Accidents() {
 
           <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
             안전보건공단(KOSHA)의 국내 재해사례 게시판을 조회합니다. 회사 산재 내역과는 별개의 공개 사례 라이브러리입니다.
-            조회가 되지 않으면 공공데이터포털에서 발급받은 serviceKey를 먼저 설정하세요.
+            사례 행의 바로가기 아이콘을 누르면 산업안전포털의 원문 게시판을 새 탭에서 볼 수 있습니다.
           </div>
         </>
       )}
@@ -1034,54 +995,6 @@ export function Accidents() {
             질병/근골 키워드는 질병성으로 분류돼 수시 근골격계 조사 연동 대상이 됩니다.
             사업장별 산재 '건' 단위 공개 API는 없어(개인정보) 공단·고용노동부 API 활용 승인 또는 공단 제공 자료를 받으면 키만 넣어 연결하세요.
           </div>
-        </Modal>
-      )}
-
-      {/* ── 국내재해사례 serviceKey 설정 모달 ── */}
-      {kSettingsOpen && (
-        <Modal
-          title="국내재해사례 serviceKey 설정"
-          onClose={() => { if (!kSettingsBusy) setKSettingsOpen(false) }}
-          footer={<button className="btn btn-ghost" onClick={() => setKSettingsOpen(false)} disabled={kSettingsBusy}>닫기</button>}
-        >
-          <b style={{ fontSize: 13 }}>공공데이터포털 · 안전보건공단 국내재해사례 조회 서비스</b>
-          <div className="muted" style={{ marginTop: 6, fontSize: 12, lineHeight: 1.7 }}>
-            공공데이터포털(data.go.kr)에서 발급받은 serviceKey를 입력하면 국내재해사례를 조회할 수 있습니다.
-            저장된 키는 보안을 위해 화면에 표시되지 않습니다. (설정 저장은 본사 관리자 권한이 필요합니다.)
-          </div>
-          <label className="field" style={{ marginTop: 12 }}>
-            <span>API 엔드포인트</span>
-            <input
-              className="input"
-              value={kEndpoint}
-              placeholder="https://apis.data.go.kr/…"
-              onChange={(e) => setKEndpoint(e.target.value)}
-            />
-          </label>
-          <label className="field" style={{ marginTop: 10 }}>
-            <span>serviceKey {kSettings?.has_service_key && <span className="muted" style={{ fontWeight: 500 }}>(저장됨 — 비워두면 기존 키 유지)</span>}</span>
-            <input
-              className="input"
-              type="password"
-              value={kKeyInput}
-              autoComplete="new-password"
-              placeholder={kSettings?.has_service_key ? '●●●●●● (변경 시에만 입력)' : '공공데이터포털 인증키 붙여넣기'}
-              onChange={(e) => setKKeyInput(e.target.value)}
-            />
-          </label>
-          <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="btn btn-primary" onClick={() => void saveKoshaSettings()} disabled={kSettingsBusy}>
-              {kSettingsBusy ? '저장 중…' : '설정 저장'}
-            </button>
-            <span className="muted" style={{ fontSize: 12 }}>
-              현재 상태: <b>{kSettings ? (kSettings.has_service_key ? '설정됨' : '미설정') : '확인 중…'}</b>
-            </span>
-          </div>
-          {kSettingsMsg && (
-            <div className="tstate" style={{ marginTop: 14, color: kSettingsMsg.ok ? 'var(--ink-2)' : 'var(--red-ink)' }}>
-              {kSettingsMsg.ok ? '✓ ' : '✕ '}{kSettingsMsg.text}
-            </div>
-          )}
         </Modal>
       )}
 

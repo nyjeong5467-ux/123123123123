@@ -1677,6 +1677,14 @@ table.tbl {
   font-weight: 700;
   color: var(--ink-2);
 }
+/* textarea 는 rows/내용 높이를 존중(입력칸 42px 고정에서 제외) — 기본 본문·서명 등 */
+textarea.input {
+  height: auto;
+  min-height: 96px;
+  padding: 10px 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
 .input,
 .select {
   height: 42px;

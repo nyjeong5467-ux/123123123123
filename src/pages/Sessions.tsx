@@ -4,7 +4,7 @@
 // 발급 후에도 영속 목록(GET /field/sessions)으로 발급 내역을 조회·수정·폐기한다.
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Ban, Check, Copy, KeyRound, Pencil, Search } from 'lucide-react'
+import { Ban, Check, Copy, KeyRound, Pencil, Search, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { Modal } from '../components/Modal'
@@ -120,6 +120,10 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
   const [sessError, setSessError] = useState('')
   const [isHq, setIsHq] = useState(false)
 
+  // 발급 내역 페이지네이션 (기본 10, 30/50 선택). 목록 재로딩·페이지크기 변경 시 1페이지로.
+  const [pageSize, setPageSize] = useState(10)
+  const [page, setPage] = useState(1)
+
   // 수정 모달
   const [editing, setEditing] = useState<Session | null>(null)
   const [eSchoolIds, setESchoolIds] = useState<string[]>([])
@@ -136,6 +140,7 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
       const d = await api<Session[]>('/field/sessions')
       setSessions(Array.isArray(d) ? d : [])
       setSessError('')
+      setPage(1) // 목록 재로딩 시 1페이지로
     } catch (e) {
       setSessError(e instanceof Error ? e.message : '발급 내역 조회 실패')
     }
@@ -311,6 +316,26 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
     }
   }
 
+  // ── 삭제(발급 내역 정리) — 사용됨/폐기됨 코드를 목록에서 영구 제거 ──
+  async function del(s: Session) {
+    if (!window.confirm(`발급 내역에서 이 세션코드(${s.code})를 삭제할까요? 되돌릴 수 없습니다.`)) return
+    try {
+      await api(`/field/session/${s.id}`, { method: 'DELETE' })
+      await loadSessions()
+    } catch (e) {
+      setSessError(e instanceof Error ? e.message : '삭제 실패')
+    }
+  }
+
+  // ── 발급 내역 페이지네이션 파생값 (정렬은 백엔드 최신순 그대로) ──
+  const totalPages = Math.max(1, Math.ceil(sessions.length / pageSize))
+  const pagedSessions = useMemo(
+    () => sessions.slice((page - 1) * pageSize, page * pageSize),
+    [sessions, page, pageSize],
+  )
+  const startIdx = sessions.length === 0 ? 0 : (page - 1) * pageSize + 1
+  const endIdx = Math.min(page * pageSize, sessions.length)
+
   return (
     <div className={embedded ? '' : 'page rv'}>
       {!embedded && <div className="breadcrumb"><Link to="/">홈</Link> / <b>세션코드 발급</b></div>}
@@ -458,6 +483,13 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
           <span className="sess-scope-note">{isHq ? '전체 발급 내역' : '내가 발급한 내역'}</span>
           <div className="sp" />
           {sessError && <span style={{ color: 'var(--red-ink)', fontSize: 12, fontWeight: 600, marginRight: 8 }}>{sessError}</span>}
+          <label className="sess-scope-note" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 8 }}>
+            페이지당
+            <select className="select" value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }} style={{ width: 72 }}>
+              {[10, 30, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
           <span className="pillx na">{sessions.length}건</span>
         </div>
         <div className="twrap">
@@ -469,7 +501,7 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
               {sessions.length === 0 && (
                 <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: '18px 4px' }}>발급된 세션코드가 없습니다.</td></tr>
               )}
-              {sessions.map((s) => {
+              {pagedSessions.map((s) => {
                 const st = STATUS_META[s.status] || { label: s.status, cls: 'todo' }
                 const names = s.school_ids.map(nameOf)
                 const canEdit = s.status === 'issued'
@@ -483,13 +515,19 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
                     <td><span className={'pillx ' + st.cls}>{st.label}</span></td>
                     <td>
                       <div className="sess-actions">
-                        <button className="sess-preset" onClick={() => openEdit(s)} disabled={!canEdit}
-                          title={canEdit ? '학교·업무·유효기간 수정' : '활성(issued) 코드만 수정할 수 있습니다'}>
-                          <Pencil size={12} /> 수정
-                        </button>
-                        {canEdit && (
-                          <button className="sess-preset danger" onClick={() => revoke(s)} title="이 코드를 폐기(사용 불가 처리)">
-                            <Ban size={12} /> 폐기
+                        {canEdit ? (
+                          <>
+                            <button className="sess-preset" onClick={() => openEdit(s)} disabled={!canEdit}
+                              title={canEdit ? '학교·업무·유효기간 수정' : '활성(issued) 코드만 수정할 수 있습니다'}>
+                              <Pencil size={12} /> 수정
+                            </button>
+                            <button className="sess-preset danger" onClick={() => revoke(s)} title="이 코드를 폐기(사용 불가 처리)">
+                              <Ban size={12} /> 폐기
+                            </button>
+                          </>
+                        ) : (
+                          <button className="sess-preset danger" onClick={() => del(s)} title="발급 내역에서 이 코드를 삭제(정리)">
+                            <Trash2 size={12} /> 삭제
                           </button>
                         )}
                       </div>
@@ -500,6 +538,13 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
             </tbody>
           </table>
         </div>
+        {sessions.length > 0 && (
+          <div className="sess-row" style={{ justifyContent: 'flex-end', alignItems: 'center', gap: 10, padding: '10px 2px 2px' }}>
+            <button className="sess-preset" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>이전</button>
+            <span className="sess-scope-note">{startIdx}–{endIdx} / 전체 {sessions.length}건</span>
+            <button className="sess-preset" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>다음</button>
+          </div>
+        )}
       </div>
 
       {editing && (

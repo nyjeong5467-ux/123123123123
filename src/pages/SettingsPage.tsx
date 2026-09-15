@@ -200,6 +200,11 @@ export function SettingsPage() {
   const [defBusy, setDefBusy] = useState(false)
   const [defMsg, setDefMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
+  // 내 메일 템플릿(개인용) — GET·PUT /mail/my-templates (로그인 계정 본인 소유, 권한 게이트 없음)
+  const [myTemplates, setMyTemplates] = useState<MailTemplate[] | null>(null)
+  const [myTplBusy, setMyTplBusy] = useState(false)
+  const [myTplMsg, setMyTplMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
   // 로그인 사용자 역할(본사 여부 판별 — 템플릿 저장 게이팅). null = 미확인(일단 허용).
   const [role, setRole] = useState<string | null>(null)
 
@@ -228,6 +233,9 @@ export function SettingsPage() {
     api<{ defaults: MailDefaults }>('/mail/defaults')
       .then((d) => { if (alive) setDefaults(d.defaults || {}) })
       .catch(() => { if (alive) setDefaults(null) })
+    api<{ login_id: string; templates: MailTemplate[] }>('/mail/my-templates')
+      .then((d) => { if (alive) setMyTemplates(Array.isArray(d.templates) ? d.templates : []) })
+      .catch(() => { if (alive) setMyTemplates(null) })
     api<{ login_id: string; settings: MyMailSettings }>('/mail/my-settings')
       .then((d) => { if (alive) setMymail(d.settings) })
       .catch(() => { if (alive) setMymail(null) })
@@ -365,6 +373,43 @@ export function SettingsPage() {
     const list = defaults.templates ?? []
     setDefaults({ ...defaults, templates: list.filter((t) => t.id !== id) })
     setDefMsg(null)
+  }
+
+  // ── 내 메일 템플릿(개인용) 카드 편집 — 로그인 계정 본인 소유(권한 게이트 없음) ──
+  function addMyTemplate() {
+    const list = myTemplates ?? []
+    const id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+      ? crypto.randomUUID()
+      : `mytpl-${Date.now()}-${list.length}`
+    setMyTemplates([...list, { id, name: '새 템플릿', subject: '', body: '' }])
+    setMyTplMsg(null)
+  }
+  function updateMyTemplate(id: string, patch: Partial<MailTemplate>) {
+    const list = myTemplates ?? []
+    setMyTemplates(list.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+    setMyTplMsg(null)
+  }
+  function removeMyTemplate(id: string) {
+    const list = myTemplates ?? []
+    setMyTemplates(list.filter((t) => t.id !== id))
+    setMyTplMsg(null)
+  }
+  async function saveMyTemplates() {
+    const list = myTemplates ?? []
+    setMyTplBusy(true)
+    setMyTplMsg(null)
+    try {
+      const d = await api<{ login_id: string; templates: MailTemplate[] }>('/mail/my-templates', {
+        method: 'PUT',
+        body: JSON.stringify({ templates: list }),
+      })
+      setMyTemplates(Array.isArray(d.templates) ? d.templates : [])
+      setMyTplMsg({ ok: true, text: '내 메일 템플릿을 저장했습니다.' })
+    } catch (e) {
+      setMyTplMsg({ ok: false, text: e instanceof Error ? e.message : '저장 실패' })
+    } finally {
+      setMyTplBusy(false)
+    }
   }
 
   const dark = theme === 'dark'
@@ -695,7 +740,7 @@ export function SettingsPage() {
                   <textarea className="input" rows={9} value={body}
                     placeholder={'예:\n안녕하세요, 행정실장님.\n\n정기 안전점검 결과 보고서를 첨부와 같이 송부드립니다. 지적사항에 대한 조치 결과를 회신 부탁드립니다.'}
                     onChange={(e) => setDefaults({ ...defaults, default_body: e.target.value })}
-                    style={{ width: '100%', resize: 'vertical', lineHeight: 1.7, fontFamily: 'inherit' }} />
+                    style={{ width: '100%', minHeight: 220, resize: 'vertical', lineHeight: 1.7, fontFamily: 'inherit' }} />
                 </label>
 
                 <label className="field" style={{ display: 'block', marginTop: 16 }}>
@@ -773,7 +818,7 @@ export function SettingsPage() {
             <div style={{ marginTop: 22, borderTop: '1px solid var(--line)', paddingTop: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                 <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                  <FileText size={16} /> 메일 템플릿
+                  <FileText size={16} /> 메일 템플릿 (회사 공통, 본사 전용)
                 </h3>
                 <span className="pillx doing">{templates.length}개</span>
                 <div style={{ flex: 1 }} />
@@ -831,6 +876,71 @@ export function SettingsPage() {
             </div>
             </>
           )}
+
+          {/* 내 메일 템플릿(개인용) — 로그인 계정 본인 소유. 회사 공통 템플릿과 별개로 누구나 편집·저장 가능. */}
+          <div style={{ marginTop: 24, borderTop: '2px solid var(--line)', paddingTop: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                <FileText size={16} /> 내 메일 템플릿 (개인용) — 나만 사용
+              </h3>
+              <span className="pillx doing">{(myTemplates ?? []).length}개</span>
+              <div style={{ flex: 1 }} />
+              <button className="btn btn-ghost" onClick={addMyTemplate} disabled={myTemplates === null}>
+                <Plus size={14} /> 카드 추가
+              </button>
+            </div>
+            <div className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginBottom: 14 }}>
+              여기 등록한 템플릿은 <b>내 계정에서만</b> 보이고 사용됩니다. 회사 공통 템플릿과 달리 <b>누구나 자유롭게 추가·수정·삭제·저장</b>할 수 있습니다.
+            </div>
+
+            {myTemplates === null && (
+              <div className="tstate">개인 템플릿을 불러오지 못했습니다. 잠시 후 다시 시도하세요.</div>
+            )}
+            {myTemplates !== null && myTemplates.length === 0 && (
+              <div className="tstate">등록된 개인 템플릿이 없습니다. [카드 추가]로 나만의 템플릿을 만들어 보세요.</div>
+            )}
+
+            {myTemplates !== null && myTemplates.length > 0 && (
+              <div style={{ display: 'grid', gap: 14 }}>
+                {myTemplates.map((t, i) => (
+                  <div key={t.id} className="ledger" style={{ padding: '16px 18px' }}>
+                    <div className="formrow" style={{ alignItems: 'flex-start' }}>
+                      <label className="field" style={{ minWidth: 180, flex: '0 0 auto' }}>
+                        <span>이름</span>
+                        <input className="input" value={t.name}
+                          placeholder={`내 템플릿 ${i + 1}`}
+                          onChange={(e) => updateMyTemplate(t.id, { name: e.target.value })} />
+                      </label>
+                      <label className="field" style={{ flex: 1, minWidth: 240 }}>
+                        <span>제목</span>
+                        <input className="input" value={t.subject}
+                          placeholder="예: ○○ 결과 송부"
+                          onChange={(e) => updateMyTemplate(t.id, { subject: e.target.value })} />
+                      </label>
+                      <button className="btn btn-ghost" style={{ marginTop: 22 }}
+                        onClick={() => removeMyTemplate(t.id)}>
+                        <Trash2 size={14} /> 삭제
+                      </button>
+                    </div>
+                    <label className="field" style={{ display: 'block', marginTop: 12 }}>
+                      <span>본문</span>
+                      <textarea className="input" rows={5} value={t.body}
+                        placeholder={'메일 본문을 입력하세요.'}
+                        onChange={(e) => updateMyTemplate(t.id, { body: e.target.value })}
+                        style={{ width: '100%', resize: 'vertical', lineHeight: 1.7, fontFamily: 'inherit' }} />
+                    </label>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" onClick={() => void saveMyTemplates()} disabled={myTplBusy || myTemplates === null}>
+                <Save size={15} /> {myTplBusy ? '저장 중…' : '내 템플릿 저장'}
+              </button>
+              {myTplMsg && <span className={'pillx ' + (myTplMsg.ok ? 'ok' : 'late')}>{myTplMsg.text}</span>}
+            </div>
+          </div>
         </div>
       </Sec>
 

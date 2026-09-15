@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 export function Modal({
@@ -10,7 +11,9 @@ export function Modal({
   footer?: ReactNode
   wide?: boolean
 }) {
-  return (
+  // document.body 로 포털 렌더 — 조상 요소의 transform/overflow 에 갇혀 모달이
+  // 화면 밖(문서 중앙)에 뜨던 버그 방지(항상 뷰포트 정중앙 고정).
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal"
@@ -24,6 +27,7 @@ export function Modal({
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
