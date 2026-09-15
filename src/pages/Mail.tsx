@@ -1,4 +1,5 @@
-// 메일함 — 탭 2개: 받은편지함(개인 이메일 IMAP 연동, 읽기 전용) | 보낸 업무 메일(회사 대표계정 SMTP 발송 이력).
+// 메일함 — 탭 2개: 받은편지함(내 개인 이메일 IMAP 연동, 읽기 전용) | 보낸 업무 메일(내 개인 이메일 SMTP 발송 이력).
+// 수신함·발송 모두 로그인 계정 본인의 개인 이메일(/mail/my-settings)로 동작한다(공용 대표계정 없음).
 // [메일 쓰기] 모달: 학교 선택 → 담당자 이메일 프리필(/mail/school-contacts), 제목 접두어·서명(/mail/defaults),
 // 첨부(base64, 개당 10MB·합 25MB) → POST /mail/send. 연동 계정 설정은 설정 페이지에서.
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
@@ -86,7 +87,7 @@ export function Mail() {
 
   useEffect(() => {
     let alive = true
-    api<{ settings: MailSettings }>('/mail/settings')
+    api<{ login_id: string; settings: MailSettings }>('/mail/my-settings')
       .then((d) => { if (alive) setSettings(d.settings) })
       .catch(() => { if (alive) setSettings(null) })
     api<SchoolLite[]>('/schools')
@@ -203,7 +204,7 @@ export function Mail() {
         <div className="ledger">
           <div className="card-body" style={{ padding: '40px 26px', textAlign: 'center' }}>
             <div className="tstate">
-              이메일이 아직 연동되지 않았습니다. 설정 → 「개인 이메일 연동」에서 주소와 앱 비밀번호를 저장하세요.
+              개인 이메일을 연동하면 받은편지함이 표시됩니다 (설정 → 이메일 연동).
             </div>
             <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => nav('/settings')}>
               <Plug size={14} /> 연동하러 가기
@@ -466,10 +467,10 @@ function ComposeModal({
       onSent()
     } catch (e) {
       const msg = e instanceof Error ? e.message : '메일 발송 실패'
-      // 404: 회사 대표계정(email-integration) 미설정 → 설정 안내
-      if (msg.includes('설정되지 않았습니다') || msg.includes('대표계정')) {
+      // 404: 개인 이메일 미연동 → 설정 안내
+      if (msg.includes('연동') || msg.includes('설정되지 않았습니다')) {
         setNeedSetup(true)
-        setErr('회사 대표계정(이메일 연동)이 설정되지 않았습니다. 메일 설정에서 대표계정을 등록하세요.')
+        setErr('개인 이메일이 연동되지 않았습니다. 설정 → 이메일 연동에서 내 계정을 등록하세요.')
       } else {
         setErr(msg)
       }
@@ -586,7 +587,7 @@ function ComposeModal({
         )}
       </div>
       <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
-        보내는 사람은 <b>회사 대표계정</b>(설정 → 개인 이메일 연동)입니다. 발송한 메일은 [보낸 업무 메일] 탭에 기록됩니다.
+        보내는 사람은 <b>내 개인 이메일</b>(설정 → 이메일 연동)입니다. 발송한 메일은 [보낸 업무 메일] 탭에 기록됩니다.
       </div>
     </Modal>
   )

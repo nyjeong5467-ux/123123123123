@@ -647,6 +647,7 @@
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 .hm-bar2.rf {
   background: var(--violet-soft);

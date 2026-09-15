@@ -1,25 +1,13 @@
 import { type CSSProperties, type ReactNode, useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
-  ChevronDown, ChevronsDownUp, ChevronsUpDown, Eraser, Eye, FolderTree, Inbox,
-  SlidersHorizontal, Moon, Sun, Monitor, Mail, PenLine, Plug, Save, Check, Sparkles,
+  ChevronDown, ChevronsDownUp, ChevronsUpDown, Eraser, Eye, FolderTree,
+  SlidersHorizontal, Moon, Sun, Monitor, Mail, PenLine, Save, Check, Sparkles,
   KeyRound, Send, FileText, Plus, Trash2,
 } from 'lucide-react'
 import { useTheme } from '../lib/theme'
 import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
-
-// 이메일(IMAP+SMTP) 연동 — GET·PUT /mail/settings · POST /mail/test · GET /mail/inbox
-// 같은 계정으로 발송(SMTP)도 나간다. custom 프로바이더는 smtp_host/smtp_port 별도 입력.
-type MailSettings = {
-  address: string
-  provider: string   // naver | gmail | daum | custom
-  host: string
-  port: number
-  smtp_host: string
-  smtp_port: number
-  has_password: boolean
-}
 
 // 메일 템플릿 카드 — 이름·제목·본문까지 편집형(/mail/defaults 의 templates 배열)
 type MailTemplate = { id: string; name: string; subject: string; body: string }
@@ -103,7 +91,7 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 // 각 설정 카드 헤더를 눌러 접고 펼친다. 열림 상태는 localStorage에 유지.
 const SEC_OPEN_KEY = 'sp-settings-open'
 const SEC_DEFAULT_OPEN: Record<string, boolean> = {
-  theme: true, notif: true, display: true, pw: false, mail: false, mymail: false, maildef: false, storage: false, sysinfo: false,
+  theme: true, notif: true, display: true, pw: false, mymail: false, maildef: false, storage: false, sysinfo: false,
 }
 
 function Sec({ id, title, icon, pill, open, onToggle, children, style }: {
@@ -154,7 +142,6 @@ const SIG_TEMPLATES: { name: string; text: string }[] = [
 export function SettingsPage() {
   const { theme, toggle } = useTheme()
   const { user } = useAuth()
-  const nav = useNavigate()
 
   // 섹션 접기/펼치기 상태(localStorage 유지)
   const [openMap, setOpenMap] = useState<Record<string, boolean>>(() => {
@@ -189,12 +176,6 @@ export function SettingsPage() {
   const [notif, setNotif] = useState<NotifSettings>(() => readNotif())
   const [saved, setSaved] = useState(false)
 
-  // 이메일 연동
-  const [mail, setMail] = useState<MailSettings | null>(null)
-  const [mailPw, setMailPw] = useState('')
-  const [mailBusy, setMailBusy] = useState('')
-  const [mailMsg, setMailMsg] = useState<{ ok: boolean; text: string } | null>(null)
-
   // 메일 발송 기본값(제목 접두어·서명·템플릿)
   const [defaults, setDefaults] = useState<MailDefaults | null>(null)
   const [defBusy, setDefBusy] = useState(false)
@@ -216,7 +197,7 @@ export function SettingsPage() {
   const [pwOk, setPwOk] = useState('')
   const [pwBusy, setPwBusy] = useState(false)
 
-  // 개인 이메일 연동(각자 SMTP) — 대표계정과 별개
+  // 이메일 연동(내 계정) — 로그인 계정 본인의 개인 이메일(발송·수신 공용)
   const [mymail, setMymail] = useState<MyMailSettings | null>(null)
   const [myPw, setMyPw] = useState('')
   const [myBusy, setMyBusy] = useState('')
@@ -227,9 +208,6 @@ export function SettingsPage() {
 
   useEffect(() => {
     let alive = true
-    api<{ settings: MailSettings }>('/mail/settings')
-      .then((d) => { if (alive) setMail(d.settings) })
-      .catch(() => { if (alive) setMail(null) })
     api<{ defaults: MailDefaults }>('/mail/defaults')
       .then((d) => { if (alive) setDefaults(d.defaults || {}) })
       .catch(() => { if (alive) setDefaults(null) })
@@ -248,25 +226,6 @@ export function SettingsPage() {
     return () => { alive = false }
   }, [])
 
-  async function saveMail() {
-    if (!mail) return
-    setMailBusy('save')
-    setMailMsg(null)
-    try {
-      const d = await api<{ settings: MailSettings }>('/mail/settings', {
-        method: 'PUT',
-        body: JSON.stringify({ settings: { ...mail, password: mailPw } }),
-      })
-      setMail(d.settings)
-      setMailPw('')
-      setMailMsg({ ok: true, text: '이메일 연동 설정을 저장했습니다.' })
-    } catch (e) {
-      setMailMsg({ ok: false, text: e instanceof Error ? e.message : '저장 실패' })
-    } finally {
-      setMailBusy('')
-    }
-  }
-
   async function saveDefaults() {
     if (!defaults) return
     setDefBusy(true)
@@ -282,19 +241,6 @@ export function SettingsPage() {
       setDefMsg({ ok: false, text: e instanceof Error ? e.message : '저장 실패' })
     } finally {
       setDefBusy(false)
-    }
-  }
-
-  async function testMail() {
-    setMailBusy('test')
-    setMailMsg(null)
-    try {
-      const d = await api<{ ok: boolean; message: string }>('/mail/test', { method: 'POST' })
-      setMailMsg({ ok: d.ok, text: d.message })
-    } catch (e) {
-      setMailMsg({ ok: false, text: e instanceof Error ? e.message : '연동 테스트 실패' })
-    } finally {
-      setMailBusy('')
     }
   }
 
@@ -563,85 +509,8 @@ export function SettingsPage() {
         </div>
       </Sec>
 
-      {/* 개인 이메일 연동(IMAP 열람) */}
-      <Sec id="mail" title="개인 이메일 연동" icon={<Plug size={18} />}
-        pill={mail ? <span className={'pillx ' + (mail.has_password ? 'ok' : 'todo')}>{mail.has_password ? '연동됨' : '미연동'}</span> : undefined}
-        open={!!openMap.mail} onToggle={toggleSec} style={{ marginTop: 24 }}>
-        <div className="card-body" style={{ padding: '20px 26px' }}>
-          {mail === null && <div className="tstate">설정을 불러오지 못했습니다. (본사 관리자 권한 필요)</div>}
-          {mail && (
-            <>
-              <div className="formrow">
-                <label className="field" style={{ minWidth: 220 }}>
-                  <span>이메일 주소</span>
-                  <input className="input" value={mail.address} placeholder="safety@naver.com"
-                    onChange={(e) => setMail({ ...mail, address: e.target.value })} />
-                </label>
-                <label className="field">
-                  <span>메일 서비스</span>
-                  <select className="select" value={mail.provider}
-                    onChange={(e) => setMail({ ...mail, provider: e.target.value })}>
-                    <option value="naver">네이버</option>
-                    <option value="gmail">구글(Gmail)</option>
-                    <option value="daum">다음</option>
-                    <option value="custom">직접 입력(IMAP)</option>
-                  </select>
-                </label>
-                {mail.provider === 'custom' && (
-                  <>
-                    <label className="field">
-                      <span>IMAP 호스트</span>
-                      <input className="input" value={mail.host} placeholder="imap.example.com"
-                        onChange={(e) => setMail({ ...mail, host: e.target.value })} />
-                    </label>
-                    <label className="field" style={{ width: 100 }}>
-                      <span>포트</span>
-                      <input className="input" type="number" value={mail.port}
-                        onChange={(e) => setMail({ ...mail, port: Number(e.target.value) || 993 })} />
-                    </label>
-                    <label className="field">
-                      <span>SMTP 호스트 (발송)</span>
-                      <input className="input" value={mail.smtp_host} placeholder="smtp.example.com"
-                        onChange={(e) => setMail({ ...mail, smtp_host: e.target.value })} />
-                    </label>
-                    <label className="field" style={{ width: 100 }}>
-                      <span>SMTP 포트</span>
-                      <input className="input" type="number" value={mail.smtp_port}
-                        onChange={(e) => setMail({ ...mail, smtp_port: Number(e.target.value) || 465 })} />
-                    </label>
-                  </>
-                )}
-                <label className="field" style={{ minWidth: 200 }}>
-                  <span>앱 비밀번호 {mail.has_password && <span className="muted" style={{ fontWeight: 500 }}>(저장됨 — 변경 시만 입력)</span>}</span>
-                  <input className="input" type="password" value={mailPw} autoComplete="new-password"
-                    placeholder={mail.has_password ? '●●●●●●●●' : 'IMAP 앱 비밀번호'}
-                    onChange={(e) => setMailPw(e.target.value)} />
-                </label>
-              </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => void saveMail()} disabled={mailBusy !== ''}>
-                  {mailBusy === 'save' ? '저장 중…' : '연동 저장'}
-                </button>
-                <button className="btn btn-ghost" onClick={() => void testMail()} disabled={mailBusy !== ''}>
-                  <Plug size={14} /> {mailBusy === 'test' ? '확인 중…' : '연동 테스트'}
-                </button>
-                <button className="btn btn-ghost" onClick={() => nav('/mail')} disabled={!mail.has_password}>
-                  <Inbox size={14} /> 메일함 열기
-                </button>
-                {mailMsg && <span className={'pillx ' + (mailMsg.ok ? 'ok' : 'late')}>{mailMsg.text}</span>}
-              </div>
-              <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
-                네이버/구글은 <b>2단계 인증의 앱 비밀번호</b>를 발급해 입력하세요(계정 비밀번호 아님).
-                이 계정은 <b>회사 대표계정</b>으로, 메일함 열람(IMAP)과 <b>업무 메일 발송(SMTP)</b>에 함께 사용됩니다.
-                메일함 → [메일 쓰기]로 보내는 업무 메일이 이 주소로 발송됩니다.
-              </div>
-            </>
-          )}
-        </div>
-      </Sec>
-
-      {/* 개인 이메일 연동(각자 SMTP) — 본인 개인 주소로 업무 메일 발송. 대표계정과 별개. */}
-      <Sec id="mymail" title="개인 이메일 연동 (각자 SMTP)" icon={<Send size={18} />}
+      {/* 이메일 연동(내 계정) — 로그인 계정 본인의 개인 이메일로 메일 발송·받은편지함이 모두 동작. */}
+      <Sec id="mymail" title="이메일 연동 (내 계정)" icon={<Send size={18} />}
         pill={mymail ? <span className={'pillx ' + (mymail.has_password ? 'ok' : 'todo')}>{mymail.has_password ? '연동됨' : '미연동'}</span> : undefined}
         open={!!openMap.mymail} onToggle={toggleSec} style={{ marginTop: 24 }}>
         <div className="card-body" style={{ padding: '20px 26px' }}>
@@ -695,7 +564,7 @@ export function SettingsPage() {
                 {myMsg && <span className={'pillx ' + (myMsg.ok ? 'ok' : 'late')}>{myMsg.text}</span>}
               </div>
               <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
-                여기서 연동하면 내가 보내는 업무 메일이 회사 <b>대표계정</b>이 아니라 <b>내 개인 이메일 주소</b>로 발송됩니다.
+                이 계정으로 <b>메일 발송</b>과 <b>받은편지함(수신함)</b>이 모두 동작합니다. 내가 보내는 업무 메일은 <b>내 개인 이메일 주소</b>로 발송됩니다.
                 네이버/지메일/다음은 계정 비밀번호가 아니라 <b>앱 비밀번호</b>(2단계 인증에서 발급)를 입력하세요.
               </div>
             </>
@@ -785,7 +654,7 @@ export function SettingsPage() {
                 <div className="mdmail">
                   <div className="mdmail-meta">
                     <span className="k">보내는사람</span>
-                    <span>{mail?.address || '회사 대표계정'}</span>
+                    <span>{mymail?.address || '내 개인 이메일'}</span>
                   </div>
                   <div className="mdmail-meta">
                     <span className="k">받는사람</span>

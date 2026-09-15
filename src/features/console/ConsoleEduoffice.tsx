@@ -31,6 +31,16 @@ type QueueJob = {
   message: string
 }
 
+// 전송 대기 자동취소 로그 — 재시도 상한 초과로 봇 큐에서 영구 제외된 건(최신순).
+type CancelLogRow = {
+  iid: string
+  school_id: string
+  school_name: string
+  count: number
+  at: string
+  reason: string
+}
+
 const MODULE_LABEL: Record<string, string> = {
   risk: '위험성평가',
   musculo: '근골격계',
@@ -67,6 +77,7 @@ export default function ConsoleEduoffice() {
   const [creds, setCreds] = useState<CredAcct[]>([])
   const [credBusy, setCredBusy] = useState(false)
   const [credMsg, setCredMsg] = useState('')
+  const [cancelLog, setCancelLog] = useState<CancelLogRow[]>([])
   // 개별 전송/재전송 인라인 게이지 — 버튼을 누른 행의 job_id를 추적(여러 행 동시 추적 가능).
   // enqueue는 (module,record_id) 멱등이라 클릭한 행의 job_id가 그대로 pending으로 재등장한다.
   const [watched, setWatched] = useState<Set<string>>(() => new Set())
@@ -75,14 +86,16 @@ export default function ConsoleEduoffice() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [ij, qj, cr] = await Promise.all([
+      const [ij, qj, cr, cl] = await Promise.all([
         api<InspJob[]>('/eduoffice/jobs').catch(() => []),
         api<QueueJob[]>('/eduoffice/queue').catch(() => []),
         api<{ accounts: CredAcct[] }>('/eduoffice/credentials').catch(() => ({ accounts: [] as CredAcct[] })),
+        api<CancelLogRow[]>('/eduoffice/cancel-log').catch(() => []),
       ])
       setInsp(Array.isArray(ij) ? ij : [])
       setQueue(Array.isArray(qj) ? qj : [])
       setCreds((cr.accounts || []).map((a) => ({ ...a, password: '' }))) // 입력 비번은 빈값=기존 유지
+      setCancelLog(Array.isArray(cl) ? cl : [])
     } finally {
       setLoading(false)
     }
@@ -367,12 +380,40 @@ export default function ConsoleEduoffice() {
             </div>
           ))}
           {botActive.length === 0 && botRecent.length > 0 && (
-            <div style={{ fontSize: 12 }} className="muted">
+            <div className="muted" style={{ fontSize: 12, padding: '10px 26px 18px', lineHeight: 1.7, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
               최근 처리: {botRecent.map((r) => (
                 `${r.success ? '성공' : `실패(${r.error_kind || '오류'})`} ${r.total_ms ? Math.round(r.total_ms / 1000) + '초' : ''}`
               )).join(' · ')}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 전송 대기 자동취소 내역 — 재시도 상한 초과로 봇 큐에서 영구 제외된 건(최신순) */}
+      {cancelLog.length > 0 && (
+        <div className="ledger" style={{ marginBottom: 20 }}>
+          <div className="lh">
+            <h2><Ban size={18} /> 전송 대기 자동취소 내역</h2>
+            <div className="sp" />
+            <span className="pillx na">{cancelLog.length}건</span>
+          </div>
+          <div className="twrap">
+            <table className="tbl">
+              <thead><tr><th>학교</th><th>시도</th><th>사유</th><th>시각</th></tr></thead>
+              <tbody>
+                {cancelLog.map((c) => (
+                  <tr key={c.iid}>
+                    <td><b>{c.school_name || c.school_id}</b></td>
+                    <td><span className="pillx na">{c.count}회</span></td>
+                    <td className="muted" style={{ fontSize: 12, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                      {c.reason || `전송 대기 ${c.count}회 초과 — 자동 영구취소`}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{fmt(c.at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

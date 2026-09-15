@@ -76,6 +76,7 @@ export default function ConsoleStaffHistory() {
   const cur = authors.find((a) => a.author_id === selected)
 
   return (
+    <div>
     <div className="ledger">
       <div className="lh">
         <h2><ScrollText size={18} /> 직원 이력</h2>
@@ -146,7 +147,7 @@ export default function ConsoleStaffHistory() {
                 <div className="twrap" style={{ maxHeight: 520, overflowY: 'auto' }}>
                   <table className="tbl">
                     <thead>
-                      <tr><th style={{ width: 110 }}>날짜</th><th style={{ width: 120 }}>업무</th><th>학교</th><th style={{ width: 100 }}>상태</th></tr>
+                      <tr><th style={{ width: 118, whiteSpace: 'nowrap' }}>날짜</th><th style={{ width: 120 }}>업무</th><th>학교</th><th style={{ width: 100 }}>상태</th></tr>
                     </thead>
                     <tbody>
                       {rowsLoading && <tr><td colSpan={4}><div className="tstate">불러오는 중…</div></td></tr>}
@@ -155,7 +156,7 @@ export default function ConsoleStaffHistory() {
                           onClick={() => nav(`/schools/${r.school_id}`)}
                           style={{ cursor: 'pointer' }}
                           title="학교 상세로 이동">
-                          <td>{r.date ? r.date.slice(0, 10) : '—'}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{r.date ? r.date.slice(0, 10) : '—'}</td>
                           <td><span className={'pillx ' + (MODULE_PILL[r.module] || 'na')}>{r.title || MODULE_LABEL[r.module] || r.module}</span></td>
                           <td>
                             <b>{r.school_name}</b>
@@ -179,8 +180,9 @@ export default function ConsoleStaffHistory() {
           </div>
         </div>
       )}
+      </div>
 
-      <div className="console-note">
+      <div className="console-note" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
         열람 전용 화면입니다. 기록 수정·삭제는 각 업무 화면에서만 가능합니다.
         작성자 정보는 이 기능 도입 이후 생성된 기록부터 저장됩니다.
       </div>
