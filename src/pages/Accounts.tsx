@@ -27,6 +27,12 @@ const ROLE_LABEL = Object.fromEntries(ROLES.map((r) => [r.value, r.label]))
 const ROLE_PILL: Record<string, string> = {
   hq_admin: 'doing', executive: 'warn', field_inspector: 'ok', school_confirmer: 'na',
 }
+// 본사 권한(계정의 소속·직급 편집·전체 조회 가능). 나머지 역할은 읽기 전용.
+const HQ_ROLES = ['hq_admin', 'executive']
+// 정렬용: 역할 그룹 우선순위(등록정보 없는 계정끼리는 역할 순으로 묶는다)
+const ROLE_ORDER: Record<string, number> = {
+  hq_admin: 0, executive: 1, field_inspector: 2, school_confirmer: 3,
+}
 
 // 부여 가능한 모듈 카탈로그(사이드바 메뉴 키와 동일)
 const MODULES: { key: string; label: string; group: string }[] = [
@@ -54,6 +60,7 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [staffReg, setStaffReg] = useState<Record<string, StaffInfo>>({}) // 직원 등록 정보(로그인ID→소속·부서·연락처)
+  const [isHq, setIsHq] = useState(false) // 본사 권한이면 소속·직급 인라인 편집 허용(아니면 읽기 전용)
 
   // 신규 계정 모달
   const [createOpen, setCreateOpen] = useState(false)
@@ -74,6 +81,13 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
   const [eDept, setEDept] = useState('')
   const [ePhone, setEPhone] = useState('')
   const [eErr, setEErr] = useState('')
+
+  // 소속·직급(부서)·연락처 인라인 편집 모달 — 계정 목록 「소속·직급/부서」 칸의 편집 버튼
+  const [regTarget, setRegTarget] = useState<Account | null>(null)
+  const [rAff, setRAff] = useState('')
+  const [rDept, setRDept] = useState('')
+  const [rPhone, setRPhone] = useState('')
+  const [rErr, setRErr] = useState('')
 
   // 모듈 권한 편집 모달
   const [modTarget, setModTarget] = useState<Account | null>(null)
@@ -104,6 +118,8 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
       .catch((e) => { if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) } })
     api<{ doc: Record<string, StaffInfo> | null }>('/ops/docs/staff-registry')
       .then((d) => { if (alive) setStaffReg(d.doc || {}) }).catch(() => {})
+    api<{ role?: string }>('/auth/me')
+      .then((d) => { if (alive) setIsHq(HQ_ROLES.includes(d.role || '')) }).catch(() => {})
     return () => { alive = false }
   }, [reload])
 
@@ -119,10 +135,72 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
     [staffReg],
   )
 
+  // 보기 좋은 결정적 정렬: 소속 등록된 실제 직원 먼저(소속→직급/부서→이름), 미등록 계정(admin·bot 등)은 뒤로(역할→ID).
+  // 백엔드 반환 순서에 의존하지 않는다.
+  const sortedAccounts = useMemo(() => {
+    const col = new Intl.Collator('ko')
+    const regOf = (a: Account) => staffReg[a.login_id] || {}
+    const hasReg = (a: Account) => {
+      const si = regOf(a)
+      return !!(si.affiliation || si.department || si.phone)
+    }
+    return [...accounts].sort((a, b) => {
+      const ra = hasReg(a), rb = hasReg(b)
+      if (ra !== rb) return ra ? -1 : 1 // 등록된 직원을 위로
+      if (!ra) {
+        // 미등록 그룹: 역할 순 → 로그인ID
+        const oa = ROLE_ORDER[a.role] ?? 9, ob = ROLE_ORDER[b.role] ?? 9
+        if (oa !== ob) return oa - ob
+        return col.compare(a.login_id, b.login_id)
+      }
+      // 등록 그룹: 소속 → 직급/부서 → 이름 → 로그인ID
+      const sa = regOf(a), sb = regOf(b)
+      const byAff = col.compare(sa.affiliation || '', sb.affiliation || '')
+      if (byAff) return byAff
+      const byDept = col.compare(sa.department || '', sb.department || '')
+      if (byDept) return byDept
+      const byName = col.compare(a.name || '', b.name || '')
+      if (byName) return byName
+      return col.compare(a.login_id, b.login_id)
+    })
+  }, [accounts, staffReg])
+
   // 직원 등록 정보 저장(org_docs) — 스키마 변경 없이 로그인ID 기준 병합 저장
   async function saveStaffReg(next: Record<string, StaffInfo>) {
     setStaffReg(next)
     try { await api('/ops/docs/staff-registry', { method: 'PUT', body: JSON.stringify({ doc: next }) }) } catch { /* 무시 — 세션 상태 유지 */ }
+  }
+
+  // 소속·직급 인라인 편집 열기 — 현재 등록값을 채워 넣는다(본사 권한만 진입).
+  function openReg(a: Account) {
+    if (!isHq) return
+    setRErr('')
+    const si = staffReg[a.login_id] || {}
+    setRAff(si.affiliation || ''); setRDept(si.department || ''); setRPhone(si.phone || '')
+    setRegTarget(a)
+  }
+
+  // 소속·직급 인라인 저장 — read-merge-write: 기존 doc에 해당 로그인ID만 병합(다른 항목 보존) 후 전체 PUT.
+  async function saveReg() {
+    if (!regTarget) return
+    setRErr('')
+    setBusy('reg')
+    try {
+      const next: Record<string, StaffInfo> = {
+        ...staffReg,
+        [regTarget.login_id]: { affiliation: rAff.trim(), department: rDept.trim(), phone: rPhone.trim() },
+      }
+      await api('/ops/docs/staff-registry', { method: 'PUT', body: JSON.stringify({ doc: next }) })
+      setStaffReg(next)
+      const who = regTarget.login_id
+      setRegTarget(null)
+      setReload((n) => n + 1) // 재조회 → 정렬 갱신
+      setMsg({ ok: true, text: `${who} 소속·직급 정보를 저장했습니다.` })
+    } catch (e) {
+      setRErr(e instanceof Error ? e.message : '저장 실패')
+    } finally {
+      setBusy('')
+    }
   }
 
   async function changeRole(a: Account, role: string) {
@@ -328,23 +406,36 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
           <table className="tbl">
             <thead>
               <tr>
-                <th>로그인 ID</th><th>이름</th><th>소속 · 부서</th><th>역할</th><th>사용 가능 모듈</th><th style={{ width: 210 }}>관리</th>
+                <th>로그인 ID</th><th>이름</th><th>소속 · 직급/부서</th><th>역할</th><th>사용 가능 모듈</th><th style={{ width: 210 }}>관리</th>
               </tr>
             </thead>
             <tbody>
               {loading && <tr><td colSpan={6}><div className="tstate">불러오는 중…</div></td></tr>}
               {!loading && error && <tr><td colSpan={6}><div className="tstate">오류: {error}</div></td></tr>}
-              {!loading && !error && accounts.map((a) => (
+              {!loading && !error && sortedAccounts.map((a) => (
                 <tr key={a.id}>
                   <td><b>{a.login_id}</b></td>
                   <td>{a.name || '—'}</td>
                   <td>
                     {(() => {
                       const si = staffReg[a.login_id] || {}
-                      return (<>
-                        <b>{si.affiliation || '—'}</b>
-                        {(si.department || si.phone) && <div className="muted" style={{ fontSize: 11 }}>{[si.department, si.phone].filter(Boolean).join(' · ')}</div>}
-                      </>)
+                      const meta = [si.department, si.phone].filter(Boolean).join(' · ')
+                      return (
+                        <div className="row" style={{ gap: 6, alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            {si.affiliation
+                              ? <b>{si.affiliation}</b>
+                              : <span className="pillx na" title="소속·직급이 등록되지 않았습니다">미등록</span>}
+                            {meta && <div className="muted" style={{ fontSize: 11 }}>{meta}</div>}
+                          </div>
+                          {isHq && (
+                            <button className="btn btn-ghost" style={{ padding: '2px 7px', flex: '0 0 auto' }}
+                              title="소속 · 직급/부서 · 연락처 편집" onClick={() => openReg(a)}>
+                              <Pencil size={12} />
+                            </button>
+                          )}
+                        </div>
+                      )
                     })()}
                   </td>
                   <td>
@@ -392,6 +483,12 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
         역할: <b>본사 관리자/경영진</b>은 시스템 전체(계정·설정·발행·연동 설정)를, <b>현장 조사원</b>은 업무 화면을 사용합니다.
         모듈 권한을 지정하면 해당 계정 사이드바에는 허용된 모듈만 표시됩니다(비면 전체 허용).
         마지막 본사 관리자는 강등할 수 없습니다.
+        <br />
+        목록은 <b>소속 → 직급/부서 → 이름</b> 순으로 정렬되며, 소속·직급이 <b>미등록</b>인 계정(관리자·봇 등)은 맨 아래에 모입니다.
+        직급은 별도 항목 없이 <b>부서</b> 칸에 저장됩니다(그래서 라벨이 「직급/부서」입니다).
+        {isHq
+          ? ' 소속·직급/부서 칸의 연필(편집) 버튼으로 계정별 정보를 바로 채울 수 있습니다.'
+          : ' 소속·직급 편집은 본사 권한(관리자·경영진)만 가능합니다.'}
       </div>
 
       {/* 신규 계정 */}
@@ -427,8 +524,8 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
           <div className="formrow" style={{ marginTop: 10 }}>
             <label className="field"><span>소속</span>
               <input className="input" list="aff-suggest" value={nAff} onChange={(e) => setNAff(e.target.value)} placeholder="예: 한국산업안전협회" /></label>
-            <label className="field"><span>부서</span>
-              <input className="input" value={nDept} onChange={(e) => setNDept(e.target.value)} placeholder="예: 안전점검팀" /></label>
+            <label className="field"><span>직급/부서</span>
+              <input className="input" value={nDept} onChange={(e) => setNDept(e.target.value)} placeholder="예: 팀장 · 안전점검팀" /></label>
             <label className="field"><span>연락처</span>
               <input className="input" value={nPhone} onChange={(e) => setNPhone(e.target.value)} placeholder="예: 010-0000-0000" /></label>
           </div>
@@ -463,8 +560,8 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
           <div className="formrow" style={{ marginTop: 10 }}>
             <label className="field"><span>소속</span>
               <input className="input" list="aff-suggest" value={eAff} onChange={(e) => setEAff(e.target.value)} placeholder="예: 한국산업안전협회" /></label>
-            <label className="field"><span>부서</span>
-              <input className="input" value={eDept} onChange={(e) => setEDept(e.target.value)} placeholder="예: 안전점검팀" /></label>
+            <label className="field"><span>직급/부서</span>
+              <input className="input" value={eDept} onChange={(e) => setEDept(e.target.value)} placeholder="예: 팀장 · 안전점검팀" /></label>
             <label className="field"><span>연락처</span>
               <input className="input" value={ePhone} onChange={(e) => setEPhone(e.target.value)} placeholder="예: 010-0000-0000" /></label>
           </div>
@@ -516,6 +613,37 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
             {modSel.length === 0
               ? '아무것도 선택하지 않으면 전체 모듈이 허용됩니다.'
               : `선택한 ${modSel.length}개 모듈만 이 계정의 사이드바에 표시됩니다.`}
+          </div>
+        </Modal>
+      )}
+
+      {/* 소속·직급(부서)·연락처 인라인 편집 — 본사 권한 전용 */}
+      {regTarget && (
+        <Modal
+          title={`소속·직급 편집 · ${regTarget.login_id}`}
+          onClose={() => { if (busy !== 'reg') setRegTarget(null) }}
+          footer={
+            <>
+              <button className="btn btn-ghost" disabled={busy === 'reg'} onClick={() => setRegTarget(null)}>취소</button>
+              <button className="btn btn-primary" disabled={busy === 'reg'} onClick={() => void saveReg()}>
+                {busy === 'reg' ? '저장 중…' : '저장'}
+              </button>
+            </>
+          }
+        >
+          {rErr && <div className="login-err">{rErr}</div>}
+          <div className="formrow">
+            <label className="field"><span>소속</span>
+              <input className="input" list="aff-suggest" value={rAff} onChange={(e) => setRAff(e.target.value)} placeholder="예: 한국산업안전협회" /></label>
+            <label className="field"><span>직급/부서</span>
+              <input className="input" value={rDept} onChange={(e) => setRDept(e.target.value)} placeholder="예: 팀장 · 안전점검팀" /></label>
+            <label className="field"><span>연락처</span>
+              <input className="input" value={rPhone} onChange={(e) => setRPhone(e.target.value)} placeholder="예: 010-0000-0000" /></label>
+          </div>
+          <div className="muted" style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.7 }}>
+            직급은 별도 항목이 없어 <b>부서</b> 칸에 함께 저장됩니다(예: 「팀장 · 안전점검팀」).
+            소속은 점검표·세금계산서 발행처 자동채움과 교육청 계정(소속별) 선택의 기준이 됩니다.
+            저장하면 목록이 소속·직급 순으로 다시 정렬됩니다.
           </div>
         </Modal>
       )}

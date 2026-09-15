@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   ChevronDown, ChevronsDownUp, ChevronsUpDown, Eraser, Eye, FolderTree, Inbox,
   SlidersHorizontal, Moon, Sun, Monitor, Mail, PenLine, Plug, Save, Check, Sparkles,
+  KeyRound, Send, FileText, Plus, Trash2,
 } from 'lucide-react'
 import { useTheme } from '../lib/theme'
 import { useAuth } from '../lib/auth'
@@ -20,8 +21,19 @@ type MailSettings = {
   has_password: boolean
 }
 
+// 메일 템플릿 카드 — 이름·제목·본문까지 편집형(/mail/defaults 의 templates 배열)
+type MailTemplate = { id: string; name: string; subject: string; body: string }
 // 메일 발송 기본값(회사 공통) — GET·PUT /mail/defaults (저장은 본사 전용)
-type MailDefaults = { default_subject_prefix?: string; signature?: string }
+type MailDefaults = { default_subject_prefix?: string; signature?: string; default_body?: string; templates?: MailTemplate[] }
+
+// 개인 이메일(각자 SMTP) — GET·PUT /mail/my-settings · POST /mail/my-test (로그인 계정 본인 슬롯)
+type MyMailSettings = {
+  address: string
+  provider: string   // naver | gmail | daum | custom
+  smtp_host: string
+  smtp_port: number
+  has_password: boolean
+}
 
 // 문서 저장소(NAS 대비) — GET /files/info
 type StorageInfo = {
@@ -91,7 +103,7 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 // 각 설정 카드 헤더를 눌러 접고 펼친다. 열림 상태는 localStorage에 유지.
 const SEC_OPEN_KEY = 'sp-settings-open'
 const SEC_DEFAULT_OPEN: Record<string, boolean> = {
-  theme: true, notif: true, display: true, mail: false, maildef: false, storage: false, sysinfo: false,
+  theme: true, notif: true, display: true, pw: false, mail: false, mymail: false, maildef: false, storage: false, sysinfo: false,
 }
 
 function Sec({ id, title, icon, pill, open, onToggle, children, style }: {
@@ -183,10 +195,27 @@ export function SettingsPage() {
   const [mailBusy, setMailBusy] = useState('')
   const [mailMsg, setMailMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  // 메일 발송 기본값(제목 접두어·서명)
+  // 메일 발송 기본값(제목 접두어·서명·템플릿)
   const [defaults, setDefaults] = useState<MailDefaults | null>(null)
   const [defBusy, setDefBusy] = useState(false)
   const [defMsg, setDefMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  // 로그인 사용자 역할(본사 여부 판별 — 템플릿 저장 게이팅). null = 미확인(일단 허용).
+  const [role, setRole] = useState<string | null>(null)
+
+  // 비밀번호 변경(POST /auth/change-password)
+  const [curPw, setCurPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [pwErr, setPwErr] = useState('')
+  const [pwOk, setPwOk] = useState('')
+  const [pwBusy, setPwBusy] = useState(false)
+
+  // 개인 이메일 연동(각자 SMTP) — 대표계정과 별개
+  const [mymail, setMymail] = useState<MyMailSettings | null>(null)
+  const [myPw, setMyPw] = useState('')
+  const [myBusy, setMyBusy] = useState('')
+  const [myMsg, setMyMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   // 문서 저장소(NAS 대비)
   const [storage, setStorage] = useState<StorageInfo | null>(null)
@@ -199,6 +228,12 @@ export function SettingsPage() {
     api<{ defaults: MailDefaults }>('/mail/defaults')
       .then((d) => { if (alive) setDefaults(d.defaults || {}) })
       .catch(() => { if (alive) setDefaults(null) })
+    api<{ login_id: string; settings: MyMailSettings }>('/mail/my-settings')
+      .then((d) => { if (alive) setMymail(d.settings) })
+      .catch(() => { if (alive) setMymail(null) })
+    api<{ role: string }>('/auth/me')
+      .then((d) => { if (alive) setRole(d.role) })
+      .catch(() => { if (alive) setRole(null) })
     api<StorageInfo>('/files/info')
       .then((d) => { if (alive) setStorage(d) })
       .catch(() => { if (alive) setStorage(null) })
@@ -255,6 +290,83 @@ export function SettingsPage() {
     }
   }
 
+  // ── 비밀번호 변경 (MyPage와 동일 로직·검증) ──
+  async function changePassword() {
+    setPwErr('')
+    setPwOk('')
+    if (!curPw || !newPw || !confirmPw) { setPwErr('모든 항목을 입력하세요.'); return }
+    if (newPw !== confirmPw) { setPwErr('새 비밀번호가 일치하지 않습니다.'); return }
+    setPwBusy(true)
+    try {
+      await api('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ old_password: curPw, new_password: newPw }),
+      })
+      setCurPw(''); setNewPw(''); setConfirmPw('')
+      setPwOk('비밀번호가 변경되었습니다.')
+    } catch (e) {
+      setPwErr(e instanceof Error ? e.message : '비밀번호 변경에 실패했습니다.')
+    } finally {
+      setPwBusy(false)
+    }
+  }
+
+  // ── 개인 이메일 연동(각자 SMTP) ──
+  async function saveMyMail() {
+    if (!mymail) return
+    setMyBusy('save')
+    setMyMsg(null)
+    try {
+      const d = await api<{ ok: boolean; settings: MyMailSettings }>('/mail/my-settings', {
+        method: 'PUT',
+        body: JSON.stringify({ settings: { ...mymail, password: myPw } }),
+      })
+      setMymail(d.settings)
+      setMyPw('')
+      setMyMsg({ ok: true, text: '개인 이메일 연동 설정을 저장했습니다.' })
+    } catch (e) {
+      setMyMsg({ ok: false, text: e instanceof Error ? e.message : '저장 실패' })
+    } finally {
+      setMyBusy('')
+    }
+  }
+
+  async function testMyMail() {
+    setMyBusy('test')
+    setMyMsg(null)
+    try {
+      const d = await api<{ ok: boolean; message: string }>('/mail/my-test', { method: 'POST' })
+      setMyMsg({ ok: d.ok, text: d.message })
+    } catch (e) {
+      setMyMsg({ ok: false, text: e instanceof Error ? e.message : '연결 테스트 실패' })
+    } finally {
+      setMyBusy('')
+    }
+  }
+
+  // ── 메일 템플릿 카드 편집 ──
+  function addTemplate() {
+    if (!defaults) return
+    const list = defaults.templates ?? []
+    const id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+      ? crypto.randomUUID()
+      : `tpl-${Date.now()}-${list.length}`
+    setDefaults({ ...defaults, templates: [...list, { id, name: '새 템플릿', subject: '', body: '' }] })
+    setDefMsg(null)
+  }
+  function updateTemplate(id: string, patch: Partial<MailTemplate>) {
+    if (!defaults) return
+    const list = defaults.templates ?? []
+    setDefaults({ ...defaults, templates: list.map((t) => (t.id === id ? { ...t, ...patch } : t)) })
+    setDefMsg(null)
+  }
+  function removeTemplate(id: string) {
+    if (!defaults) return
+    const list = defaults.templates ?? []
+    setDefaults({ ...defaults, templates: list.filter((t) => t.id !== id) })
+    setDefMsg(null)
+  }
+
   const dark = theme === 'dark'
 
   function touch() {
@@ -271,7 +383,11 @@ export function SettingsPage() {
 
   const prefix = (defaults?.default_subject_prefix ?? '').trim()
   const signature = defaults?.signature ?? ''
-  const defSet = prefix.length > 0 || signature.trim().length > 0
+  const body = defaults?.default_body ?? ''
+  const templates = defaults?.templates ?? []
+  const defSet = prefix.length > 0 || body.trim().length > 0 || signature.trim().length > 0 || templates.length > 0
+  // 본사(hq_admin/executive)만 저장 가능. 역할 미확인(null) 시엔 일단 허용하고 오류로 안내.
+  const canEditDefaults = role === null ? true : (role === 'hq_admin' || role === 'executive')
 
   return (
     <div className="page rv">
@@ -368,6 +484,40 @@ export function SettingsPage() {
         </div>
       </Sec>
 
+      {/* 비밀번호 변경 — POST /auth/change-password (로그인 계정 누구나) */}
+      <Sec id="pw" title="비밀번호 변경" icon={<KeyRound size={18} />}
+        open={!!openMap.pw} onToggle={toggleSec} style={{ marginTop: 24 }}>
+        <div className="card-body" style={{ padding: '20px 26px' }}>
+          <div className="formrow">
+            <label className="field" style={{ minWidth: 200 }}>
+              <span>현재 비밀번호</span>
+              <input className="input" type="password" value={curPw} autoComplete="current-password"
+                placeholder="현재 비밀번호" onChange={(e) => { setCurPw(e.target.value); setPwErr(''); setPwOk('') }} />
+            </label>
+            <label className="field" style={{ minWidth: 200 }}>
+              <span>새 비밀번호</span>
+              <input className="input" type="password" value={newPw} autoComplete="new-password"
+                placeholder="새 비밀번호" onChange={(e) => { setNewPw(e.target.value); setPwErr(''); setPwOk('') }} />
+            </label>
+            <label className="field" style={{ minWidth: 200 }}>
+              <span>새 비밀번호 확인</span>
+              <input className="input" type="password" value={confirmPw} autoComplete="new-password"
+                placeholder="새 비밀번호 확인" onChange={(e) => { setConfirmPw(e.target.value); setPwErr(''); setPwOk('') }} />
+            </label>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" onClick={() => void changePassword()} disabled={pwBusy}>
+              <KeyRound size={15} /> {pwBusy ? '변경 중…' : '비밀번호 변경'}
+            </button>
+            {pwErr && <span className="pillx late">{pwErr}</span>}
+            {pwOk && <span className="pillx ok">{pwOk}</span>}
+          </div>
+          <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
+            현재 비밀번호를 확인한 뒤 새 비밀번호로 변경합니다(로그인한 본인 계정).
+          </div>
+        </div>
+      </Sec>
+
       {/* 개인 이메일 연동(IMAP 열람) */}
       <Sec id="mail" title="개인 이메일 연동" icon={<Plug size={18} />}
         pill={mail ? <span className={'pillx ' + (mail.has_password ? 'ok' : 'todo')}>{mail.has_password ? '연동됨' : '미연동'}</span> : undefined}
@@ -445,6 +595,69 @@ export function SettingsPage() {
         </div>
       </Sec>
 
+      {/* 개인 이메일 연동(각자 SMTP) — 본인 개인 주소로 업무 메일 발송. 대표계정과 별개. */}
+      <Sec id="mymail" title="개인 이메일 연동 (각자 SMTP)" icon={<Send size={18} />}
+        pill={mymail ? <span className={'pillx ' + (mymail.has_password ? 'ok' : 'todo')}>{mymail.has_password ? '연동됨' : '미연동'}</span> : undefined}
+        open={!!openMap.mymail} onToggle={toggleSec} style={{ marginTop: 24 }}>
+        <div className="card-body" style={{ padding: '20px 26px' }}>
+          {mymail === null && <div className="tstate">설정을 불러오지 못했습니다.</div>}
+          {mymail && (
+            <>
+              <div className="formrow">
+                <label className="field" style={{ minWidth: 220 }}>
+                  <span>이메일 주소</span>
+                  <input className="input" value={mymail.address} placeholder="hong@naver.com"
+                    onChange={(e) => setMymail({ ...mymail, address: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span>제공자</span>
+                  <select className="select" value={mymail.provider}
+                    onChange={(e) => setMymail({ ...mymail, provider: e.target.value })}>
+                    <option value="naver">네이버</option>
+                    <option value="gmail">구글(Gmail)</option>
+                    <option value="daum">다음</option>
+                    <option value="custom">직접 입력(SMTP)</option>
+                  </select>
+                </label>
+                {mymail.provider === 'custom' && (
+                  <>
+                    <label className="field">
+                      <span>SMTP 호스트</span>
+                      <input className="input" value={mymail.smtp_host} placeholder="smtp.example.com"
+                        onChange={(e) => setMymail({ ...mymail, smtp_host: e.target.value })} />
+                    </label>
+                    <label className="field" style={{ width: 100 }}>
+                      <span>SMTP 포트</span>
+                      <input className="input" type="number" value={mymail.smtp_port}
+                        onChange={(e) => setMymail({ ...mymail, smtp_port: Number(e.target.value) || 465 })} />
+                    </label>
+                  </>
+                )}
+                <label className="field" style={{ minWidth: 200 }}>
+                  <span>앱 비밀번호 {mymail.has_password && <span className="muted" style={{ fontWeight: 500 }}>(저장됨 — 변경 시만 입력)</span>}</span>
+                  <input className="input" type="password" value={myPw} autoComplete="new-password"
+                    placeholder={mymail.has_password ? '●●●●●●●●' : '앱 비밀번호'}
+                    onChange={(e) => setMyPw(e.target.value)} />
+                </label>
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button className="btn btn-primary" onClick={() => void saveMyMail()} disabled={myBusy !== ''}>
+                  <Save size={15} /> {myBusy === 'save' ? '저장 중…' : '연동 저장'}
+                </button>
+                <button className="btn btn-ghost" onClick={() => void testMyMail()} disabled={myBusy !== ''}>
+                  <Send size={14} /> {myBusy === 'test' ? '확인 중…' : '연결 테스트'}
+                </button>
+                {myMsg && <span className={'pillx ' + (myMsg.ok ? 'ok' : 'late')}>{myMsg.text}</span>}
+              </div>
+              <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
+                여기서 연동하면 내가 보내는 업무 메일이 회사 <b>대표계정</b>이 아니라 <b>내 개인 이메일 주소</b>로 발송됩니다.
+                네이버/지메일/다음은 계정 비밀번호가 아니라 <b>앱 비밀번호</b>(2단계 인증에서 발급)를 입력하세요.
+              </div>
+            </>
+          )}
+        </div>
+      </Sec>
+
       {/* 메일 발송 기본값 — 제목 접두어·서명 + 실시간 발송 미리보기(회사 공통, 저장은 본사 전용) */}
       <Sec id="maildef" title="메일 기본값" icon={<Mail size={18} />}
         pill={defaults !== null ? <span className={'pillx ' + (defSet ? 'ok' : 'todo')}>{defSet ? '설정됨' : '미설정'}</span> : undefined}
@@ -452,6 +665,7 @@ export function SettingsPage() {
         <div className="card-body" style={{ padding: '20px 26px' }}>
           {defaults === null && <div className="tstate">기본값을 불러오지 못했습니다. (본사 관리자 권한 필요)</div>}
           {defaults !== null && (
+            <>
             <div className="mdef">
               {/* 좌: 입력 폼 */}
               <div className="mdef-form">
@@ -472,6 +686,17 @@ export function SettingsPage() {
                     </button>
                   ))}
                 </div>
+
+                <label className="field" style={{ display: 'block', marginTop: 16 }}>
+                  <span>
+                    기본 본문 (메일 쓰기 시 자동 입력)
+                    <em className="mdef-count">{body.length.toLocaleString()}자</em>
+                  </span>
+                  <textarea className="input" rows={9} value={body}
+                    placeholder={'예:\n안녕하세요, 행정실장님.\n\n정기 안전점검 결과 보고서를 첨부와 같이 송부드립니다. 지적사항에 대한 조치 결과를 회신 부탁드립니다.'}
+                    onChange={(e) => setDefaults({ ...defaults, default_body: e.target.value })}
+                    style={{ width: '100%', resize: 'vertical', lineHeight: 1.7, fontFamily: 'inherit' }} />
+                </label>
 
                 <label className="field" style={{ display: 'block', marginTop: 16 }}>
                   <span>
@@ -504,7 +729,7 @@ export function SettingsPage() {
                   {defMsg && <span className={'pillx ' + (defMsg.ok ? 'ok' : 'late')}>{defMsg.text}</span>}
                 </div>
                 <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
-                  [메일 쓰기]를 열면 제목에 접두어가, 본문 끝에 서명이 자동으로 채워집니다.
+                  [메일 쓰기]를 열면 제목에 접두어가, 본문에 기본 본문이, 본문 끝에 서명이 자동으로 채워집니다.
                   회사 공통 설정이며 저장은 본사 관리자만 가능합니다.
                 </div>
               </div>
@@ -526,8 +751,11 @@ export function SettingsPage() {
                     <span>3월 정기 안전점검 결과 송부</span>
                   </div>
                   <div className="mdmail-body">
-                    <p>안녕하세요, 행정실장님.</p>
-                    <p>3월 정기 안전점검 결과 보고서를 첨부와 같이 송부드립니다. 지적사항에 대한 조치 결과를 회신 부탁드립니다.</p>
+                    {body.trim().length > 0 ? (
+                      <p style={{ whiteSpace: 'pre-wrap' }}>{body}</p>
+                    ) : (
+                      <div className="mdmail-sig-empty">기본 본문을 입력하면 이 자리에 표시됩니다.</div>
+                    )}
                     {signature.trim().length > 0 ? (
                       <>
                         <div className="mdmail-sig-div" />
@@ -540,6 +768,68 @@ export function SettingsPage() {
                 </div>
               </div>
             </div>
+
+            {/* 메일 템플릿 — 이름·제목·본문까지 편집형 카드(저장은 본사 전용) */}
+            <div style={{ marginTop: 22, borderTop: '1px solid var(--line)', paddingTop: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                  <FileText size={16} /> 메일 템플릿
+                </h3>
+                <span className="pillx doing">{templates.length}개</span>
+                <div style={{ flex: 1 }} />
+                <button className="btn btn-ghost" onClick={addTemplate} disabled={!canEditDefaults}>
+                  <Plus size={14} /> 카드 추가
+                </button>
+              </div>
+              <div className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginBottom: 14 }}>
+                자주 쓰는 메일을 제목·본문까지 저장해 두면 [메일 쓰기]에서 골라 바로 채울 수 있습니다.
+                {!canEditDefaults && <b> (본사 관리자만 저장할 수 있어 현재는 열람만 가능합니다.)</b>}
+              </div>
+
+              {templates.length === 0 && (
+                <div className="tstate">등록된 템플릿이 없습니다. [카드 추가]로 첫 템플릿을 만들어 보세요.</div>
+              )}
+
+              <div style={{ display: 'grid', gap: 14 }}>
+                {templates.map((t, i) => (
+                  <div key={t.id} className="ledger" style={{ padding: '16px 18px' }}>
+                    <div className="formrow" style={{ alignItems: 'flex-start' }}>
+                      <label className="field" style={{ minWidth: 180, flex: '0 0 auto' }}>
+                        <span>이름</span>
+                        <input className="input" value={t.name} readOnly={!canEditDefaults}
+                          placeholder={`템플릿 ${i + 1}`}
+                          onChange={(e) => updateTemplate(t.id, { name: e.target.value })} />
+                      </label>
+                      <label className="field" style={{ flex: 1, minWidth: 240 }}>
+                        <span>제목</span>
+                        <input className="input" value={t.subject} readOnly={!canEditDefaults}
+                          placeholder="예: [한국산업안전협회] ○○ 결과 송부"
+                          onChange={(e) => updateTemplate(t.id, { subject: e.target.value })} />
+                      </label>
+                      <button className="btn btn-ghost" style={{ marginTop: 22 }}
+                        onClick={() => removeTemplate(t.id)} disabled={!canEditDefaults}>
+                        <Trash2 size={14} /> 삭제
+                      </button>
+                    </div>
+                    <label className="field" style={{ display: 'block', marginTop: 12 }}>
+                      <span>본문</span>
+                      <textarea className="input" rows={5} value={t.body} readOnly={!canEditDefaults}
+                        placeholder={'메일 본문을 입력하세요.'}
+                        onChange={(e) => updateTemplate(t.id, { body: e.target.value })}
+                        style={{ width: '100%', resize: 'vertical', lineHeight: 1.7, fontFamily: 'inherit' }} />
+                    </label>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button className="btn btn-primary" onClick={() => void saveDefaults()} disabled={defBusy || !canEditDefaults}>
+                  <Save size={15} /> {defBusy ? '저장 중…' : '템플릿 저장'}
+                </button>
+                {defMsg && <span className={'pillx ' + (defMsg.ok ? 'ok' : 'late')}>{defMsg.text}</span>}
+              </div>
+            </div>
+            </>
           )}
         </div>
       </Sec>

@@ -23,7 +23,7 @@ type SentRow = {
 }
 type SchoolLite = { id: string; name: string }
 type SchoolContact = { email: string; name?: string; phone?: string }
-type MailDefaults = { default_subject_prefix?: string; signature?: string }
+type MailDefaults = { default_subject_prefix?: string; signature?: string; default_body?: string }
 
 const MODULE_LABEL: Record<string, string> = {
   inspection: '안전점검', risk: '위험성평가', musculo: '근골격계', education: '교육', compliance: '이행점검',
@@ -369,7 +369,11 @@ function ComposeModal({
   const [schoolId, setSchoolId] = useState('')
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState(prefix ? `${prefix} ` : '')
-  const [body, setBody] = useState(defaults.signature ? `\n\n${defaults.signature}` : '')
+  const [body, setBody] = useState(() => {
+    const base = defaults.default_body || ''            // 설정 '기본 본문'
+    const sig = defaults.signature ? `\n\n${defaults.signature}` : ''
+    return base + sig
+  })
   const [module, setModule] = useState('')
   const [files, setFiles] = useState<Attachment[]>([])
   const [busy, setBusy] = useState(false)

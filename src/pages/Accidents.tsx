@@ -8,12 +8,18 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
+  Download,
   ExternalLink,
   FileText,
+  KeyRound,
   Link2,
   Paperclip,
   Plus,
+  Search,
   Upload,
   X,
 } from 'lucide-react'
@@ -21,6 +27,7 @@ import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { downloadCsv } from '../lib/csv'
 import '../styles/accidents.css'
 
 type Kind = 'accident' | 'disease'
@@ -58,6 +65,12 @@ const FILE_SLOTS = ['산재조사표', '재발방지대책', '교육자료'] as 
 function isLinked(a: Accident): boolean {
   return !!(a.links?.risk_id || a.links?.musculo_id)
 }
+
+// ── 국내재해사례(KOSHA 안전보건공단 국내재해사례 게시판) ──────
+const KOSHA_ROWS = 10
+type KoshaCase = { title: string; contents: string; business: string; boardno: string | number }
+type KoshaCasesResp = { items: KoshaCase[]; total: number; page: number; size: number }
+type KoshaSettings = { endpoint: string; has_service_key: boolean }
 
 // useTableQuery 접근자 — 렌더 간 안정적이어야 하므로 모듈 상수
 const ACC_SEARCH = [
@@ -478,20 +491,143 @@ export function Accidents() {
     }
   }
 
+  // ── 국내재해사례(KOSHA) 조회 상태 ──────────────────────────
+  const [tab, setTab] = useState<'records' | 'kosha'>('records')
+  const [kBiz, setKBiz] = useState('')
+  const [kKw, setKKw] = useState('')
+  const [kSearch, setKSearch] = useState<{ business: string; keyword: string; pageNo: number } | null>(null)
+  const [kCases, setKCases] = useState<KoshaCase[]>([])
+  const [kTotal, setKTotal] = useState(0)
+  const [kSize, setKSize] = useState(KOSHA_ROWS)
+  const [kLoading, setKLoading] = useState(false)
+  const [kError, setKError] = useState('')
+  const [kExpanded, setKExpanded] = useState<KoshaCase | null>(null)
+  const [kSettings, setKSettings] = useState<KoshaSettings | null>(null)
+  const [kSettingsOpen, setKSettingsOpen] = useState(false)
+  const [kKeyInput, setKKeyInput] = useState('')
+  const [kEndpoint, setKEndpoint] = useState('')
+  const [kSettingsBusy, setKSettingsBusy] = useState(false)
+  const [kSettingsMsg, setKSettingsMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  // KOSHA 탭 최초 진입 시 설정 로드 + 첫 조회 트리거
+  useEffect(() => {
+    if (tab !== 'kosha' || kSearch !== null) return
+    let alive = true
+    api<{ settings: KoshaSettings }>('/accidents/kosha/settings')
+      .then((d) => { if (alive && d?.settings) { setKSettings(d.settings); setKEndpoint(d.settings.endpoint || '') } })
+      .catch(() => { if (alive) setKSettings(null) })
+    setKSearch({ business: '', keyword: '', pageNo: 1 })
+    return () => { alive = false }
+  }, [tab, kSearch])
+
+  // 조회 파라미터 변경 시 국내재해사례 목록 조회
+  useEffect(() => {
+    if (kSearch === null) return
+    let alive = true
+    setKLoading(true)
+    setKError('')
+    const qs = new URLSearchParams({ pageNo: String(kSearch.pageNo), numOfRows: String(KOSHA_ROWS) })
+    if (kSearch.business.trim()) qs.set('business', kSearch.business.trim())
+    if (kSearch.keyword.trim()) qs.set('keyword', kSearch.keyword.trim())
+    api<KoshaCasesResp>(`/accidents/kosha/cases?${qs.toString()}`)
+      .then((d) => {
+        if (!alive) return
+        setKCases(Array.isArray(d.items) ? d.items : [])
+        setKTotal(typeof d.total === 'number' ? d.total : 0)
+        setKSize(typeof d.size === 'number' && d.size > 0 ? d.size : KOSHA_ROWS)
+        setKLoading(false)
+      })
+      .catch((e) => {
+        if (!alive) return
+        setKCases([])
+        setKTotal(0)
+        setKError(e instanceof Error ? e.message : '조회에 실패했습니다.')
+        setKLoading(false)
+      })
+    return () => { alive = false }
+  }, [kSearch])
+
+  function runKoshaSearch() {
+    setKSearch({ business: kBiz, keyword: kKw, pageNo: 1 })
+  }
+  const kPageNo = kSearch?.pageNo ?? 1
+  const kPageCount = Math.max(1, Math.ceil(kTotal / (kSize || KOSHA_ROWS)))
+  function koshaPage(delta: number) {
+    setKSearch((s) => (s ? { ...s, pageNo: Math.min(kPageCount, Math.max(1, s.pageNo + delta)) } : s))
+  }
+
+  // 현재 조회된 사례를 CSV로 내보내기 (컬럼: 업종,제목,내용,글번호)
+  function exportKosha() {
+    const headers = ['업종', '제목', '내용', '글번호']
+    const rows = kCases.map((c) => [c.business || '', c.title || '', c.contents || '', String(c.boardno ?? '')])
+    downloadCsv('국내재해사례', headers, rows)
+  }
+
+  function openKoshaSettings() {
+    setKSettingsMsg(null)
+    setKKeyInput('')
+    setKEndpoint(kSettings?.endpoint || '')
+    setKSettingsOpen(true)
+  }
+
+  async function saveKoshaSettings() {
+    setKSettingsBusy(true)
+    setKSettingsMsg(null)
+    try {
+      const body: { service_key?: string; endpoint?: string } = {}
+      if (kKeyInput.trim()) body.service_key = kKeyInput.trim()
+      if (kEndpoint.trim()) body.endpoint = kEndpoint.trim()
+      const d = await api<{ ok: boolean; settings: KoshaSettings }>('/accidents/kosha/settings', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      })
+      setKSettings(d.settings)
+      setKKeyInput('')
+      setKSettingsMsg({ ok: true, text: 'serviceKey 설정을 저장했습니다.' })
+      // 키 저장 직후 현재 조건으로 재조회
+      setKSearch((s) => (s ? { ...s } : { business: '', keyword: '', pageNo: 1 }))
+    } catch (e) {
+      setKSettingsMsg({ ok: false, text: e instanceof Error ? e.message : '저장에 실패했습니다.' })
+    } finally {
+      setKSettingsBusy(false)
+    }
+  }
+
   return (
     <div className="page">
       <div className="breadcrumb"><Link to="/">홈</Link> / <b>산업재해</b></div>
       <div className="bar">
         <h2><AlertTriangle size={20} /> 산업재해 관리</h2>
         <div className="sp" />
-        <button className="btn btn-ghost" onClick={openFeed}>
-          <ExternalLink size={14} /> 외부 데이터 연동
+        {tab === 'records' && (
+          <>
+            <button className="btn btn-ghost" onClick={openFeed}>
+              <ExternalLink size={14} /> 외부 데이터 연동
+            </button>
+            <button className="btn btn-primary" onClick={() => setFormOpen(true)}>
+              <Plus size={15} /> 산재 등록
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* 서브탭: 회사 산재 내역 ↔ 국내재해사례(KOSHA) */}
+      <div style={{ display: 'flex', gap: 8, margin: '4px 0 16px' }}>
+        <button
+          className={'btn ' + (tab === 'records' ? 'btn-primary' : 'btn-ghost')}
+          onClick={() => setTab('records')}
+        >
+          <AlertTriangle size={14} /> 회사 산재 내역
         </button>
-        <button className="btn btn-primary" onClick={() => setFormOpen(true)}>
-          <Plus size={15} /> 산재 등록
+        <button
+          className={'btn ' + (tab === 'kosha' ? 'btn-primary' : 'btn-ghost')}
+          onClick={() => setTab('kosha')}
+        >
+          <BookOpen size={14} /> 국내재해사례 (KOSHA)
         </button>
       </div>
 
+      {tab === 'records' && (<>
       {/* 등록/연동 직후 안내 배너 */}
       {banner && (
         <div className={'acc-banner' + (isLinked(banner) ? ' done' : '')}>
@@ -623,6 +759,138 @@ export function Accidents() {
         사고성 재해는 수시 위험성평가, 질병성(근골격계) 재해는 수시 유해요인조사와 연동됩니다.
         홈 등 공용 화면에는 학교명이 익명(예: OOO초등학교)으로 표시됩니다.
       </div>
+      </>)}
+
+      {/* ── 국내재해사례(KOSHA) 조회 패널 ── */}
+      {tab === 'kosha' && (
+        <>
+          <div className="ledger">
+            <div className="lh">
+              <h2><BookOpen size={19} /> 국내재해사례 (안전보건공단)</h2>
+              <div className="sp" />
+              <button className="btn btn-ghost" onClick={openKoshaSettings} title="공공데이터포털 serviceKey 설정">
+                <KeyRound size={14} /> serviceKey 설정
+                <span className="muted" style={{ marginLeft: 6, fontWeight: 600 }}>
+                  {kSettings ? (kSettings.has_service_key ? '설정됨' : '미설정') : '…'}
+                </span>
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={exportKosha}
+                disabled={kCases.length === 0}
+                title="현재 조회 결과를 CSV로 내보내기"
+              >
+                <Download size={15} /> 다운로드(CSV)
+              </button>
+            </div>
+
+            {/* 검색바: 업종 + 키워드 + 조회 */}
+            <div className="formrow" style={{ padding: '12px 14px', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <label className="field" style={{ minWidth: 180 }}>
+                <span>업종</span>
+                <input
+                  className="input"
+                  value={kBiz}
+                  placeholder="예: 건설업"
+                  onChange={(e) => setKBiz(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') runKoshaSearch() }}
+                />
+              </label>
+              <label className="field" style={{ flex: 1, minWidth: 200 }}>
+                <span>키워드</span>
+                <input
+                  className="input"
+                  value={kKw}
+                  placeholder="제목·내용 검색어"
+                  onChange={(e) => setKKw(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') runKoshaSearch() }}
+                />
+              </label>
+              <button className="btn btn-primary" onClick={runKoshaSearch} disabled={kLoading}>
+                <Search size={15} /> {kLoading ? '조회 중…' : '조회'}
+              </button>
+            </div>
+
+            {/* 조회 오류(주로 serviceKey 미설정/무효) 안내 */}
+            {kError && (
+              <div className="tstate" style={{ margin: '0 14px 8px', color: 'var(--red-ink)' }}>
+                국내재해사례를 불러오지 못했습니다. serviceKey가 설정되지 않았거나 유효하지 않을 수 있습니다.
+                <span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 11.5 }}>({kError})</span>
+                <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={openKoshaSettings}>
+                  <KeyRound size={14} /> serviceKey 설정하기
+                </button>
+              </div>
+            )}
+
+            {/* 결과 수 */}
+            {!kError && (
+              <div className="muted" style={{ padding: '0 14px 6px', fontSize: 12.5 }}>
+                총 <b>{kTotal.toLocaleString()}</b>건
+                {kTotal > 0 && <> · 페이지 {kPageNo}/{kPageCount}</>}
+              </div>
+            )}
+
+            <div className="twrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th style={{ width: 150 }}>업종</th>
+                    <th>제목</th>
+                    <th className="c" style={{ width: 90 }}>글번호</th>
+                    <th className="c" style={{ width: 80 }}>내용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kCases.map((c, i) => (
+                    <tr key={String(c.boardno ?? i)} onClick={() => setKExpanded(c)} style={{ cursor: 'pointer' }}>
+                      <td>{c.business || '—'}</td>
+                      <td><span className="acc-sum">{c.title || '—'}</span></td>
+                      <td className="c"><span className="muted" style={{ fontSize: 12 }}>{c.boardno ?? '—'}</span></td>
+                      <td className="c">
+                        <button
+                          className="btn btn-ghost"
+                          style={{ padding: '2px 8px' }}
+                          onClick={(e) => { e.stopPropagation(); setKExpanded(c) }}
+                        >
+                          보기
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {kLoading && (
+                    <tr><td colSpan={4}><div className="tstate">불러오는 중…</div></td></tr>
+                  )}
+                  {!kLoading && !kError && kCases.length === 0 && (
+                    <tr>
+                      <td colSpan={4}>
+                        <div className="tstate">조회된 국내재해사례가 없습니다. 업종·키워드로 조회하세요.</div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 페이지네이션 (이전/다음) */}
+            {kTotal > 0 && (
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', padding: 12 }}>
+                <button className="btn btn-ghost" onClick={() => koshaPage(-1)} disabled={kLoading || kPageNo <= 1}>
+                  <ChevronLeft size={15} /> 이전
+                </button>
+                <span className="muted" style={{ fontSize: 12.5 }}>{kPageNo} / {kPageCount}</span>
+                <button className="btn btn-ghost" onClick={() => koshaPage(1)} disabled={kLoading || kPageNo >= kPageCount}>
+                  다음 <ChevronRight size={15} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
+            안전보건공단(KOSHA)의 국내 재해사례 게시판을 조회합니다. 회사 산재 내역과는 별개의 공개 사례 라이브러리입니다.
+            조회가 되지 않으면 공공데이터포털에서 발급받은 serviceKey를 먼저 설정하세요.
+          </div>
+        </>
+      )}
 
       {/* 상세 드릴다운 모달 */}
       {detail && (
@@ -765,6 +1033,67 @@ export function Accidents() {
             학교(사업장)명이 등록 학교와 일치하거나 이름을 포함하면 자동 매칭되고, 접수번호 기준으로 중복이 걸러집니다(재실행 안전).
             질병/근골 키워드는 질병성으로 분류돼 수시 근골격계 조사 연동 대상이 됩니다.
             사업장별 산재 '건' 단위 공개 API는 없어(개인정보) 공단·고용노동부 API 활용 승인 또는 공단 제공 자료를 받으면 키만 넣어 연결하세요.
+          </div>
+        </Modal>
+      )}
+
+      {/* ── 국내재해사례 serviceKey 설정 모달 ── */}
+      {kSettingsOpen && (
+        <Modal
+          title="국내재해사례 serviceKey 설정"
+          onClose={() => { if (!kSettingsBusy) setKSettingsOpen(false) }}
+          footer={<button className="btn btn-ghost" onClick={() => setKSettingsOpen(false)} disabled={kSettingsBusy}>닫기</button>}
+        >
+          <b style={{ fontSize: 13 }}>공공데이터포털 · 안전보건공단 국내재해사례 조회 서비스</b>
+          <div className="muted" style={{ marginTop: 6, fontSize: 12, lineHeight: 1.7 }}>
+            공공데이터포털(data.go.kr)에서 발급받은 serviceKey를 입력하면 국내재해사례를 조회할 수 있습니다.
+            저장된 키는 보안을 위해 화면에 표시되지 않습니다. (설정 저장은 본사 관리자 권한이 필요합니다.)
+          </div>
+          <label className="field" style={{ marginTop: 12 }}>
+            <span>API 엔드포인트</span>
+            <input
+              className="input"
+              value={kEndpoint}
+              placeholder="https://apis.data.go.kr/…"
+              onChange={(e) => setKEndpoint(e.target.value)}
+            />
+          </label>
+          <label className="field" style={{ marginTop: 10 }}>
+            <span>serviceKey {kSettings?.has_service_key && <span className="muted" style={{ fontWeight: 500 }}>(저장됨 — 비워두면 기존 키 유지)</span>}</span>
+            <input
+              className="input"
+              type="password"
+              value={kKeyInput}
+              autoComplete="new-password"
+              placeholder={kSettings?.has_service_key ? '●●●●●● (변경 시에만 입력)' : '공공데이터포털 인증키 붙여넣기'}
+              onChange={(e) => setKKeyInput(e.target.value)}
+            />
+          </label>
+          <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" onClick={() => void saveKoshaSettings()} disabled={kSettingsBusy}>
+              {kSettingsBusy ? '저장 중…' : '설정 저장'}
+            </button>
+            <span className="muted" style={{ fontSize: 12 }}>
+              현재 상태: <b>{kSettings ? (kSettings.has_service_key ? '설정됨' : '미설정') : '확인 중…'}</b>
+            </span>
+          </div>
+          {kSettingsMsg && (
+            <div className="tstate" style={{ marginTop: 14, color: kSettingsMsg.ok ? 'var(--ink-2)' : 'var(--red-ink)' }}>
+              {kSettingsMsg.ok ? '✓ ' : '✕ '}{kSettingsMsg.text}
+            </div>
+          )}
+        </Modal>
+      )}
+
+      {/* ── 국내재해사례 상세(내용) 모달 ── */}
+      {kExpanded && (
+        <Modal title="국내재해사례 상세" onClose={() => setKExpanded(null)} wide>
+          <div className="kv"><b>업종</b><span>{kExpanded.business || '—'}</span></div>
+          <div className="kv"><b>제목</b><span>{kExpanded.title || '—'}</span></div>
+          <div className="kv"><b>글번호</b><span>{kExpanded.boardno ?? '—'}</span></div>
+          <div className="acc-detail-sec">내용</div>
+          <div className="acc-detail-body" style={{ whiteSpace: 'pre-wrap' }}>
+            {kExpanded.contents ? kExpanded.contents : <span className="muted">내용이 없습니다.</span>}
           </div>
         </Modal>
       )}

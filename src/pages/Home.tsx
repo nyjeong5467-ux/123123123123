@@ -61,6 +61,13 @@ type Accident = {
   description?: string
   created_at?: string
 }
+// KOSHA 국내재해사례(공개 사례집) — 홈 산재 알림 기본 노출용.
+type KoshaCase = {
+  title: string
+  contents: string
+  business: string
+  boardno: string
+}
 type Plan = { id: string; name: string; school_id?: string }
 type HomeAlert = { level: 'danger' | 'warn' | 'info'; title: string; sub: string }
 
@@ -170,6 +177,7 @@ export function Home() {
   const [visits, setVisits] = useState<Visit[]>([])
   const [notices, setNotices] = useState<Notice[]>([])
   const [accidents, setAccidents] = useState<Accident[]>([])
+  const [koshaCases, setKoshaCases] = useState<KoshaCase[]>([])
   const [loading, setLoading] = useState(true)
   const [noticeReload, setNoticeReload] = useState(0)
   const [dataReload, setDataReload] = useState(0)
@@ -205,6 +213,21 @@ export function Home() {
       alive = false
     }
   }, [noticeReload])
+
+  // 산재 알림 기본값 = KOSHA 국내재해사례(공개 사례집). 외부 API라 별도·비차단 로드.
+  useEffect(() => {
+    let alive = true
+    api<{ items: KoshaCase[] }>('/accidents/kosha/cases?pageNo=1&numOfRows=6')
+      .then((r) => {
+        if (alive) setKoshaCases(Array.isArray(r?.items) ? r.items : [])
+      })
+      .catch(() => {
+        if (alive) setKoshaCases([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const schoolName = useMemo(() => {
     const m = new Map<string, string>()
@@ -659,13 +682,15 @@ export function Home() {
     [notices],
   )
 
-  const recentAccidents = useMemo(
-    () =>
-      [...accidents]
-        .sort((a, b) => (b.date ?? b.created_at ?? '').localeCompare(a.date ?? a.created_at ?? ''))
-        .slice(0, 5),
-    [accidents],
-  )
+  // 산재 알림 피드 — 회사 자체 산재(빨강, 위)를 먼저, 그 아래 KOSHA 사례(일반). 최대 6건.
+  const accidentFeed = useMemo(() => {
+    const company = [...accidents]
+      .sort((a, b) => (b.date ?? b.created_at ?? '').localeCompare(a.date ?? a.created_at ?? ''))
+      .slice(0, 5)
+      .map((a) => ({ kind: 'company' as const, a }))
+    const kosha = koshaCases.map((k) => ({ kind: 'kosha' as const, k }))
+    return [...company, ...kosha].slice(0, 6)
+  }, [accidents, koshaCases])
 
   /* ---- 담당 학교 표 ---- */
   const q = useTableQuery(schools, {
@@ -765,30 +790,57 @@ export function Home() {
               </div>
             </div>
             <div className="hm-nlist">
-              {recentAccidents.length === 0 && (
-                <div className="hm-empty">{loading ? '불러오는 중…' : '최근 산업재해 알림이 없습니다.'}</div>
+              {accidentFeed.length === 0 && (
+                <div className="hm-empty">{loading ? '불러오는 중…' : '표시할 산재 알림이 없습니다.'}</div>
               )}
-              {recentAccidents.map((a) => (
-                <div
-                  className="hm-n hm-clickable"
-                  key={a.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => nav('/accidents')}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') nav('/accidents')
-                  }}
-                >
-                  <span className="hm-pin">산재</span>
-                  <div className="hm-nbody">
-                    <div className="b">{a.school_masked || '학교 비공개'}</div>
-                    <div className="m">
-                      {(a.date || a.created_at) && <span className="dt">{(a.date ?? a.created_at ?? '').slice(0, 10)}</span>}
-                      {a.description && <span>{a.description}</span>}
+              {accidentFeed.map((it, i) =>
+                it.kind === 'company' ? (
+                  // 회사 자체 산재 — 빨간색 강조(좌측 빨간 막대 + 빨간 핀).
+                  <div
+                    className="hm-n hm-clickable"
+                    key={`c-${it.a.id}`}
+                    role="button"
+                    tabIndex={0}
+                    style={{ borderLeft: '3px solid #e5484d', background: 'rgba(229,72,77,0.06)' }}
+                    onClick={() => nav('/accidents')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') nav('/accidents')
+                    }}
+                  >
+                    <span className="hm-pin" style={{ background: '#e5484d', color: '#fff' }}>회사 산재</span>
+                    <div className="hm-nbody">
+                      <div className="b" style={{ color: '#c0341d' }}>{it.a.school_masked || '학교 비공개'}</div>
+                      <div className="m">
+                        {(it.a.date || it.a.created_at) && (
+                          <span className="dt">{(it.a.date ?? it.a.created_at ?? '').slice(0, 10)}</span>
+                        )}
+                        {it.a.description && <span>{it.a.description}</span>}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ) : (
+                  // KOSHA 국내재해사례 — 일반(참고용).
+                  <div
+                    className="hm-n hm-clickable"
+                    key={`k-${it.k.boardno || i}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => nav('/accidents')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') nav('/accidents')
+                    }}
+                  >
+                    <span className="hm-pin">KOSHA</span>
+                    <div className="hm-nbody">
+                      <div className="b">{it.k.title || '제목 없음'}</div>
+                      <div className="m">
+                        {it.k.business && <span className="dt">{it.k.business}</span>}
+                        {it.k.contents && <span>{it.k.contents.slice(0, 60)}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ),
+              )}
             </div>
           </div>
         )

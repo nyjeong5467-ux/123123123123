@@ -980,13 +980,21 @@
 /* ---- 메일 기본값(제목 접두어·서명 + 발송 미리보기) ---- */
 .mdef {
   display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(300px, 1fr);
-  gap: 26px;
+  /* 편집 폼을 넓게(미리보기보다 우선) — 본문/서명 textarea 편집 공간 확보 */
+  grid-template-columns: minmax(440px, 1.7fr) minmax(300px, 1fr);
+  gap: 30px;
   align-items: start;
 }
-@media (max-width: 1080px) {
+/* 미리보기는 스크롤 시에도 따라오도록 상단 고정(넓은 화면 한정) */
+@media (min-width: 1181px) {
+  .mdef-prev {
+    position: sticky;
+    top: 8px;
+  }
+}
+@media (max-width: 1180px) {
   .mdef {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr;   /* 좁은 화면: 세로 스택 → 폼이 전체 폭 사용 */
   }
 }
 .mdef-chips {
