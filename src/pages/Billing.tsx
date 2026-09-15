@@ -4,7 +4,7 @@
 // 본사(hq_admin·executive) 전용: 경영자 장부(요약·ecount 장부)·국세청 자료 가져오기·이카운트 연동 설정.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BarChart3, BookOpen, Download, FileText, Pencil, Plug, Printer, Upload, Users } from 'lucide-react'
+import { BarChart3, BookOpen, Download, FileText, Pencil, Plug, Printer, Trash2, Upload, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
 
@@ -295,6 +295,14 @@ export function Billing({ embedded = false }: { embedded?: boolean } = {}) {
     finally { setCorrectBusy(false) }
   }
 
+  async function delInvoice(r: Row) {
+    if (!window.confirm(`세금계산서를 삭제할까요?\n${r.schoolName} · ${won(r.amount)}원 · ${r.issue_date}`)) return
+    try {
+      await api(`/invoices/${r.id}`, { method: 'DELETE' })
+      setReload((n) => n + 1)
+    } catch (e) { window.alert(e instanceof Error ? e.message : '삭제 실패') }
+  }
+
   // 국세청 신고 자료 가져오기 — 실연동 미설정(test_mode)이면 400 detail을 그대로 안내
   async function importNts() {
     if (!ntsFrom || !ntsTo) { setNtsErr('기간(시작일·종료일)을 선택하세요.'); return }
@@ -534,6 +542,7 @@ export function Billing({ embedded = false }: { embedded?: boolean } = {}) {
                         <td className="c" style={{ whiteSpace: 'nowrap' }}>
                           <button className="btn btn-ghost" style={{ height: 30, padding: '0 8px' }} onClick={() => { setCorrectRow(r); setCorrectReason(CORRECT_REASONS[0]); setCorrectErr('') }} title="수정세금계산서 발행"><Pencil size={13} /></button>
                           <button className="btn btn-ghost" style={{ height: 30, padding: '0 8px', marginLeft: 4 }} onClick={() => { setPreview(r); setPvIssuer(r.ex.issuer || '') }} title="미리보기/인쇄"><Printer size={13} /></button>
+                          <button className="btn btn-ghost" style={{ height: 30, padding: '0 8px', marginLeft: 4, color: '#e5484d' }} onClick={() => void delInvoice(r)} title="세금계산서 삭제"><Trash2 size={13} /></button>
                         </td>
                       </tr>
                     )

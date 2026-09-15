@@ -140,9 +140,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null)
   useEffect(() => {
     let alive = true
-    api<Me>('/auth/me')
-      .then((d) => { if (alive) setMe({ role: d.role, modules: Array.isArray(d.modules) ? d.modules : [] }) })
-      .catch(() => { if (alive) setMe({ role: 'hq_admin', modules: [] }) })  // 조회 실패 시 전체 표시(구버전 호환)
+    let tries = 0
+    const load = () => {
+      api<Me>('/auth/me')
+        .then((d) => { if (alive) setMe({ role: d.role, modules: Array.isArray(d.modules) ? d.modules : [] }) })
+        .catch(() => {
+          if (!alive) return
+          if (tries++ < 2) { setTimeout(load, 800); return }   // 일시 오류 재시도
+          // 최종 실패 시 최소권한으로 폴백 — 강등된 계정이 관리자 메뉴(경영 대시보드)를
+          // 순간적으로 보게 되던 버그 방지(과거엔 hq_admin 으로 폴백했음).
+          setMe({ role: 'field_inspector', modules: [] })
+        })
+    }
+    load()
     return () => { alive = false }
   }, [])
 
