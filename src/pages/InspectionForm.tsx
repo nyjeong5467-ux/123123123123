@@ -29,6 +29,13 @@ const CARRY_VALUE: Record<string, { v: string; opts: string[] }> = {
   '급식-29': { v: '지상', opts: ['지상', '지하', '별동'] },
 }
 
+/* 비고 추천문구 — 값입력형(CARRY_VALUE)과 달리 양호/미흡/해당없음 그대로 두고 비고칸만 한 번 탭으로 채우는 선택지.
+   시설-5·6(승강기)은 대개 전문 유지관리 업체가 관리하므로 '전문업체 관리중' 원탭 입력 [테스터 요청 #5] */
+const REMARK_SUGGEST: Record<string, string[]> = {
+  '시설-5': ['전문업체 관리중'],
+  '시설-6': ['전문업체 관리중'],
+}
+
 /* 파트 정의 — 백엔드 Part enum(catering/facility/cleaning/commute/night_duty) 매핑 */
 type PartApi = 'catering' | 'facility' | 'cleaning' | 'commute' | 'night_duty'
 type PartDef = { key: PartApi; label: string; name: string; q: string[] | null }
@@ -50,9 +57,10 @@ const EXCL_RULES: { key: string; feat?: string; why: string; hit: Record<string,
   { key: '덤웨이터', feat: '덤웨이터', why: '덤웨이터 없음', hit: { 급식: [13] } },
   { key: '미화 종사원', why: '미화 종사원 없음', hit: { 미화: [3, 7] } },
   { key: 'LPG 사용', feat: 'LPG 사용', why: 'LPG 미사용', hit: { 급식: [22, 23] } },
-  // 08-28 조사원 피드백: 거울 미설치·고소작업 없는 학교 대응 (미화-7 사다리, 미화-8 세면대·변기 위 작업 = 고소작업 항목)
+  // 08-28 조사원 피드백: 거울 미설치·고소작업 없는 학교 대응.
+  // 09-18 테스터 요청: 미화 고소작업 없음 = 미화-7(사다리)만 해당없음. 미화-8(세면대·변기 위 작업)은 양호로 답해야 하므로 제외.
   { key: '충돌방지용 거울', feat: '충돌방지용 거울', why: '충돌방지용 거울 없음', hit: { 미화: [3] } },
-  { key: '미화 고소작업', feat: '미화 고소작업', why: '미화 고소작업 없음', hit: { 미화: [7, 8] } },
+  { key: '미화 고소작업', feat: '미화 고소작업', why: '미화 고소작업 없음', hit: { 미화: [7] } },
 ]
 
 type FeatMap = Record<string, unknown> | null
@@ -892,6 +900,7 @@ export function InspectionForm() {
                   const cv = why ? undefined : CARRY_VALUE[code]
                   const carried = cv ? prevVals[code] || cv.v : ''
                   const remark = effRemark(code)
+                  const sugg = REMARK_SUGGEST[code] // 비고 추천문구 원탭 칩(시설-5·6 승강기) — 결과값은 그대로
                   // 같은 버튼 재클릭 시 선택 해제 [047] — 자동 해당없음 항목은 null(명시적 해제)로 빈 상태 유지 [048]
                   const toggle = (v: Ans) => setAnswers((p) => {
                     const next = { ...p }
@@ -926,7 +935,21 @@ export function InspectionForm() {
                             </div>
                           </>
                         ) : (
-                          <input placeholder="보완계획" value={remarks[code] ?? ''} onChange={(e) => setRemarks((p) => ({ ...p, [code]: e.target.value }))} />
+                          <>
+                            <input placeholder="보완계획" value={remarks[code] ?? ''} onChange={(e) => setRemarks((p) => ({ ...p, [code]: e.target.value }))} />
+                            {/* 비고 추천문구 칩 — 결과값(양호/미흡/해당없음)은 건드리지 않고 비고칸만 원탭 입력·재탭 해제 [테스터 요청 #5] */}
+                            {sugg && (
+                              <>
+                                <span className="insf-carrytag" title="비고 추천문구 — 탭하면 비고칸에 채워집니다">추천</span>
+                                <div className="insf-sugg">
+                                  {sugg.map((o) => (
+                                    <button key={o} type="button" className={'insf-sg' + (o === remark ? ' on' : '')}
+                                      onClick={() => setRemarks((p) => ({ ...p, [code]: p[code] === o ? '' : o }))}>{o}</button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </>
                         )}
                       </td>
                     </tr>
