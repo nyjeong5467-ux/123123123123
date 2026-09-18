@@ -4,6 +4,7 @@ import { Download, Footprints, Megaphone, MessageSquare, Monitor, Plus, ShieldAl
 import { api } from '../../lib/api'
 import { useTableQuery, type FilterDef } from '../../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../../components/table'
+import { InfoTip } from '../../components/InfoTip'
 
 // ── 경영 현황 탭 — 회사 관리자용 경영 지표·이력·편집형 경영 콘텐츠만.
 //    (학교별 업무 진행률·학교 대장은 홈/학교 탭 담당 — 중복 제거. 집계 API 1회씩만 호출.)
@@ -359,8 +360,9 @@ export default function ConsoleOverview() {
             </div>
           </div>
 
-          <div className="console-note">
-            학교별 업무 진행·대장은 <Link to="/schools">학교</Link> 탭에서, 업무 현황 요약은 <Link to="/">홈</Link>에서 확인하세요.
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, marginTop: 2 }}>
+            <span className="muted" style={{ fontSize: 12 }}>다른 화면 위치 안내</span>
+            <InfoTip>학교별 업무 진행·대장은 <Link to="/schools">학교</Link> 탭에서, 업무 현황 요약은 <Link to="/">홈</Link>에서 확인하세요.</InfoTip>
           </div>
         </div>
 

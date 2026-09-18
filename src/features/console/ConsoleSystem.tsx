@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Database, HardDrive, Inbox, Mail as MailIcon, Server, Settings } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
+import { InfoTip } from '../../components/InfoTip'
 
 type MailSettings = { address: string; has_password: boolean }
 type MailRow = { uid: string; subject: string; sender: string; date: string }
@@ -61,7 +62,9 @@ export default function ConsoleSystem() {
       {/* ── 메일 연동 요약 ── */}
       <div className="ledger" style={{ marginBottom: 24 }}>
         <div className="lh">
-          <h2><MailIcon size={18} /> 이메일 연동</h2>
+          <h2><MailIcon size={18} /> 이메일 연동
+            <InfoTip>개인 이메일(IMAP)을 연동하면 학교로 발송한 점검·조사지 메일의 <b>회신</b>을 여기서 확인할 수 있습니다. [연동 설정]에서 주소와 앱 비밀번호를 등록하세요.</InfoTip>
+          </h2>
           <div className="sp" />
           {connected
             ? <span className="pillx ok">연동됨 · {mail?.address}</span>
@@ -72,8 +75,7 @@ export default function ConsoleSystem() {
         <div className="card-body" style={{ padding: '16px 26px' }}>
           {!connected && (
             <div className="muted" style={{ fontSize: 13.5 }}>
-              개인 이메일(IMAP)을 연동하면 학교로 발송한 점검·조사지 메일의 회신을 여기서 확인할 수 있습니다.
-              [연동 설정]에서 주소와 앱 비밀번호를 등록하세요.
+              미연동 상태입니다. <Link to="/settings" style={{ color: 'var(--violet)' }}>[연동 설정]</Link>에서 개인 이메일을 등록하세요.
             </div>
           )}
           {connected && inboxErr && <div className="muted" style={{ fontSize: 13.5 }}>수신함 조회 실패: {inboxErr}</div>}
