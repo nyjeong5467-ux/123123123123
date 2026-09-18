@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { Copy, Info, KeyRound, Pencil, Save, Smartphone, X } from 'lucide-react'
 import { api } from '../../lib/api'
-import { Sessions } from '../../pages/Sessions'
 
 type AppRelease = {
   version: string
@@ -144,15 +143,18 @@ export default function ConsoleApp() {
         </div>
       </div>
 
-      {/* ── 세션코드 발급(기존 화면 임베드) ── */}
+      {/* ── 세션코드 발급: 로그인 방식 전환으로 기본 UI에서 숨김(2026-09-18) ──
+           조사원은 앱에서 아이디/비번 로그인 → 그날 일정표 학교 자동. 세션코드는 비상용만.
+           백엔드 발급/리딤은 유지되며, 필요 시 /sessions 로 직접 접근해 발급할 수 있다. */}
       <div className="ledger" style={{ marginBottom: 24 }}>
         <div className="lh">
-          <h2><KeyRound size={18} /> 세션코드 발급</h2>
+          <h2><KeyRound size={18} /> 세션코드 발급 (숨김)</h2>
           <div className="sp" />
-          <span className="pillx warn">관리자 전용</span>
+          <span className="pillx na">비상용</span>
         </div>
-        <div className="card-body" style={{ padding: '10px 18px 18px' }}>
-          <Sessions embedded />
+        <div className="card-body" style={{ padding: '14px 26px', fontSize: 13.5, lineHeight: 1.9, color: 'var(--muted)' }}>
+          조사원은 이제 앱에서 <b>아이디·비밀번호로 로그인</b>하면 그날 일정표의 학교가 자동으로 열립니다(세션코드 불필요).
+          비상 시 세션코드 발급이 필요하면 <a href="/sessions" style={{ color: 'var(--violet)' }}>/sessions</a> 로 직접 접근하세요.
         </div>
       </div>
 
@@ -161,7 +163,7 @@ export default function ConsoleApp() {
         <div className="lh"><h2><Info size={18} /> 기기·세션 운영 안내</h2></div>
         <div className="card-body" style={{ padding: '18px 26px', fontSize: 13.5, lineHeight: 1.9 }}>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
-            <li>세션코드는 <b>1회성·기기 1대</b>입니다. 다른 기기가 먼저 사용하면 잠기며, 분실·잠김 시 여기서 <b>재발급</b>하세요.</li>
+            <li>조사원은 앱에서 <b>아이디·비밀번호로 로그인</b>하면 그날 일정표(근무 종합관리표) 학교가 자동으로 열립니다. 세션코드는 비상용으로만 사용합니다(위 안내 참고).</li>
             <li>태블릿 앱의 서버 주소는 앱 로그인 화면의 <b>[서버 주소 설정]</b>에서 변경합니다(터널 주소 변경 시 재빌드 불필요).</li>
             <li>현장 제출은 오프라인 큐에 쌓였다가 연결 시 자동 동기화됩니다 — 제출 직후 목록에 없으면 앱의 <b>동기화</b> 상태를 확인하세요.</li>
             <li>앱 임시저장 건은 각 업무 화면에서 <b>[이어서 작성]</b>으로 PC에서 이어받을 수 있습니다.</li>

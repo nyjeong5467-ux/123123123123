@@ -14,7 +14,6 @@ import {
   Globe,
   GraduationCap,
   Home,
-  KeyRound,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -65,7 +64,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { Icon: FileCheck2, label: '이행점검', to: '/compliance', sub: true, module: 'compliance' },
       { Icon: Siren, label: '산업재해', to: '/accidents', module: 'accidents' },
       { Icon: ReceiptText, label: '세금계산서', to: '/billing', module: 'billing' },
-      { Icon: KeyRound, label: '세션코드', to: '/sessions', module: 'sessions' },
+      // 세션코드 발급 nav 숨김(2026-09-18) — 조사원 앱 로그인 전환. 비상용은 /sessions 직접 접근.
       { Icon: FolderOpen, label: '자료실', to: '/resources', module: 'resources' },
     ],
   },
