@@ -8,6 +8,7 @@ import {
 import { useTheme } from '../lib/theme'
 import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
+import { InfoTip } from '../components/InfoTip'
 
 // 메일 템플릿 카드 — 이름·제목·본문까지 편집형(/mail/defaults 의 templates 배열)
 type MailTemplate = { id: string; name: string; subject: string; body: string }
@@ -94,10 +95,11 @@ const SEC_DEFAULT_OPEN: Record<string, boolean> = {
   theme: true, notif: true, display: true, pw: false, mymail: false, maildef: false, storage: false, sysinfo: false,
 }
 
-function Sec({ id, title, icon, pill, open, onToggle, children, style }: {
+function Sec({ id, title, icon, info, pill, open, onToggle, children, style }: {
   id: string
   title: string
   icon?: ReactNode
+  info?: ReactNode
   pill?: ReactNode
   open: boolean
   onToggle: (id: string) => void
@@ -114,7 +116,7 @@ function Sec({ id, title, icon, pill, open, onToggle, children, style }: {
         onClick={() => onToggle(id)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(id) } }}
       >
-        <h2>{icon} {title}</h2>
+        <h2>{icon} {title}{info}</h2>
         <div className="sp" />
         {pill}
         <span className="acc-caret"><ChevronDown size={17} strokeWidth={2.2} /></span>
@@ -477,6 +479,7 @@ export function SettingsPage() {
 
       {/* 비밀번호 변경 — POST /auth/change-password (로그인 계정 누구나) */}
       <Sec id="pw" title="비밀번호 변경" icon={<KeyRound size={18} />}
+        info={<InfoTip>현재 비밀번호를 확인한 뒤 새 비밀번호로 변경합니다(로그인한 본인 계정).</InfoTip>}
         open={!!openMap.pw} onToggle={toggleSec} style={{ marginTop: 24 }}>
         <div className="card-body" style={{ padding: '20px 26px' }}>
           <div className="formrow">
@@ -503,14 +506,15 @@ export function SettingsPage() {
             {pwErr && <span className="pillx late">{pwErr}</span>}
             {pwOk && <span className="pillx ok">{pwOk}</span>}
           </div>
-          <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
-            현재 비밀번호를 확인한 뒤 새 비밀번호로 변경합니다(로그인한 본인 계정).
-          </div>
         </div>
       </Sec>
 
       {/* 이메일 연동(내 계정) — 로그인 계정 본인의 개인 이메일로 메일 발송·받은편지함이 모두 동작. */}
       <Sec id="mymail" title="이메일 연동 (내 계정)" icon={<Send size={18} />}
+        info={<InfoTip>
+          이 계정으로 <b>메일 발송</b>과 <b>받은편지함(수신함)</b>이 모두 동작합니다. 내가 보내는 업무 메일은 <b>내 개인 이메일 주소</b>로 발송됩니다.
+          네이버/지메일/다음은 계정 비밀번호가 아니라 <b>앱 비밀번호</b>(2단계 인증에서 발급)를 입력하세요.
+        </InfoTip>}
         pill={mymail ? <span className={'pillx ' + (mymail.has_password ? 'ok' : 'todo')}>{mymail.has_password ? '연동됨' : '미연동'}</span> : undefined}
         open={!!openMap.mymail} onToggle={toggleSec} style={{ marginTop: 24 }}>
         <div className="card-body" style={{ padding: '20px 26px' }}>
@@ -563,10 +567,6 @@ export function SettingsPage() {
                 </button>
                 {myMsg && <span className={'pillx ' + (myMsg.ok ? 'ok' : 'late')}>{myMsg.text}</span>}
               </div>
-              <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
-                이 계정으로 <b>메일 발송</b>과 <b>받은편지함(수신함)</b>이 모두 동작합니다. 내가 보내는 업무 메일은 <b>내 개인 이메일 주소</b>로 발송됩니다.
-                네이버/지메일/다음은 계정 비밀번호가 아니라 <b>앱 비밀번호</b>(2단계 인증에서 발급)를 입력하세요.
-              </div>
             </>
           )}
         </div>
@@ -574,6 +574,10 @@ export function SettingsPage() {
 
       {/* 메일 발송 기본값 — 제목 접두어·서명 + 실시간 발송 미리보기(회사 공통, 저장은 본사 전용) */}
       <Sec id="maildef" title="메일 기본값" icon={<Mail size={18} />}
+        info={<InfoTip>
+          [메일 쓰기]를 열면 제목에 접두어가, 본문에 기본 본문이, 본문 끝에 서명이 자동으로 채워집니다.
+          회사 공통 설정이며 저장은 본사 관리자만 가능합니다.
+        </InfoTip>}
         pill={defaults !== null ? <span className={'pillx ' + (defSet ? 'ok' : 'todo')}>{defSet ? '설정됨' : '미설정'}</span> : undefined}
         open={!!openMap.maildef} onToggle={toggleSec} style={{ marginTop: 24 }}>
         <div className="card-body" style={{ padding: '20px 26px' }}>
@@ -642,10 +646,6 @@ export function SettingsPage() {
                   </button>
                   {defMsg && <span className={'pillx ' + (defMsg.ok ? 'ok' : 'late')}>{defMsg.text}</span>}
                 </div>
-                <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
-                  [메일 쓰기]를 열면 제목에 접두어가, 본문에 기본 본문이, 본문 끝에 서명이 자동으로 채워집니다.
-                  회사 공통 설정이며 저장은 본사 관리자만 가능합니다.
-                </div>
               </div>
 
               {/* 우: 실시간 발송 미리보기 */}
@@ -688,16 +688,16 @@ export function SettingsPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                 <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                   <FileText size={16} /> 메일 템플릿 (회사 공통, 본사 전용)
+                  <InfoTip>
+                    자주 쓰는 메일을 제목·본문까지 저장해 두면 [메일 쓰기]에서 골라 바로 채울 수 있습니다.
+                    {!canEditDefaults && <b> (본사 관리자만 저장할 수 있어 현재는 열람만 가능합니다.)</b>}
+                  </InfoTip>
                 </h3>
                 <span className="pillx doing">{templates.length}개</span>
                 <div style={{ flex: 1 }} />
                 <button className="btn btn-ghost" onClick={addTemplate} disabled={!canEditDefaults}>
                   <Plus size={14} /> 카드 추가
                 </button>
-              </div>
-              <div className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginBottom: 14 }}>
-                자주 쓰는 메일을 제목·본문까지 저장해 두면 [메일 쓰기]에서 골라 바로 채울 수 있습니다.
-                {!canEditDefaults && <b> (본사 관리자만 저장할 수 있어 현재는 열람만 가능합니다.)</b>}
               </div>
 
               {templates.length === 0 && (
@@ -751,15 +751,13 @@ export function SettingsPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
               <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                 <FileText size={16} /> 내 메일 템플릿 (개인용) — 나만 사용
+                <InfoTip>여기 등록한 템플릿은 <b>내 계정에서만</b> 보이고 사용됩니다. 회사 공통 템플릿과 달리 <b>누구나 자유롭게 추가·수정·삭제·저장</b>할 수 있습니다.</InfoTip>
               </h3>
               <span className="pillx doing">{(myTemplates ?? []).length}개</span>
               <div style={{ flex: 1 }} />
               <button className="btn btn-ghost" onClick={addMyTemplate} disabled={myTemplates === null}>
                 <Plus size={14} /> 카드 추가
               </button>
-            </div>
-            <div className="muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginBottom: 14 }}>
-              여기 등록한 템플릿은 <b>내 계정에서만</b> 보이고 사용됩니다. 회사 공통 템플릿과 달리 <b>누구나 자유롭게 추가·수정·삭제·저장</b>할 수 있습니다.
             </div>
 
             {myTemplates === null && (
@@ -815,6 +813,11 @@ export function SettingsPage() {
 
       {/* 문서 저장소 — NAS 이관 대비 */}
       <Sec id="storage" title="문서 저장소" icon={<FolderTree size={18} />}
+        info={<InfoTip>
+          업무별 산출물(점검표·평가서·조사표·교육·이행점검)이 위 5개 폴더에 월별로 자동 정리됩니다.
+          <b> NAS 설치 후에는 서버 환경변수 STORAGE_ROOT를 NAS 경로로 바꾸면</b> 같은 폴더 구조 그대로
+          NAS에 저장됩니다(화면·데이터 변경 없음).
+        </InfoTip>}
         pill={<span className="pillx doing">로컬 저장 중</span>}
         open={!!openMap.storage} onToggle={toggleSec} style={{ marginTop: 24 }}>
         <div className="card-body" style={{ padding: '20px 26px' }}>
@@ -836,11 +839,6 @@ export function SettingsPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
-              <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
-                업무별 산출물(점검표·평가서·조사표·교육·이행점검)이 위 5개 폴더에 월별로 자동 정리됩니다.
-                <b> NAS 설치 후에는 서버 환경변수 STORAGE_ROOT를 NAS 경로로 바꾸면</b> 같은 폴더 구조 그대로
-                NAS에 저장됩니다(화면·데이터 변경 없음).
               </div>
             </>
           )}

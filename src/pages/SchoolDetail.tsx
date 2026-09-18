@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 import { MsdsFormModal } from '../components/MsdsFormModal'
 import { AccidentFormModal } from '../components/AccidentFormModal'
 import { HistoryFormModal } from '../components/HistoryFormModal'
@@ -640,7 +641,7 @@ export function SchoolDetail() {
           <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
               <b style={{ fontSize: 13.5 }}>행정선생님(담당자) — 메일 수신·결재란 자동 입력</b>
-              <span className="muted" style={{ fontSize: 11.5 }}>메일 쓰기·현장앱 발송의 받는 사람과 앱 점검표 확인자 결재란 이름으로 자동 입력됩니다</span>
+              <InfoTip>메일 쓰기·현장앱 발송의 받는 사람과 앱 점검표 확인자 결재란 이름으로 자동 입력됩니다</InfoTip>
             </div>
             <div className="formrow">
               <label className="field" style={{ minWidth: 240 }}>
@@ -672,10 +673,9 @@ export function SchoolDetail() {
       {/* ===== 현장 메모 — 앱 플로팅 메모와 동일 문서(/field/school-memos) 열람·작성 ===== */}
       <div className="ledger" id="sd-memos" style={{ marginBottom: 24 }}>
         <div className="lh">
-          <h2>현장 메모</h2>
+          <h2>현장 메모<InfoTip>조사원 앱의 [메모] 버튼과 실시간 공유 — 종사자 요청·조치 사항 기록</InfoTip></h2>
           <span className="pillx na">{memos.length}건</span>
           <div className="sp" />
-          <span className="muted" style={{ fontSize: 11.5 }}>조사원 앱의 [메모] 버튼과 실시간 공유 — 종사자 요청·조치 사항 기록</span>
         </div>
         <div className="card-body">
           {memoErr && <div className="login-err" style={{ marginBottom: 12 }}>{memoErr}</div>}

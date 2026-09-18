@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, ClipboardCheck } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
 import { Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
@@ -901,7 +902,7 @@ export function Risk() {
 
           <div className="ledger">
             <div className="lh">
-              <h2><ClipboardCheck size={18} /> 작성된 보고서</h2>
+              <h2><ClipboardCheck size={18} /> 작성된 보고서<InfoTip>행을 클릭하면 해당 보고서의 작성 화면이 바로 열립니다(정기=①~⑤ 작성 화면, 수시=케이스 에디터). 학교별 관리 화면은 학교 탭의 [위험성평가] 바로가기로 진입하세요.</InfoTip></h2>
               <span className="pillx doing">{rq.total}건</span>
               <div className="sp" />
             </div>
@@ -945,10 +946,6 @@ export function Risk() {
               </table>
             </div>
             <Pagination q={rq} />
-          </div>
-
-          <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-            행을 클릭하면 해당 보고서의 작성 화면이 바로 열립니다(정기=①~⑤ 작성 화면, 수시=케이스 에디터). 학교별 관리 화면은 학교 탭의 [위험성평가] 바로가기로 진입하세요.
           </div>
         </>
       )}
@@ -1011,7 +1008,7 @@ export function Risk() {
             return (
               <div className="ledger" style={{ marginBottom: 0 }}>
                 <div className="lh">
-                  <h2><ClipboardCheck size={18} /> 위험성평가 보고서 리스트</h2>
+                  <h2><ClipboardCheck size={18} /> 위험성평가 보고서 리스트<InfoTip>해가 바뀌면 새 연도의 보고서 행이 추가되고, 지난 연도 보고서는 이 리스트에 쌓입니다 (작년 작성분은 새 보고서에 자동 프리필).</InfoTip></h2>
                   <div className="sp" />
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>연 1회 정기 실시 · 연도별 1부</span>
                 </div>
@@ -1064,9 +1061,6 @@ export function Risk() {
                       </tr>
                     </tbody>
                   </table>
-                </div>
-                <div style={{ padding: '0 24px 14px', fontSize: 11.5, color: 'var(--muted)', fontWeight: 600 }}>
-                  해가 바뀌면 새 연도의 보고서 행이 추가되고, 지난 연도 보고서는 이 리스트에 쌓입니다 (작년 작성분은 새 보고서에 자동 프리필).
                 </div>
               </div>
             )

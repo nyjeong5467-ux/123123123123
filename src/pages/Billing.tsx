@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom'
 import { BarChart3, BookOpen, Download, FileText, Pencil, Plug, Printer, Trash2, Upload, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 
 type School = { id: string; name: string }
 type Account = { name: string; role: string; login_id: string }
@@ -597,7 +598,11 @@ export function Billing({ embedded = false }: { embedded?: boolean } = {}) {
 
           {/* (b) ecount 장부 — 실연동 시에만 이용 가능 */}
           <div className="ledger" style={{ marginBottom: 20 }}>
-            <div className="lh"><h2><BookOpen size={18} /> 경영자 장부 (ecount 장부)</h2><div className="sp" />
+            <div className="lh"><h2><BookOpen size={18} /> 경영자 장부 (ecount 장부)
+              <InfoTip>
+                재무제표·손익계산서·원장·자금일보 등 회계 장부는 <b>ecount(ERP)</b>에서 제공됩니다.
+                <b> 설정(공급자·연동)</b> 탭에서 회사코드·인증키를 입력하고 <b>test_mode를 해제</b>하면 조회할 수 있습니다.
+              </InfoTip></h2><div className="sp" />
               <span className={'pillx ' + (ecountConnected ? 'ok' : 'todo')}>{ecountConnected ? '연결됨' : '미연결'}</span>
             </div>
             <div className="card-body" style={{ padding: '18px 26px' }}>
@@ -610,18 +615,16 @@ export function Billing({ embedded = false }: { embedded?: boolean } = {}) {
                   </button>
                 ))}
               </div>
-              {!ecountConnected && (
-                <div className="muted" style={{ marginTop: 12, fontSize: 12, lineHeight: 1.7 }}>
-                  ecount 실연동 시 이용 가능합니다. 재무제표·손익계산서·원장·자금일보 등 회계 장부는 ecount(ERP)에서 제공되며,
-                  <b> 설정(공급자·연동)</b> 탭에서 회사코드·인증키를 입력하고 <b>test_mode를 해제</b>해야 조회할 수 있습니다.
-                </div>
-              )}
             </div>
           </div>
 
           {/* 국세청 자료 가져오기(본사 전용) */}
           <div className="ledger">
-            <div className="lh"><h2><Download size={18} /> 국세청 자료 가져오기</h2></div>
+            <div className="lh"><h2><Download size={18} /> 국세청 자료 가져오기
+              <InfoTip>
+                국세청 신고 전자(세금)계산서 자료는 ecount를 경유해 가져옵니다. <b>ecount 실연동(test_mode 해제 + 인증키)</b>이 필요하며,
+                미설정 시 안내 메시지가 표시됩니다.
+              </InfoTip></h2></div>
             <div className="card-body" style={{ padding: '18px 26px' }}>
               <div className="formrow" style={{ alignItems: 'flex-end' }}>
                 <label className="field"><span>시작일</span><input className="input" type="date" value={ntsFrom} onChange={(e) => setNtsFrom(e.target.value)} /></label>
@@ -650,10 +653,6 @@ export function Billing({ embedded = false }: { embedded?: boolean } = {}) {
                   )}
                 </div>
               )}
-              <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
-                국세청 신고 전자(세금)계산서 자료는 ecount를 경유해 가져옵니다. <b>ecount 실연동(test_mode 해제 + 인증키)</b>이 필요하며,
-                미설정 시 안내 메시지가 표시됩니다.
-              </div>
             </div>
           </div>
         </>
@@ -662,7 +661,8 @@ export function Billing({ embedded = false }: { embedded?: boolean } = {}) {
       {tab === 'settings' && (
         <>
           <div className="ledger" style={{ maxWidth: 760, marginBottom: 20 }}>
-            <div className="lh"><h2><FileText size={18} /> 공급자 정보 (세금계산서 발행처)</h2>
+            <div className="lh"><h2><FileText size={18} /> 공급자 정보 (세금계산서 발행처)
+              <InfoTip>이 정보가 세금계산서 미리보기/인쇄의 '공급자(발행자)' 칸 기본값으로 표시됩니다. 아래 프리셋으로 여러 발행자를 등록해 발행 시 한 번에 바꿀 수 있습니다.</InfoTip></h2>
               <div className="sp" />{setMsg && <span className="pillx ok">{setMsg}</span>}
             </div>
             <div className="card-body" style={{ padding: '20px 26px' }}>
@@ -683,7 +683,6 @@ export function Billing({ embedded = false }: { embedded?: boolean } = {}) {
                 <button className="btn btn-primary" onClick={saveSupplier} disabled={setBusy}>{setBusy ? '저장 중…' : '기본 발행자로 저장'}</button>
                 <button className="btn btn-ghost" onClick={addPreset} disabled={setBusy}><Users size={14} /> 자주 쓰는 발행자로 추가</button>
               </div>
-              <div className="muted" style={{ marginTop: 10, fontSize: 11.5 }}>이 정보가 세금계산서 미리보기/인쇄의 '공급자(발행자)' 칸 기본값으로 표시됩니다. 아래 프리셋으로 여러 발행자를 등록해 발행 시 한 번에 바꿀 수 있습니다.</div>
             </div>
           </div>
 

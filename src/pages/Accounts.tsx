@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Check, KeyRound, Pencil, Plus, ScrollText, Trash2, UserMinus, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 
 type Account = {
   id: string
@@ -401,7 +402,18 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
       </div>
 
       <div className="ledger">
-        <div className="lh"><h2>계정 목록</h2></div>
+        <div className="lh"><h2>계정 목록
+          <InfoTip>
+            역할: <b>본사 관리자/경영진</b>은 시스템 전체(계정·설정·발행·연동 설정)를, <b>현장 조사원</b>은 업무 화면을 사용합니다.
+            모듈 권한을 지정하면 해당 계정 사이드바에는 허용된 모듈만 표시됩니다(비면 전체 허용).
+            마지막 본사 관리자는 강등할 수 없습니다.
+            <br />
+            목록은 <b>소속 → 직급/부서 → 이름</b> 순으로 정렬되며, 소속·직급이 <b>미등록</b>인 계정(관리자·봇 등)은 맨 아래에 모입니다.
+            직급은 별도 항목 없이 <b>부서</b> 칸에 저장됩니다(그래서 라벨이 「직급/부서」입니다).
+            {isHq
+              ? ' 소속·직급/부서 칸의 연필(편집) 버튼으로 계정별 정보를 바로 채울 수 있습니다.'
+              : ' 소속·직급 편집은 본사 권한(관리자·경영진)만 가능합니다.'}
+          </InfoTip></h2></div>
         <div className="twrap">
           <table className="tbl">
             <thead>
@@ -477,18 +489,6 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="muted" style={{ marginTop: 14, fontSize: 11.5, lineHeight: 1.7 }}>
-        역할: <b>본사 관리자/경영진</b>은 시스템 전체(계정·설정·발행·연동 설정)를, <b>현장 조사원</b>은 업무 화면을 사용합니다.
-        모듈 권한을 지정하면 해당 계정 사이드바에는 허용된 모듈만 표시됩니다(비면 전체 허용).
-        마지막 본사 관리자는 강등할 수 없습니다.
-        <br />
-        목록은 <b>소속 → 직급/부서 → 이름</b> 순으로 정렬되며, 소속·직급이 <b>미등록</b>인 계정(관리자·봇 등)은 맨 아래에 모입니다.
-        직급은 별도 항목 없이 <b>부서</b> 칸에 저장됩니다(그래서 라벨이 「직급/부서」입니다).
-        {isHq
-          ? ' 소속·직급/부서 칸의 연필(편집) 버튼으로 계정별 정보를 바로 채울 수 있습니다.'
-          : ' 소속·직급 편집은 본사 권한(관리자·경영진)만 가능합니다.'}
       </div>
 
       {/* 신규 계정 */}

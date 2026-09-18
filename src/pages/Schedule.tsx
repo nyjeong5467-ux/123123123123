@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom'
 import { BarChart3, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Pencil, School, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 import {
   type DayPlan, type MonthPlan, type SchedDoc,
   HOLIDAYS, pad, curYm, shiftMonth, monthMatrix, monthInspectors, totalEntriesOf,
@@ -235,16 +236,16 @@ export function Schedule() {
       {!loading && !error && tab === 'master' && isHq && (
         <div className="ledger">
           <div className="lh">
-            <h2><CalendarRange size={18} /> {yy}년 {mm}월 근무 종합관리표</h2>
+            <h2><CalendarRange size={18} /> {yy}년 {mm}월 근무 종합관리표
+              <InfoTip>
+                일정 등록·수정은 <b style={{ color: 'var(--violet)', cursor: 'pointer' }} onClick={() => setTabSel('my')}>개별 근무표</b> 탭에서
+                조사원·날짜를 선택해 편집하세요.
+              </InfoTip></h2>
             <div className="sp" />
             <span className="pillx doing">조사원 {inspectors.length}명</span>
             <span className="pillx na">일정 {totalEntriesOf(doc, month)}건</span>
           </div>
           <MasterBoard doc={doc} month={month} staffNames={accNames} />
-          <div className="console-note">
-            일정 등록·수정은 <b style={{ color: 'var(--violet)', cursor: 'pointer' }} onClick={() => setTabSel('my')}>개별 근무표</b> 탭에서
-            조사원·날짜를 선택해 편집하세요.
-          </div>
         </div>
       )}
 

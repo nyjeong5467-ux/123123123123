@@ -29,6 +29,7 @@ import { useAuth } from '../lib/auth'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { FilterBar, Pagination, SortableTh } from '../components/table'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 import { FilePicker } from '../components/FilePicker'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { AY_MONTH_NO, CycleHero, CYCLE_DOC_DEFAULT, migrateCycleDoc, type CycleDoc } from '../components/CycleHero'
@@ -1306,9 +1307,7 @@ export function Home() {
           <div className="hm-ch">
             <span className="hm-ic g"><Smartphone size={16} /></span>
             <h3>현장 앱 다운로드</h3>
-          </div>
-          <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
-            조사원 태블릿·휴대폰에 설치하는 현장 점검 앱(APK)입니다. 안드로이드에서 아래 버튼으로 받아 설치하세요.
+            <InfoTip>조사원 태블릿·휴대폰에 설치하는 현장 점검 앱(APK)입니다. 안드로이드에서 아래 버튼으로 받아 설치하세요.</InfoTip>
           </div>
           {apkUrl ? (
             <a className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }} href={apkUrl} download>

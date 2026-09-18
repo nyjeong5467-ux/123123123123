@@ -8,6 +8,7 @@ import { Ban, Check, Copy, KeyRound, Pencil, Search, Trash2 } from 'lucide-react
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 import '../styles/sessions.css'
 
 type School = {
@@ -459,7 +460,8 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
 
       {result && (
         <div className="ledger" style={{ marginBottom: 24 }}>
-          <div className="lh"><h2>발급된 세션코드</h2></div>
+          <div className="lh"><h2>발급된 세션코드
+            <InfoTip>태블릿에 이 코드를 입력하면 선택한 학교·업무만 열립니다. 코드는 1회 교환 후 만료됩니다.</InfoTip></h2></div>
           <div className="card-body sess-result" style={{ padding: '24px 26px' }}>
             <div className="codebox">{result.code}</div>
             <div className="sess-copy">
@@ -470,7 +472,6 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
             <div className="meta">
               <b>{result.inspector}</b> · 학교 {result.schoolNames.length}개 · {result.moduleLabels.join('/')}
               <br />유효 {result.from} ~ {result.until}
-              <br />태블릿에 이 코드를 입력하면 선택한 학교·업무만 열립니다. 코드는 1회 교환 후 만료됩니다.
             </div>
           </div>
         </div>

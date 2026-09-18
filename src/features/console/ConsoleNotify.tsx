@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react'
 import { Bell, Info, Save } from 'lucide-react'
 import { api } from '../../lib/api'
+import { InfoTip } from '../../components/InfoTip'
 
 type Channel = { enabled: boolean; [k: string]: string | boolean }
 type NotifySettings = {
@@ -148,14 +149,12 @@ export default function ConsoleNotify() {
             />
             <b>카카오톡</b>
             <span className="muted" style={{ fontSize: 12 }}>나에게 보내기(메모)</span>
+            <InfoTip>학교·교사 대상 대량 알림톡(비즈메시지)은 사업용 채널·템플릿 승인이 별도로 필요합니다.</InfoTip>
             {saved.kakao.enabled && <span className="pillx ok">사용</span>}
           </label>
           <div className="formrow">
             {tokenField('REST API 키', 'kakao', 'rest_api_key', '카카오 developers REST 키')}
             {tokenField('Refresh Token', 'kakao', 'refresh_token', 'talk_message 동의 후 취득')}
-          </div>
-          <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-            학교·교사 대상 대량 알림톡(비즈메시지)은 사업용 채널·템플릿 승인이 별도로 필요합니다.
           </div>
         </div>
 

@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, GraduationCap, Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type FilterDef, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import '../styles/hier.css'
@@ -545,7 +546,7 @@ export function Education() {
 
           <div className="ledger">
             <div className="lh">
-              <h2><GraduationCap size={18} /> 교육 진도 기록</h2>
+              <h2><GraduationCap size={18} /> 교육 진도 기록<InfoTip>학교를 선택하면 진도율·교육 회차 대장·종사자별 이수현황·관리감독자 교육을 확인할 수 있습니다.</InfoTip></h2>
               <span className="pillx doing">{q.total}교</span>
               <div className="sp" />
               <FilterBar q={q} />
@@ -611,10 +612,6 @@ export function Education() {
               </table>
             </div>
             <Pagination q={q} />
-          </div>
-
-          <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-            학교를 선택하면 진도율·교육 회차 대장·종사자별 이수현황·관리감독자 교육을 확인할 수 있습니다.
           </div>
         </>
       )}

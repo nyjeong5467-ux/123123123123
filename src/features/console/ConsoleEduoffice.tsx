@@ -4,6 +4,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Ban, CheckCircle2, CloudUpload, Info, KeyRound, Plus, RefreshCw, Send, Terminal, Trash2, X, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
+import { InfoTip } from '../../components/InfoTip'
 import ConsoleNotify from './ConsoleNotify'
 
 type InspJob = {
@@ -629,18 +630,18 @@ export default function ConsoleEduoffice() {
       {/* 교육청 로그인 계정 */}
       <div className="ledger" style={{ marginBottom: 20 }}>
         <div className="lh">
-          <h2><KeyRound size={18} /> 교육청 로그인 계정</h2>
+          <h2><KeyRound size={18} /> 교육청 로그인 계정
+            <InfoTip>
+              교육청 사이트 로그인 계정을 등록하면 봇이 이 계정으로 자동 로그인해 전송합니다.
+              <b> 모든 학교 업로드에 기본(첫 번째) 계정이 사용됩니다.</b>{' '}
+              비밀번호는 저장 후 <b>마스킹</b>되며, 빈칸으로 저장하면 기존 비밀번호가 유지됩니다.
+            </InfoTip></h2>
           <div className="sp" />
           {credMsg && <span className="pillx ok">{credMsg}</span>}
           <button className="btn btn-ghost" onClick={addCred}><Plus size={14} /> 계정 추가</button>
           <button className="btn btn-primary" onClick={() => void saveCreds()} disabled={credBusy}>{credBusy ? '저장 중…' : '저장'}</button>
         </div>
         <div className="card-body" style={{ padding: '16px 26px' }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 12, lineHeight: 1.7 }}>
-            교육청 사이트 로그인 계정을 등록하면 봇이 이 계정으로 자동 로그인해 전송합니다.
-            <b> 모든 학교 업로드에 기본(첫 번째) 계정이 사용됩니다.</b>{' '}
-            비밀번호는 저장 후 <b>마스킹</b>되며, 빈칸으로 저장하면 기존 비밀번호가 유지됩니다.
-          </div>
           {creds.length === 0 && (
             <div className="tstate">등록된 교육청 계정이 없습니다. [계정 추가]로 계정을 등록하세요. (미등록 시 봇은 .env.local 기본 계정을 사용합니다)</div>
           )}

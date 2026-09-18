@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { downloadCsv } from '../lib/csv'
@@ -649,7 +650,11 @@ export function Accidents() {
       {/* 목록 */}
       <div className="ledger">
         <div className="lh">
-          <h2><AlertTriangle size={19} /> 산재 내역</h2>
+          <h2><AlertTriangle size={19} /> 산재 내역
+            <InfoTip>
+              사고성 재해는 수시 위험성평가, 질병성(근골격계) 재해는 수시 유해요인조사와 연동됩니다.
+              홈 등 공용 화면에는 학교명이 익명(예: OOO초등학교)으로 표시됩니다.
+            </InfoTip></h2>
           <div className="sp" />
           <FilterBar q={q} />
           <ExportButton q={q} columns={ACC_EXPORT} filename="산업재해" />
@@ -711,11 +716,6 @@ export function Accidents() {
         </div>
         <Pagination q={q} />
       </div>
-
-      <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-        사고성 재해는 수시 위험성평가, 질병성(근골격계) 재해는 수시 유해요인조사와 연동됩니다.
-        홈 등 공용 화면에는 학교명이 익명(예: OOO초등학교)으로 표시됩니다.
-      </div>
       </>)}
 
       {/* ── 국내재해사례(KOSHA) 조회 패널 ── */}
@@ -723,7 +723,11 @@ export function Accidents() {
         <>
           <div className="ledger">
             <div className="lh">
-              <h2><BookOpen size={19} /> 국내재해사례 (안전보건공단)</h2>
+              <h2><BookOpen size={19} /> 국내재해사례 (안전보건공단)
+                <InfoTip>
+                  안전보건공단(KOSHA)의 국내 재해사례 게시판을 조회합니다. 회사 산재 내역과는 별개의 공개 사례 라이브러리입니다.
+                  사례 행의 바로가기 아이콘을 누르면 산업안전포털의 원문 게시판을 새 탭에서 볼 수 있습니다.
+                </InfoTip></h2>
               <div className="sp" />
               <button
                 className="btn btn-ghost"
@@ -844,11 +848,6 @@ export function Accidents() {
                 </button>
               </div>
             )}
-          </div>
-
-          <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-            안전보건공단(KOSHA)의 국내 재해사례 게시판을 조회합니다. 회사 산재 내역과는 별개의 공개 사례 라이브러리입니다.
-            사례 행의 바로가기 아이콘을 누르면 산업안전포털의 원문 게시판을 새 탭에서 볼 수 있습니다.
           </div>
         </>
       )}

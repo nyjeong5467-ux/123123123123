@@ -9,6 +9,7 @@ import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } fr
 import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
 import { MyWorkStrip } from '../components/table/MyWorkStrip'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 import { useAuth } from '../lib/auth'
 import { hasMusDraft } from '../lib/musDraft'
 import '../styles/hier.css'
@@ -681,7 +682,7 @@ export function Musculo() {
 
           <div className="ledger">
             <div className="lh">
-              <h2><Activity size={18} /> 작성된 조사</h2>
+              <h2><Activity size={18} /> 작성된 조사<InfoTip>행을 클릭하면 해당 학교의 조사 이력(연도별)·부담작업 판정·보고서 작성으로 이동합니다.</InfoTip></h2>
               <span className="pillx doing">{rq.total}건</span>
               <div className="sp" />
               {/* [088] 수동 새로고침 — 현장 앱 제출 직후 즉시 반영 확인용 */}
@@ -734,10 +735,6 @@ export function Musculo() {
               </table>
             </div>
             <Pagination q={rq} />
-          </div>
-
-          <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-            행을 클릭하면 해당 학교의 조사 이력(연도별)·부담작업 판정·보고서 작성으로 이동합니다.
           </div>
         </>
       )}
@@ -832,7 +829,7 @@ export function Musculo() {
               ) : (
                 <div className="ledger">
                   <div className="lh">
-                    <h2><ClipboardCheck size={19} /> 근골격계부담작업 판정</h2>
+                    <h2><ClipboardCheck size={19} /> 근골격계부담작업 판정<InfoTip>법령근거: 「산업안전보건법」 제39조 및 고용노동부 고시 「근골격계부담작업의 범위」(제1호~제11호). 2개월간 하루 기준 시간·빈도·중량 요건 충족 시 해당 호의 부담작업으로 판정됩니다.</InfoTip></h2>
                   </div>
                   <div className="card-body" style={{ padding: '20px 24px' }}>
                     <div className="formrow">
@@ -930,10 +927,6 @@ export function Musculo() {
                       </div>
                     )}
 
-                    <div className="muted" style={{ marginTop: 16, fontSize: 12, lineHeight: 1.7 }}>
-                      법령근거: 「산업안전보건법」 제39조 및 고용노동부 고시 「근골격계부담작업의 범위」(제1호~제11호).
-                      2개월간 하루 기준 시간·빈도·중량 요건 충족 시 해당 호의 부담작업으로 판정됩니다.
-                    </div>
                   </div>
                 </div>
               )}

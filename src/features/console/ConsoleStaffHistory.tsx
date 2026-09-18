@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ScrollText, UserRound } from 'lucide-react'
 import { api } from '../../lib/api'
+import { InfoTip } from '../../components/InfoTip'
 
 type Author = {
   author_id: string
@@ -79,11 +80,12 @@ export default function ConsoleStaffHistory() {
     <div>
     <div className="ledger">
       <div className="lh">
-        <h2><ScrollText size={18} /> 직원 이력</h2>
+        <h2><ScrollText size={18} /> 직원 이력
+          <InfoTip>
+            작성자별 5대 업무 기록 열람(읽기 전용) · 작성자 기록이 없는 과거 자료는 &lsquo;작성자 미상&rsquo;.
+            기록 수정·삭제는 각 업무 화면에서만 가능합니다. 작성자 정보는 이 기능 도입 이후 생성된 기록부터 저장됩니다.
+          </InfoTip></h2>
         <div className="sp" />
-        <span className="muted" style={{ fontSize: 12.5 }}>
-          작성자별 5대 업무 기록 열람(읽기 전용) · 작성자 기록이 없는 과거 자료는 &lsquo;작성자 미상&rsquo;
-        </span>
       </div>
 
       {loading && <div className="tstate">불러오는 중…</div>}
@@ -180,11 +182,6 @@ export default function ConsoleStaffHistory() {
           </div>
         </div>
       )}
-      </div>
-
-      <div className="console-note" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        열람 전용 화면입니다. 기록 수정·삭제는 각 업무 화면에서만 가능합니다.
-        작성자 정보는 이 기능 도입 이후 생성된 기록부터 저장됩니다.
       </div>
     </div>
   )

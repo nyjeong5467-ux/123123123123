@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarRange, ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../../lib/api'
+import { InfoTip } from '../../components/InfoTip'
 import {
   type SchedDoc, curYm, shiftMonth, monthInspectors, totalEntriesOf,
 } from '../schedule/MasterCalendar'
@@ -50,7 +51,10 @@ export default function ConsoleSchedule() {
   return (
     <div className="ledger">
       <div className="lh">
-        <h2><CalendarRange size={18} /> 근무 종합관리표</h2>
+        <h2><CalendarRange size={18} /> 근무 종합관리표
+          <InfoTip>
+            일정 편집은 <Link to="/schedule">직원 근무표</Link>에서 조사원·날짜를 선택해 등록하세요. 이 표는 전체 조사원 종합 열람용입니다.
+          </InfoTip></h2>
         <div className="sp" />
         <span className="pillx doing">조사원 {activeCount || inspectors.length}명</span>
         <span className="pillx na">일정 {totalEntries}건</span>
@@ -64,10 +68,6 @@ export default function ConsoleSchedule() {
       {loading && <div className="tstate">불러오는 중…</div>}
       {!loading && error && <div className="tstate">오류: {error}</div>}
       {!loading && !error && <MasterBoard doc={doc} month={month} staffNames={accNames} />}
-
-      <div className="console-note">
-        일정 편집은 <Link to="/schedule">직원 근무표</Link>에서 조사원·날짜를 선택해 등록하세요. 이 표는 전체 조사원 종합 열람용입니다.
-      </div>
     </div>
   )
 }
