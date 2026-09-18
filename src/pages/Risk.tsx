@@ -1241,7 +1241,7 @@ export function Risk() {
 
       {detailOpen && (
         <Modal
-          title="위험성평가 상세"
+          title={<>위험성평가 상세 <InfoTip>가능성×중대성 = 위험성, 8점 이상 자동 불완전 분류</InfoTip></>}
           onClose={() => { setDetailOpen(false); setDetail(null) }}
           footer={
             <>
@@ -1271,11 +1271,6 @@ export function Risk() {
               <div className="kv"><b>불완전</b><span>{detail.unsafe_count} / {detail.count} 건</span></div>
               <div style={{ fontWeight: 700, fontSize: 13, marginTop: 6 }}>
                 위험요인 항목 ({detail.items.length})
-                {detail.status !== 'completed' && (
-                  <span className="muted" style={{ fontWeight: 500, marginLeft: 8, fontSize: 11.5 }}>
-                    가능성×중대성 = 위험성, 8점 이상 자동 불완전 분류
-                  </span>
-                )}
               </div>
               {editErr && <div className="muted" style={{ color: 'var(--red-ink)', fontSize: 12, fontWeight: 600 }}>{editErr}</div>}
               <div className="twrap">

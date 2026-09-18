@@ -510,6 +510,7 @@ export function Education() {
         {sel && (
           <div className="tabs">
             <button className={'tab' + (tab === 'progress' ? ' active' : '')} onClick={() => setTab('progress')}>진도율</button>
+            <InfoTip>진도 인입은 봇/엑셀 일괄(POST /education/ingest)로 처리됩니다.</InfoTip>
             <button className={'tab' + (tab === 'sessions' ? ' active' : '')} onClick={() => setTab('sessions')}>
               교육 회차 대장<span className="n">{sessions.length}</span>
             </button>
@@ -672,9 +673,6 @@ export function Education() {
                 </div>
               )}
 
-              <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.7, marginTop: 8 }}>
-                진도 인입은 봇/엑셀 일괄(POST /education/ingest)로 처리됩니다.
-              </div>
             </>
           )}
 

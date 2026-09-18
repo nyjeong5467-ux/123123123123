@@ -550,7 +550,7 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
 
       {editing && (
         <Modal
-          title={`세션코드 수정 — ${editing.code}`}
+          title={<>세션코드 수정 — {editing.code} <InfoTip>코드 자체는 변경할 수 없습니다. 대상 학교·열어줄 업무·유효기간만 수정합니다. (활성 코드만 수정 가능)</InfoTip></>}
           wide
           onClose={() => setEditing(null)}
           footer={
@@ -561,8 +561,6 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
             </>
           }
         >
-          <p className="sess-note">코드 자체는 변경할 수 없습니다. 대상 학교·열어줄 업무·유효기간만 수정합니다. (활성 코드만 수정 가능)</p>
-
           {/* 유효기간 */}
           <div className="sess-sec" style={{ marginBottom: 0 }}>
             <span className="sess-lab">유효기간</span>

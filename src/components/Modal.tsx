@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 export function Modal({
   title, onClose, children, footer, wide,
 }: {
-  title: string
+  title: ReactNode   // 문자열 또는 <>제목 <InfoTip>…</InfoTip></> 형태 허용
   onClose: () => void
   children: ReactNode
   footer?: ReactNode

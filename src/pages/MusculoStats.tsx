@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import { Activity, ClipboardList, FileSpreadsheet, Plus, Save, Smartphone, Trash2, Upload } from 'lucide-react'
 import { api, getToken } from '../lib/api'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 import {
   BURDEN_OPTS, DEFAULT_CUR_THRESH, DEFAULT_PREV_THRESH, DURATION_OPTS, FREQUENCY_OPTS, INTENSITY_OPTS, PARTS,
   classifyWorker, parsePastedData,
@@ -241,9 +242,8 @@ export function MusculoStats() {
               <MSGridStyle />
               <div className="ledger" style={{ marginTop: 14 }}>
                 <div className="lh" style={{ flexWrap: 'wrap', gap: 8 }}>
-                  <h2 style={{ fontSize: 15 }}><Activity size={16} /> 증상조사표 입력 (엑셀형)</h2>
+                  <h2 style={{ fontSize: 15 }}><Activity size={16} /> 증상조사표 입력 (엑셀형)<InfoTip>셀을 클릭해 바로 입력 · 통증기간(2번)·강도(3번)·빈도(4번)만 넣어도 판정됩니다 · 오른쪽 판정은 자동</InfoTip></h2>
                   <span className="pillx doing">{workers.length}명</span>
-                  <span className="muted" style={{ fontSize: 11.5 }}>셀을 클릭해 바로 입력 · 통증기간(2번)·강도(3번)·빈도(4번)만 넣어도 판정됩니다 · 오른쪽 판정은 자동</span>
                   <div className="sp" />
                   <button className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => setWorkers([...workers, newWorker()])}><Plus size={13} /> 행 추가</button>
                 </div>
@@ -397,15 +397,10 @@ export function MusculoStats() {
 
       {/* ── 엑셀 붙여넣기 모달 ── */}
       {pasteOpen && (
-        <Modal title="엑셀 데이터 붙여넣기"
+        <Modal title={<>엑셀 데이터 붙여넣기 <InfoTip>엑셀 <b>'데이터' 시트</b>에서 종사자 데이터 행을 <b>A열(순번)부터 다리 부위(BA열)까지</b> 선택해 복사한 뒤 아래에 붙여넣으세요. 성명·성별·부서·작업과 부위별 문항2·3·4(기간·강도·빈도)를 자동 인식합니다. (A열/B열 어디서 시작하든 자동 보정 · 헤더행 자동 제외)</InfoTip></>}
           onClose={() => setPasteOpen(false)}
           footer={<><button className="btn btn-ghost" onClick={() => setPasteOpen(false)}>취소</button><button className="btn btn-primary" onClick={doPaste}>불러오기</button></>}
         >
-          <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 10 }}>
-            엑셀 <b>'데이터' 시트</b>에서 종사자 데이터 행을 <b>A열(순번)부터 다리 부위(BA열)까지</b> 선택해 복사한 뒤 아래에 붙여넣으세요.
-            성명·성별·부서·작업과 부위별 문항2·3·4(기간·강도·빈도)를 자동 인식합니다.
-            (A열/B열 어디서 시작하든 자동 보정 · 헤더행 자동 제외)
-          </div>
           <textarea className="input" style={{ width: '100%', minHeight: 180, fontFamily: 'monospace', fontSize: 12 }}
             placeholder="여기에 붙여넣기 (탭 구분)" value={pasteText} onChange={(e) => setPasteText(e.target.value)} />
         </Modal>

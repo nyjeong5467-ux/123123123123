@@ -6,6 +6,7 @@ import { ArrowLeft, ChevronRight, ClipboardCheck, Trash2 } from 'lucide-react'
 import { api, getToken } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
@@ -733,7 +734,7 @@ export function Inspection() {
 
           <div className="ledger">
             <div className="lh">
-              <h2><ClipboardCheck size={18} /> 작성된 점검표</h2>
+              <h2><ClipboardCheck size={18} /> 작성된 점검표<InfoTip>행을 클릭하면 해당 점검표의 작성 화면이 바로 열립니다(작성중은 이어서 작성, 완료 건은 수정). [보기]는 실물 양식으로 표시합니다. 새 점검표 작성은 학교 탭의 [안전점검] 바로가기에서 시작하세요.</InfoTip></h2>
               <span className="pillx doing">{rq.total}건</span>
               <div className="sp" />
             </div>
@@ -807,9 +808,6 @@ export function Inspection() {
             <Pagination q={rq} />
           </div>
 
-          <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-            행을 클릭하면 해당 점검표의 작성 화면이 바로 열립니다(작성중은 이어서 작성, 완료 건은 수정). [보기]는 실물 양식으로 표시합니다. 새 점검표 작성은 학교 탭의 [안전점검] 바로가기에서 시작하세요.
-          </div>
         </>
       )}
 
@@ -823,7 +821,7 @@ export function Inspection() {
 
           <div className="ledger" style={{ background: 'transparent', border: 0, boxShadow: 'none' }}>
             <div className="lh" style={{ paddingLeft: 0, paddingRight: 0 }}>
-              <h2><ClipboardCheck size={18} /> 점검 현황</h2>
+              <h2><ClipboardCheck size={18} /> 점검 현황<InfoTip>안전점검은 매월 반복 업무입니다. 점검표는 서명 완료 후 교육청에 제출되며, 미흡 항목은 추후보완으로 관리됩니다.</InfoTip></h2>
               <div className="sp" />
               <ExportButton q={flatQ} columns={FLAT_EXPORT} filename={`안전점검_${sel.name}`} />
             </div>
@@ -904,9 +902,6 @@ export function Inspection() {
             </div>
           </div>
 
-          <div className="muted" style={{ marginTop: 16, fontSize: 12.5, lineHeight: 1.7 }}>
-            안전점검은 매월 반복 업무입니다. 점검표는 서명 완료 후 교육청에 제출되며, 미흡 항목은 추후보완으로 관리됩니다.
-          </div>
         </>
       )}
 

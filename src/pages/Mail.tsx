@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Inbox, Paperclip, PenSquare, Plug, RefreshCw, Send, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
+import { InfoTip } from '../components/InfoTip'
 
 type MailRow = { uid: string; subject: string; sender: string; date: string }
 type MailDetail = MailRow & { to: string; body: string; attachments: string[] }
@@ -224,7 +225,8 @@ export function Mail() {
             <span className="muted" style={{ fontSize: 12 }}>{detail.date}</span>
           </div>
           <div className="card-body" style={{ padding: '20px 26px' }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: 17, fontWeight: 800 }}>{detail.subject}</h3>
+            <h3 style={{ margin: '0 0 12px', fontSize: 17, fontWeight: 800 }}>{detail.subject}
+              <InfoTip>읽기 전용입니다 — 답장·첨부 다운로드는 메일 서비스에서 하세요.</InfoTip></h3>
             <div className="kv"><b>보낸 사람</b><span>{detail.sender || '—'}</span></div>
             {detail.to && <div className="kv"><b>받는 사람</b><span>{detail.to}</span></div>}
             {detail.attachments.length > 0 && (
@@ -245,9 +247,6 @@ export function Mail() {
               lineHeight: 1.8, color: 'var(--ink)', maxWidth: 860,
             }}>
               {detailLoading ? '본문을 불러오는 중…' : (detail.body || '(본문 없음)')}
-            </div>
-            <div className="muted" style={{ marginTop: 16, fontSize: 11.5 }}>
-              읽기 전용입니다 — 답장·첨부 다운로드는 메일 서비스에서 하세요.
             </div>
           </div>
         </div>
@@ -483,7 +482,7 @@ function ComposeModal({
 
   return (
     <Modal
-      title="업무 메일 쓰기"
+      title={<>업무 메일 쓰기 <InfoTip>보내는 사람은 <b>내 개인 이메일</b>(설정 → 이메일 연동)입니다. 발송한 메일은 [보낸 업무 메일] 탭에 기록됩니다.</InfoTip></>}
       wide
       onClose={onClose}
       footer={(
@@ -585,9 +584,6 @@ function ComposeModal({
             ))}
           </div>
         )}
-      </div>
-      <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
-        보내는 사람은 <b>내 개인 이메일</b>(설정 → 이메일 연동)입니다. 발송한 메일은 [보낸 업무 메일] 탭에 기록됩니다.
       </div>
     </Modal>
   )

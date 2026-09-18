@@ -494,7 +494,7 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
       {/* 신규 계정 */}
       {createOpen && (
         <Modal
-          title="계정 생성"
+          title={<>계정 생성 <InfoTip>소속은 점검표·세금계산서 발행처 자동채움과 교육청 계정(소속별) 선택의 기준이 됩니다. 모듈 권한은 생성 후 목록의 「모듈 권한」에서 지정하세요(기본: 전체 허용).</InfoTip></>}
           onClose={() => { if (busy !== 'create') setCreateOpen(false) }}
           footer={
             <>
@@ -529,17 +529,13 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
             <label className="field"><span>연락처</span>
               <input className="input" value={nPhone} onChange={(e) => setNPhone(e.target.value)} placeholder="예: 010-0000-0000" /></label>
           </div>
-          <div className="muted" style={{ marginTop: 10, fontSize: 11.5 }}>
-            소속은 점검표·세금계산서 발행처 자동채움과 교육청 계정(소속별) 선택의 기준이 됩니다.
-            모듈 권한은 생성 후 목록의 「모듈 권한」에서 지정하세요(기본: 전체 허용).
-          </div>
         </Modal>
       )}
 
       {/* 계정 편집(아이디·이름) */}
       {editTarget && (
         <Modal
-          title={`계정 편집 · ${editTarget.login_id}`}
+          title={<>계정 편집 · {editTarget.login_id} <InfoTip>아이디는 이 테넌트 안에서 중복될 수 없습니다. 비밀번호는 「비밀번호」 버튼에서 따로 변경하세요. 아이디를 바꾸면 해당 계정은 새 아이디로 로그인해야 합니다.</InfoTip></>}
           onClose={() => { if (busy !== 'edit') setEditTarget(null) }}
           footer={
             <>
@@ -564,10 +560,6 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
               <input className="input" value={eDept} onChange={(e) => setEDept(e.target.value)} placeholder="예: 팀장 · 안전점검팀" /></label>
             <label className="field"><span>연락처</span>
               <input className="input" value={ePhone} onChange={(e) => setEPhone(e.target.value)} placeholder="예: 010-0000-0000" /></label>
-          </div>
-          <div className="muted" style={{ marginTop: 10, fontSize: 11.5 }}>
-            아이디는 이 테넌트 안에서 중복될 수 없습니다. 비밀번호는 「비밀번호」 버튼에서 따로 변경하세요.
-            아이디를 바꾸면 해당 계정은 새 아이디로 로그인해야 합니다.
           </div>
         </Modal>
       )}
@@ -620,7 +612,7 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
       {/* 소속·직급(부서)·연락처 인라인 편집 — 본사 권한 전용 */}
       {regTarget && (
         <Modal
-          title={`소속·직급 편집 · ${regTarget.login_id}`}
+          title={<>소속·직급 편집 · {regTarget.login_id} <InfoTip>직급은 별도 항목이 없어 <b>부서</b> 칸에 함께 저장됩니다(예: 「팀장 · 안전점검팀」). 소속은 점검표·세금계산서 발행처 자동채움과 교육청 계정(소속별) 선택의 기준이 됩니다. 저장하면 목록이 소속·직급 순으로 다시 정렬됩니다.</InfoTip></>}
           onClose={() => { if (busy !== 'reg') setRegTarget(null) }}
           footer={
             <>
@@ -640,18 +632,13 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
             <label className="field"><span>연락처</span>
               <input className="input" value={rPhone} onChange={(e) => setRPhone(e.target.value)} placeholder="예: 010-0000-0000" /></label>
           </div>
-          <div className="muted" style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.7 }}>
-            직급은 별도 항목이 없어 <b>부서</b> 칸에 함께 저장됩니다(예: 「팀장 · 안전점검팀」).
-            소속은 점검표·세금계산서 발행처 자동채움과 교육청 계정(소속별) 선택의 기준이 됩니다.
-            저장하면 목록이 소속·직급 순으로 다시 정렬됩니다.
-          </div>
         </Modal>
       )}
 
       {/* 비밀번호 재설정 */}
       {pwTarget && (
         <Modal
-          title={`비밀번호 재설정 · ${pwTarget.login_id}`}
+          title={<>비밀번호 재설정 · {pwTarget.login_id} <InfoTip>관리자 재설정은 현재 비밀번호 확인 없이 즉시 적용됩니다. 본인 변경은 마이페이지에서.</InfoTip></>}
           onClose={() => { if (busy !== 'pw') setPwTarget(null) }}
           footer={
             <>
@@ -666,9 +653,6 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
           <label className="field"><span>새 비밀번호</span>
             <input className="input" type="password" value={pwNew} autoComplete="new-password"
               onChange={(e) => setPwNew(e.target.value)} /></label>
-          <div className="muted" style={{ marginTop: 10, fontSize: 11.5 }}>
-            관리자 재설정은 현재 비밀번호 확인 없이 즉시 적용됩니다. 본인 변경은 마이페이지에서.
-          </div>
         </Modal>
       )}
 

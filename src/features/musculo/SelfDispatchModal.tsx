@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Bell, Check, Copy, Plus, RefreshCw, Send, Trash2, Users } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Modal } from '../../components/Modal'
+import { InfoTip } from '../../components/InfoTip'
 
 type Recipient = {
   id?: string
@@ -349,7 +350,7 @@ export function SelfDispatchModal({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* 발송 */}
           <div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-2)', marginBottom: 8 }}>발송 채널 (미선택 시 기본 활성 채널)</div>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-2)', marginBottom: 8 }}>발송 채널 (미선택 시 기본 활성 채널)<InfoTip>알림톡·문자·이메일은 서버가 즉시 발송합니다. 카카오 공유는 링크를 사람이 직접 전달해야 하므로, 발송 후 아래 [카카오 공유 링크]에서 복사해 공유하세요. 미동의 수신자는 자동 제외됩니다.</InfoTip></div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {CHANNEL_OPTS.map((c) => (
                 <label key={c.value}
@@ -365,11 +366,6 @@ export function SelfDispatchModal({
                 </label>
               ))}
             </div>
-            <div className="muted" style={{ fontSize: 11.5, marginTop: 8, lineHeight: 1.6 }}>
-              알림톡·문자·이메일은 서버가 즉시 발송합니다. 카카오 공유는 링크를 사람이 직접 전달해야 하므로,
-              발송 후 아래 [카카오 공유 링크]에서 복사해 공유하세요. 미동의 수신자는 자동 제외됩니다.
-            </div>
-
             <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <button className="btn btn-primary" onClick={() => void sendDispatch()} disabled={sending || consentCount === 0}>
                 <Send size={14} /> {sending ? '발송 중…' : `개인별 발송 (동의 ${consentCount}명)`}
@@ -426,7 +422,7 @@ export function SelfDispatchModal({
           {/* 개인 단위 현황 */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-2)' }}>개인 단위 현황</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-2)' }}>개인 단위 현황<InfoTip>제출 여부는 공개 폼(자가작성) 제출 시각 기준으로 갱신됩니다. 미제출자에게만 동일 링크로 재발송됩니다.</InfoTip></div>
               {status && (
                 <span className="muted" style={{ fontSize: 12 }}>
                   제출 {submittedCount} · 미제출 {pendingCount} · 열람 {status.opens}
@@ -495,9 +491,6 @@ export function SelfDispatchModal({
                 </table>
               </div>
             )}
-            <div className="muted" style={{ marginTop: 8, fontSize: 11.5, lineHeight: 1.6 }}>
-              제출 여부는 공개 폼(자가작성) 제출 시각 기준으로 갱신됩니다. 미제출자에게만 동일 링크로 재발송됩니다.
-            </div>
           </div>
         </div>
       )}

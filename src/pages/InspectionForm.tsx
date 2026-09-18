@@ -6,6 +6,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { api, getToken } from '../lib/api'
 import { InspectionMailModal } from '../components/InspectionMailModal'
 import { SignImage } from '../components/SignImage'
+import { InfoTip } from '../components/InfoTip'
 import { SignaturePadModal, type SignStrokes } from '../components/SignaturePadModal'
 import type { SheetData } from '../components/InspectionSheetView'
 import { resolveExtra, type InspExtra } from '../lib/inspExtra'
@@ -820,9 +821,8 @@ export function InspectionForm() {
         </div>
 
         <div className="insf-ch" style={{ borderTop: '1px solid var(--line-2)', marginTop: 14 }}>
-          <i className="insf-sq" /><h3>점검대상</h3>
+          <i className="insf-sq" /><h3>점검대상<InfoTip>종사자 현황에 따라 자동 선택 · 없는 파트도 추가할 수 있습니다</InfoTip></h3>
           <div className="r" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span>종사자 현황에 따라 자동 선택 · 없는 파트도 추가할 수 있습니다</span>
             {pastVisits.length > 0 && (
               <button type="button" className="btn" style={{ padding: '4px 10px', fontSize: 12 }}
                 title="이 학교의 과거 점검 비고를 골라서 현재 폼에 채웁니다"
@@ -963,7 +963,7 @@ export function InspectionForm() {
 
       {/* 기타 의견 */}
       <div className="insf-fset">
-        <div className="insf-ch"><i className="insf-sq" /><h3>기타 의견</h3><div className="r">점검자 의견 — 메일 문구에 함께 들어갑니다</div></div>
+        <div className="insf-ch"><i className="insf-sq" /><h3>기타 의견<InfoTip>점검자 의견 — 메일 문구에 함께 들어갑니다</InfoTip></h3></div>
         <textarea
           className="insf-etc"
           placeholder={'점검자 :\n* 2026 정기 위험성평가 진행중\n- 미화담당 위험성평가 결과 공유 및 위험성감소대책 교육 실시'}
@@ -975,8 +975,7 @@ export function InspectionForm() {
       {/* 사진대지 — 파트별 · 인원수 기준 모델수(0709) */}
       <div className="insf-fset">
         <div className="insf-ch">
-          <i className="insf-sq" /><h3>사진대지</h3>
-          <div className="r">사진마다 설명을 적어야 PDF에 함께 출력됩니다 · 인원 ~5명 1컷 · 6~10명 2컷 · 11~15명 3컷 · 공정 관련 추가 가능</div>
+          <i className="insf-sq" /><h3>사진대지<InfoTip>사진마다 설명을 적어야 PDF에 함께 출력됩니다 · 인원 ~5명 1컷 · 6~10명 2컷 · 11~15명 3컷 · 공정 관련 추가 가능<br />사진 원본은 기기에서 미리보기로만 사용되며, 제출 시에는 파일명 메타만 메일 문구에 포함됩니다.</InfoTip></h3>
         </div>
         {/* 선택 공정 + (앱 수신 등으로) 사진이 실려 있는 공정 — 라벨이 달라도 사진이 숨지 않게 [서명·사진 출력 수정] */}
         {PARTDEF.filter((d) => enabled[d.label] || (photos[d.label] ?? []).some((s) => s.dataUrl || s.name || s.caption)).map((d) => {
@@ -1038,9 +1037,6 @@ export function InspectionForm() {
             </div>
           )
         })}
-        <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-          사진 원본은 기기에서 미리보기로만 사용되며, 제출 시에는 파일명 메타만 메일 문구에 포함됩니다.
-        </div>
       </div>
 
       {/* 확인자 */}

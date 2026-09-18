@@ -943,7 +943,7 @@ export function Musculo() {
       {/* ── 증상조사표 검수 모달 ── */}
       {reviewFor && (
         <Modal
-          title="증상조사표 검수"
+          title={<>증상조사표 검수 <InfoTip>OMR 인식 신뢰도가 낮거나 미마킹 문항이 있는 조사표가 검수 대기로 들어옵니다. 원본 스캔과 대조 후 「검수 확정」하세요.</InfoTip></>}
           onClose={() => setReviewFor(null)}
           footer={<button className="btn btn-primary" onClick={() => setReviewFor(null)}>닫기</button>}
         >
@@ -986,9 +986,6 @@ export function Musculo() {
                 )}
               </tbody>
             </table>
-          </div>
-          <div className="muted" style={{ marginTop: 10, fontSize: 11.5 }}>
-            OMR 인식 신뢰도가 낮거나 미마킹 문항이 있는 조사표가 검수 대기로 들어옵니다. 원본 스캔과 대조 후 「검수 확정」하세요.
           </div>
         </Modal>
       )}
