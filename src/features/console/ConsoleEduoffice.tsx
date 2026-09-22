@@ -4,6 +4,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Ban, CheckCircle2, CloudUpload, Info, KeyRound, Plus, RefreshCw, Send, Terminal, Trash2, X, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
+import { AFFILIATIONS, isAffiliation } from '../../lib/affiliations'
 import { InfoTip } from '../../components/InfoTip'
 import ConsoleNotify from './ConsoleNotify'
 
@@ -15,8 +16,8 @@ type InspJob = {
   submitted_at: string | null
 }
 
-// 교육청 로그인 계정 — 봇은 첫 번째(기본) 계정으로 로그인해 전송. 비번은 마스킹.
-// affiliation은 저장 호환용으로만 유지(서버가 빈 비번=기존 유지 매칭에 사용) — UI에는 노출하지 않음.
+// 교육청 로그인 계정 — 봇은 제출자 계정의 소속 태그(없으면 학교 안전점검기관)와 소속(affiliation)이 같은
+// 계정으로 로그인해 전송, 일치 계정이 없으면 첫 번째(기본) 계정. 비번은 마스킹. 태그 목록은 lib/affiliations.
 type CredAcct = { affiliation: string; base_url: string; login_id: string; has_password?: boolean; password?: string }
 
 type QueueJob = {
@@ -215,10 +216,15 @@ export default function ConsoleEduoffice() {
     setCreds((prev) => prev.filter((_, idx) => idx !== i))
   }
   async function saveCreds() {
+    // 소속 태그 필수 — 태그 없는 계정은 봇이 어떤 제출 건과도 매칭하지 못한다.
+    if (creds.some((c) => !isAffiliation(c.affiliation))) {
+      setCredMsg('모든 계정에 소속 태그를 선택하세요.')
+      return
+    }
     setCredBusy(true); setCredMsg('')
     try {
       const accounts = creds.map((c) => ({
-        // 기존 계정은 서버에서 받은 affiliation을 그대로 보존(빈 비번=기존 비번 유지 매칭용), 새 행은 ''
+        // 소속 — 학교 안전점검기관과 매칭되는 키(서버의 빈 비번=기존 비번 유지 매칭에도 사용)
         affiliation: (c.affiliation || '').trim(),
         base_url: c.base_url.trim(),
         login_id: c.login_id.trim(),
@@ -633,11 +639,11 @@ export default function ConsoleEduoffice() {
           <h2><KeyRound size={18} /> 교육청 로그인 계정
             <InfoTip>
               교육청 사이트 로그인 계정을 등록하면 봇이 이 계정으로 자동 로그인해 전송합니다.
-              <b> 모든 학교 업로드에 기본(첫 번째) 계정이 사용됩니다.</b>{' '}
+              <b> 점검을 제출한 직원 계정의 소속 태그와 같은 태그의 계정으로 전송되고, 일치하는 계정이 없으면 기본(첫 번째) 계정이 사용됩니다.</b>{' '}
               비밀번호는 저장 후 <b>마스킹</b>되며, 빈칸으로 저장하면 기존 비밀번호가 유지됩니다.
             </InfoTip></h2>
           <div className="sp" />
-          {credMsg && <span className="pillx ok">{credMsg}</span>}
+          {credMsg && <span className={`pillx ${credMsg.includes('저장했습니다') ? 'ok' : 'late'}`}>{credMsg}</span>}
           <button className="btn btn-ghost" onClick={addCred}><Plus size={14} /> 계정 추가</button>
           <button className="btn btn-primary" onClick={() => void saveCreds()} disabled={credBusy}>{credBusy ? '저장 중…' : '저장'}</button>
         </div>
@@ -647,14 +653,20 @@ export default function ConsoleEduoffice() {
           )}
           {creds.length > 0 && (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: '52px 1.4fr 1fr 1fr 42px', gap: 8, marginBottom: 8, fontSize: 11.5, fontWeight: 700, color: 'var(--muted)' }}>
-                <span /><span>사이트 주소</span><span>아이디</span><span>비밀번호</span><span />
+              <div style={{ display: 'grid', gridTemplateColumns: '52px 1.1fr 1.4fr 1fr 1fr 42px', gap: 8, marginBottom: 8, fontSize: 11.5, fontWeight: 700, color: 'var(--muted)' }}>
+                <span /><span>소속 태그</span><span>사이트 주소</span><span>아이디</span><span>비밀번호</span><span />
               </div>
               {creds.map((c, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '52px 1.4fr 1fr 1fr 42px', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '52px 1.1fr 1.4fr 1fr 1fr 42px', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                   {i === 0
                     ? <span className="pillx ok" style={{ justifySelf: 'start' }}>기본</span>
                     : <span className="muted" style={{ fontSize: 12, justifySelf: 'center' }}>{i + 1}</span>}
+                  <select className="select" value={c.affiliation || ''} onChange={(e) => patchCred(i, { affiliation: e.target.value })}>
+                    <option value="">소속 태그 선택</option>
+                    {AFFILIATIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+                    {/* 목록 밖의 기존 저장값은 그대로 보존 */}
+                    {c.affiliation && !isAffiliation(c.affiliation) && <option value={c.affiliation}>{c.affiliation}</option>}
+                  </select>
                   <input className="input" placeholder="https://jhs.jne.go.kr" value={c.base_url} onChange={(e) => patchCred(i, { base_url: e.target.value })} />
                   <input className="input" placeholder="아이디" value={c.login_id} onChange={(e) => patchCred(i, { login_id: e.target.value })} />
                   <input className="input" type="password" autoComplete="new-password"
@@ -666,7 +678,7 @@ export default function ConsoleEduoffice() {
             </>
           )}
           <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
-            모든 학교 업로드에 <b>기본(첫 번째) 계정</b>이 사용됩니다. 저장 후 본사 PC의 봇 폴러를 재실행하면 반영됩니다.
+            점검을 제출한 <b>직원 계정의 소속 태그</b>(계정 관리에서 지정)와 <b>같은 태그의 계정</b>으로 업로드하고, 일치하는 계정이 없으면 <b>기본(첫 번째) 계정</b>이 사용됩니다. 저장 후 본사 PC의 봇 폴러를 재실행하면 반영됩니다.
           </div>
         </div>
       </div>

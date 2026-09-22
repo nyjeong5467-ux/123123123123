@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Check, KeyRound, Pencil, Plus, ScrollText, Trash2, UserMinus, Users } from 'lucide-react'
 import { api } from '../lib/api'
+import { AFFILIATIONS, isAffiliation } from '../lib/affiliations'
 import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
 
@@ -130,10 +131,10 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
     limited: accounts.filter((a) => a.modules.length > 0).length,
   }), [accounts])
 
-  // 소속 입력 자동완성 후보(기존 등록 소속에서 수집)
-  const affSuggestions = useMemo(
-    () => Array.from(new Set(Object.values(staffReg).map((s) => (s.affiliation || '').trim()).filter(Boolean))),
-    [staffReg],
+  // 소속 태그 미지정 계정 — 태그가 없거나 목록 밖 값(구 자유입력 오타 등)이면 봇이 교육청 계정을 고르지 못한다.
+  const untagged = useMemo(
+    () => accounts.filter((a) => !isAffiliation(staffReg[a.login_id]?.affiliation)),
+    [accounts, staffReg],
   )
 
   // 보기 좋은 결정적 정렬: 소속 등록된 실제 직원 먼저(소속→직급/부서→이름), 미등록 계정(admin·bot 등)은 뒤로(역할→ID).
@@ -185,6 +186,7 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
   async function saveReg() {
     if (!regTarget) return
     setRErr('')
+    if (!isAffiliation(rAff)) { setRErr('소속 태그를 선택하세요.'); return }
     setBusy('reg')
     try {
       const next: Record<string, StaffInfo> = {
@@ -230,6 +232,7 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
     if (!editTarget) return
     setEErr('')
     if (!eLogin.trim()) { setEErr('로그인 ID를 입력하세요.'); return }
+    if (!isAffiliation(eAff)) { setEErr('소속 태그를 선택하세요.'); return }
     setBusy('edit')
     try {
       await api(`/users/${editTarget.id}`, {
@@ -255,16 +258,15 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
     setNErr('')
     if (!nLogin.trim()) { setNErr('로그인 ID를 입력하세요.'); return }
     if (!nPw) { setNErr('초기 비밀번호를 입력하세요.'); return }
+    if (!isAffiliation(nAff)) { setNErr('소속 태그를 선택하세요.'); return }
     setBusy('create')
     try {
       await api('/users', {
         method: 'POST',
         body: JSON.stringify({ login_id: nLogin.trim(), password: nPw, role: nRole, name: nName.trim() }),
       })
-      // 직원 등록 정보(소속·부서·연락처) 저장 — 하나라도 입력됐을 때만
-      if (nAff.trim() || nDept.trim() || nPhone.trim()) {
-        await saveStaffReg({ ...staffReg, [nLogin.trim()]: { affiliation: nAff.trim(), department: nDept.trim(), phone: nPhone.trim() } })
-      }
+      // 직원 등록 정보(소속 태그·부서·연락처) 저장 — 소속 태그는 필수
+      await saveStaffReg({ ...staffReg, [nLogin.trim()]: { affiliation: nAff.trim(), department: nDept.trim(), phone: nPhone.trim() } })
       setCreateOpen(false)
       setNLogin(''); setNName(''); setNPw(''); setNRole('field_inspector'); setNAff(''); setNDept(''); setNPhone('')
       setReload((n) => n + 1)
@@ -381,7 +383,6 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
 
   return (
     <div className={embedded ? '' : 'page rv'}>
-      <datalist id="aff-suggest">{affSuggestions.map((a) => <option key={a} value={a} />)}</datalist>
       {!embedded && <div className="breadcrumb"><Link to="/">홈</Link> / <b>계정 관리</b></div>}
       <div className="bar">
         {!embedded && <h2><Users size={20} /> 계정 관리</h2>}
@@ -399,7 +400,17 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
         <div className="kpi"><div className="l">전체 계정</div><div className="v">{stats.total}<small> 개</small></div><div className="d">이 테넌트 소속</div></div>
         <div className="kpi"><div className="l">본사 권한</div><div className="v">{stats.hq}<small> 개</small></div><div className="d">관리자·경영진</div></div>
         <div className="kpi"><div className="l">모듈 제한</div><div className="v">{stats.limited}<small> 개</small></div><div className="d">일부 모듈만 허용된 계정</div></div>
+        <div className="kpi"><div className="l">소속 태그 없음</div><div className="v">{untagged.length}<small> 개</small></div><div className="d">교육청 계정 자동 선택 불가</div></div>
       </div>
+
+      {/* 소속 태그 미지정 경고 — 봇은 제출자 계정의 태그로 교육청 로그인 계정을 고른다 */}
+      {!loading && untagged.length > 0 && (
+        <div className="pillx late" style={{ display: 'block', padding: '10px 14px', marginBottom: 16, lineHeight: 1.7, whiteSpace: 'normal' }}>
+          <b>소속 태그가 없는 계정 {untagged.length}개</b> — 이 계정으로 제출한 점검은 교육청 업로드 시 기본(첫 번째) 계정으로 전송되어 실패할 수 있습니다.
+          {isHq ? ' 아래 목록의 연필(편집) 버튼으로 태그를 지정하세요: ' : ' 본사 관리자에게 태그 지정을 요청하세요: '}
+          {untagged.map((a) => a.name || a.login_id).join(', ')}
+        </div>
+      )}
 
       <div className="ledger">
         <div className="lh"><h2>계정 목록
@@ -408,7 +419,8 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
             모듈 권한을 지정하면 해당 계정 사이드바에는 허용된 모듈만 표시됩니다(비면 전체 허용).
             마지막 본사 관리자는 강등할 수 없습니다.
             <br />
-            목록은 <b>소속 → 직급/부서 → 이름</b> 순으로 정렬되며, 소속·직급이 <b>미등록</b>인 계정(관리자·봇 등)은 맨 아래에 모입니다.
+            목록은 <b>소속 → 직급/부서 → 이름</b> 순으로 정렬되며, 소속·직급이 <b>미등록</b>인 계정은 맨 아래에 모입니다.
+            <b>소속 태그</b>는 모든 계정의 필수 항목이며, 봇이 이 태그와 같은 태그의 교육청 계정으로 업로드합니다.
             직급은 별도 항목 없이 <b>부서</b> 칸에 저장됩니다(그래서 라벨이 「직급/부서」입니다).
             {isHq
               ? ' 소속·직급/부서 칸의 연필(편집) 버튼으로 계정별 정보를 바로 채울 수 있습니다.'
@@ -435,9 +447,10 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
                       return (
                         <div className="row" style={{ gap: 6, alignItems: 'flex-start', flexWrap: 'nowrap' }}>
                           <div style={{ minWidth: 0, flex: 1 }}>
-                            {si.affiliation
+                            {isAffiliation(si.affiliation)
                               ? <b>{si.affiliation}</b>
-                              : <span className="pillx na" title="소속·직급이 등록되지 않았습니다">미등록</span>}
+                              : <span className="pillx late" title="소속 태그가 없거나 목록에 없는 값입니다 — 편집 버튼으로 지정하세요">
+                                  {si.affiliation ? `${si.affiliation} (태그 아님)` : '태그 없음'}</span>}
                             {meta && <div className="muted" style={{ fontSize: 11 }}>{meta}</div>}
                           </div>
                           {isHq && (
@@ -522,8 +535,13 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
               </select></label>
           </div>
           <div className="formrow" style={{ marginTop: 10 }}>
-            <label className="field"><span>소속</span>
-              <input className="input" list="aff-suggest" value={nAff} onChange={(e) => setNAff(e.target.value)} placeholder="예: 한국산업안전협회" /></label>
+            <label className="field"><span>소속 태그 (필수)</span>
+              <select className="select" value={nAff} onChange={(e) => setNAff(e.target.value)}>
+                <option value="">소속 태그 선택</option>
+                {AFFILIATIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+                {/* 목록 밖의 기존 값(구 자유입력)은 보여 주되 저장은 막는다 — 올바른 태그로 다시 고르게 */}
+                {nAff && !isAffiliation(nAff) && <option value={nAff}>{nAff} (목록에 없음)</option>}
+              </select></label>
             <label className="field"><span>직급/부서</span>
               <input className="input" value={nDept} onChange={(e) => setNDept(e.target.value)} placeholder="예: 팀장 · 안전점검팀" /></label>
             <label className="field"><span>연락처</span>
@@ -554,8 +572,13 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
               <input className="input" value={eName} onChange={(e) => setEName(e.target.value)} placeholder="예: 김조사" /></label>
           </div>
           <div className="formrow" style={{ marginTop: 10 }}>
-            <label className="field"><span>소속</span>
-              <input className="input" list="aff-suggest" value={eAff} onChange={(e) => setEAff(e.target.value)} placeholder="예: 한국산업안전협회" /></label>
+            <label className="field"><span>소속 태그 (필수)</span>
+              <select className="select" value={eAff} onChange={(e) => setEAff(e.target.value)}>
+                <option value="">소속 태그 선택</option>
+                {AFFILIATIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+                {/* 목록 밖의 기존 값(구 자유입력)은 보여 주되 저장은 막는다 — 올바른 태그로 다시 고르게 */}
+                {eAff && !isAffiliation(eAff) && <option value={eAff}>{eAff} (목록에 없음)</option>}
+              </select></label>
             <label className="field"><span>직급/부서</span>
               <input className="input" value={eDept} onChange={(e) => setEDept(e.target.value)} placeholder="예: 팀장 · 안전점검팀" /></label>
             <label className="field"><span>연락처</span>
@@ -625,8 +648,13 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
         >
           {rErr && <div className="login-err">{rErr}</div>}
           <div className="formrow">
-            <label className="field"><span>소속</span>
-              <input className="input" list="aff-suggest" value={rAff} onChange={(e) => setRAff(e.target.value)} placeholder="예: 한국산업안전협회" /></label>
+            <label className="field"><span>소속 태그 (필수)</span>
+              <select className="select" value={rAff} onChange={(e) => setRAff(e.target.value)}>
+                <option value="">소속 태그 선택</option>
+                {AFFILIATIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+                {/* 목록 밖의 기존 값(구 자유입력)은 보여 주되 저장은 막는다 — 올바른 태그로 다시 고르게 */}
+                {rAff && !isAffiliation(rAff) && <option value={rAff}>{rAff} (목록에 없음)</option>}
+              </select></label>
             <label className="field"><span>직급/부서</span>
               <input className="input" value={rDept} onChange={(e) => setRDept(e.target.value)} placeholder="예: 팀장 · 안전점검팀" /></label>
             <label className="field"><span>연락처</span>
