@@ -4,7 +4,7 @@
 // 종합관리표 캘린더는 features/schedule/MasterCalendar(관리자 콘솔 탭과 단일 소스)를 공유.
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BarChart3, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Pencil, School, Users } from 'lucide-react'
+import { BarChart3, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Pencil, School, Search, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
@@ -76,6 +76,8 @@ export function Schedule() {
   const [eRegion, setERegion] = useState('')
   const [eNote, setENote] = useState('')
   const [saving, setSaving] = useState(false)
+  const [schoolList, setSchoolList] = useState<{ id: string; name: string }[]>([]) // picker용 전체 학교(정식명)
+  const [pickQuery, setPickQuery] = useState('')
 
   useEffect(() => {
     let alive = true
@@ -92,6 +94,10 @@ export function Schedule() {
             const users = await api<Account[]>('/users')
             if (alive) setAccNames(users.filter((u) => u.role === 'field_inspector' && u.name).map((u) => u.name))
           } catch { /* 조사원 계정 없으면 무시 */ }
+          try {
+            const sc = await api<{ id: string; name: string }[]>('/schools')
+            if (alive) setSchoolList(Array.isArray(sc) ? sc.filter((s) => s && s.name).map((s) => ({ id: s.id, name: s.name })) : [])
+          } catch { /* 학교 목록 못 받으면 picker 없이 직접입력만 */ }
         }
         setLoading(false)
       } catch (e) { if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) } }
@@ -172,6 +178,7 @@ export function Schedule() {
     setESchools((p.schools || []).join('\n'))
     setERegion(p.region || '')
     setENote(p.note || '')
+    setPickQuery('')
     setEdit({ date })
   }
 
@@ -195,6 +202,24 @@ export function Schedule() {
       setMsg('저장되었습니다.')
     } catch (e) { setMsg(e instanceof Error ? e.message : '저장 실패') }
     finally { setSaving(false) }
+  }
+
+  // ── 편집 모달 · 학교 picker — 직접입력 textarea(eSchools)를 단일 소스로 유지하고 토글만 ──
+  const selectedNames = useMemo(
+    () => eSchools.split('\n').map((s) => s.trim()).filter(Boolean),
+    [eSchools],
+  )
+  const filteredSchools = useMemo(() => {
+    const q = pickQuery.trim()
+    const arr = q ? schoolList.filter((s) => s.name.includes(q)) : schoolList
+    return [...arr].sort((a, b) => a.name.localeCompare(b.name, 'ko')).slice(0, 80)
+  }, [schoolList, pickQuery])
+  function toggleSchool(name: string) {
+    const cur = eSchools.split('\n').map((s) => s.trim()).filter(Boolean)
+    const i = cur.indexOf(name)
+    if (i >= 0) cur.splice(i, 1)
+    else cur.push(name)
+    setESchools(cur.join('\n'))
   }
 
   return (
@@ -408,11 +433,48 @@ export function Schedule() {
             </>
           }
         >
+          {schoolList.length > 0 && (
+            <div className="field" style={{ marginBottom: 12 }}>
+              <span>학교 검색·선택 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>(가나다순 · 클릭해서 담기 · 정식명으로 등록되어 자동세션과 매칭)</span></span>
+              <div style={{ position: 'relative' }}>
+                <Search size={14} style={{ position: 'absolute', left: 9, top: 11, color: 'var(--muted)' }} />
+                <input className="input" style={{ paddingLeft: 30 }} value={pickQuery}
+                  onChange={(e) => setPickQuery(e.target.value)} placeholder="학교명 검색 (예: 도곡, 능주, 화순)" />
+              </div>
+              <div style={{ maxHeight: 168, overflowY: 'auto', border: '1px solid var(--line, #e5e7eb)', borderRadius: 8, marginTop: 6 }}>
+                {filteredSchools.length === 0 ? (
+                  <div className="muted" style={{ padding: '10px 12px', fontSize: 12 }}>검색 결과가 없습니다 — 아래 직접 입력을 사용하세요.</div>
+                ) : filteredSchools.map((s) => {
+                  const on = selectedNames.includes(s.name)
+                  return (
+                    <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12.5, background: on ? 'var(--violet-soft, #f3f0ff)' : undefined }}>
+                      <input type="checkbox" checked={on} onChange={() => toggleSchool(s.name)} />
+                      {s.name}
+                    </label>
+                  )
+                })}
+                {!pickQuery.trim() && schoolList.length > 80 && (
+                  <div className="muted" style={{ padding: '6px 12px', fontSize: 11 }}>… {schoolList.length}교 중 80교 표시. 검색으로 좁혀 찾으세요.</div>
+                )}
+              </div>
+              {selectedNames.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  {selectedNames.map((n) => (
+                    <span key={n} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--violet-soft, #f3f0ff)', color: 'var(--violet, #7c5cfb)', borderRadius: 999, padding: '2px 8px', fontSize: 12 }}>
+                      {n}
+                      <button type="button" onClick={() => toggleSchool(n)} aria-label={`${n} 제거`}
+                        style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'inherit', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <label className="field">
-            <span>점검 학교 (한 줄에 하나)</span>
-            <textarea className="input" style={{ minHeight: 130, padding: 10 }}
+            <span>점검 학교 (한 줄에 하나) <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>· 위에서 고른 학교가 자동 입력됩니다. 목록에 없는 곳(도서관·지원청 등)은 직접 입력.</span></span>
+            <textarea className="input" style={{ minHeight: 110, padding: 10 }}
               value={eSchools} onChange={(e) => setESchools(e.target.value)}
-              placeholder={'예)\n소라초\n관기초\n죽림초'} />
+              placeholder={'예)\n도곡초등학교\n능주고등학교'} />
           </label>
           <div className="formrow" style={{ marginTop: 10 }}>
             <label className="field" style={{ flex: 1 }}><span>지역(선택)</span>
