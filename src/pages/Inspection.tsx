@@ -14,6 +14,7 @@ import { InspectionSheetView, SignImage, type SheetData } from '../components/In
 import { resolveExtra, type InspExtra, type PhotoSlot } from '../lib/inspExtra'
 import '../styles/hier.css'
 import '../styles/inspecthier.css'
+import { fetchApproval } from '../lib/approval' // [118]
 
 const PART_LABEL: Record<string, string> = {
   catering: '급식', facility: '시설', cleaning: '미화', commute: '통학', night_duty: '당직',
@@ -291,11 +292,7 @@ export function Inspection() {
       extra = resolveExtra(r.doc?.[school.id], ids, date)
     } catch { /* 부가정보 없으면 기본 표시 */ }
     // [104] 대장 결재선 → 양식 결재란 칸 구성
-    let approval: { title: string; name: string }[] | undefined
-    try {
-      const a = await api<{ steps: { title: string; name: string }[] }>(`/schools/${school.id}/approval-line`)
-      if (a?.steps?.length) approval = a.steps
-    } catch { /* 결재선 없으면 담당자 1칸 */ }
+    const approval = await fetchApproval(school.id) // [118] 공용 규칙 — 실패·미등록 시 기본값(안전담당자·행정실장·교장)
     setSheetView({ schoolName: school.name, manager: school.manager, date, parts: fullParts, extra, approval })
   }
 

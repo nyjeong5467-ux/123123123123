@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
+import { type ApprovalStep, APPROVAL_MAX, APPROVAL_MIN, APPROVAL_TITLE_SUGGEST, defaultApproval, normalizeApproval } from '../lib/approval' // [118]
 import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
 import { MsdsFormModal } from '../components/MsdsFormModal'
@@ -33,9 +34,7 @@ type WRow = { part: string; count: number; contact: string; is_nutrition_teacher
 // 메일 담당자(학교별 수신자 기본값) — GET·PUT /mail/school-contacts (학교 1건 병합 저장)
 type SchoolContact = { email: string; name?: string; phone?: string }
 
-type ApprovalStep = { title: string; name: string }
-const PRESET_DEFAULT: ApprovalStep[] = [{ title: '담당자', name: '' }, { title: '행정실장', name: '' }, { title: '교장', name: '' }]
-const PRESET_ORG: ApprovalStep[] = [{ title: '부서장', name: '' }, { title: '팀장', name: '' }, { title: '과장', name: '' }]
+// [118] 결재선 타입·기본값은 lib/approval로 이동 (구 PRESET_DEFAULT 담당자·행정실장·교장 / PRESET_ORG 부서장·팀장·과장 폐지)
 
 type Worker = { id: string; part: string; count: number; contact: string; is_nutrition_teacher: boolean }
 type Msds = { id: string; area: string; substances: string[] }
@@ -147,6 +146,7 @@ export function SchoolDetail() {
   const [steps, setSteps] = useState<ApprovalStep[]>([])
   const [apBusy, setApBusy] = useState(false)
   const [apMsg, setApMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [apEdit, setApEdit] = useState(false) // [118] 결재선 단독 편집 (페이지 [편집] 없이)
 
   // 학교 특징 / 특이사항 — 백엔드 School.features/notes (GET·PUT /schools/{sid}/features·/notes)
   const [feat, setFeat] = useState<Record<string, boolean>>({})
@@ -200,8 +200,8 @@ export function SchoolDetail() {
     let alive = true
     setApMsg(null)
     api<{ steps: ApprovalStep[] }>(`/schools/${id}/approval-line`)
-      .then((d) => { if (alive) setSteps(d.steps) })
-      .catch(() => { if (alive) setSteps([]) })
+      .then((d) => { if (alive) setSteps(normalizeApproval(d.steps)) }) // [118] 최대 3단계·빈 결재선은 기본값
+      .catch(() => { if (alive) setSteps(defaultApproval()) })
     return () => { alive = false }
   }, [id])
 
@@ -464,22 +464,43 @@ export function SchoolDetail() {
   function setStep(i: number, patch: Partial<ApprovalStep>) {
     setSteps((prev) => prev.map((st, idx) => (idx === i ? { ...st, ...patch } : st)))
   }
+  // [118] 1~3단계 제한
   function addStep() {
-    setSteps((prev) => [...prev, { title: '', name: '' }])
+    setSteps((prev) => (prev.length >= APPROVAL_MAX ? prev : [...prev, { title: '', name: '' }]))
   }
   function removeStep(i: number) {
-    setSteps((prev) => prev.filter((_, idx) => idx !== i))
+    setSteps((prev) => (prev.length <= APPROVAL_MIN ? prev : prev.filter((_, idx) => idx !== i)))
+  }
+  function moveStep(i: number, d: -1 | 1) {
+    setSteps((prev) => {
+      const j = i + d
+      if (j < 0 || j >= prev.length) return prev
+      const next = [...prev]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
   }
   async function saveApproval() {
+    // [118] 저장 전 검증 — 1~3단계, 직책 필수
+    const clean = steps.map((st) => ({ title: st.title.trim(), name: st.name.trim() }))
+    if (clean.length < APPROVAL_MIN || clean.length > APPROVAL_MAX) {
+      setApMsg({ ok: false, text: `결재선은 ${APPROVAL_MIN}~${APPROVAL_MAX}단계로 지정해 주세요.` })
+      return
+    }
+    if (clean.some((st) => !st.title)) {
+      setApMsg({ ok: false, text: '모든 단계에 직책을 입력해 주세요.' })
+      return
+    }
     setApBusy(true)
     setApMsg(null)
     try {
       const r = await api<{ ok: boolean; steps: ApprovalStep[] }>(`/schools/${id}/approval-line`, {
         method: 'PUT',
-        body: JSON.stringify({ steps }),
+        body: JSON.stringify({ steps: clean }),
       })
-      setSteps(r.steps)
+      setSteps(normalizeApproval(r.steps))
       setApMsg({ ok: true, text: '결재선을 저장했습니다.' })
+      setApEdit(false) // [118] 단독 편집은 저장 후 닫힘
     } catch (e) {
       setApMsg({ ok: false, text: e instanceof Error ? e.message : '저장 실패' })
     } finally {
@@ -852,11 +873,16 @@ export function SchoolDetail() {
         <div className="lh">
           <h2>결재선</h2>
           <div className="sp" />
-          {pageEdit && (
-            <>
-              <button className="btn btn-ghost" onClick={() => setSteps(PRESET_DEFAULT)}>기본(담당자·행정실장·교장)</button>
-              <button className="btn btn-ghost" onClick={() => setSteps(PRESET_ORG)}>기관(부서장·팀장·과장)</button>
-            </>
+          {(pageEdit || apEdit) && (
+            <button className="btn btn-ghost" onClick={() => { setSteps(defaultApproval(info?.principal || '')); setApMsg(null) }}>
+              기본값(안전담당자·행정실장·교장)
+            </button>
+          )}
+          {/* [118] 결재선 섹션 단독 [결재선 편집] — 페이지 [편집]을 누르지 않아도 바로 수정 */}
+          {!pageEdit && (
+            <button className={apEdit ? 'btn btn-ghost' : 'btn btn-primary'} onClick={() => { setApEdit((v) => !v); setApMsg(null) }}>
+              {apEdit ? '편집 닫기' : '결재선 편집'}
+            </button>
           )}
         </div>
         <div className="card-body">
@@ -871,18 +897,25 @@ export function SchoolDetail() {
               : <span className="muted">등록된 결재선이 없습니다.</span>}
           </div>
           {/* 편집 영역은 적정 폭으로 제한 — 와이드 화면에서 입력칸이 무한정 늘어나지 않게 */}
-          {pageEdit && (
+          {(pageEdit || apEdit) && (
           <div style={{ maxWidth: 640 }}>
+            {/* [118] 직책(추천 목록 + 직접 입력)·성명·순서 이동·삭제 — 1~3단계 */}
+            <datalist id="approval-title-suggest">
+              {APPROVAL_TITLE_SUGGEST.map((t) => <option key={t} value={t} />)}
+            </datalist>
             {steps.map((st, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '32px 180px 1fr 42px', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '32px 180px 1fr 36px 36px 42px', gap: 8, alignItems: 'center', marginBottom: 10 }}>
                 <span className="pillx">{i + 1}</span>
-                <input className="input" placeholder="직책 (예: 교장)" value={st.title} onChange={(e) => setStep(i, { title: e.target.value })} />
-                <input className="input" placeholder="결재자 이름" value={st.name} onChange={(e) => setStep(i, { name: e.target.value })} />
-                <button className="btn btn-ghost" title="삭제" onClick={() => removeStep(i)} style={{ padding: 0, width: 42 }}><Trash2 size={15} /></button>
+                <input className="input" list="approval-title-suggest" placeholder="직책 (예: 행정실장)" value={st.title} onChange={(e) => setStep(i, { title: e.target.value })} />
+                <input className="input" placeholder="성명" value={st.name} onChange={(e) => setStep(i, { name: e.target.value })} />
+                <button className="btn btn-ghost" title="위로" disabled={i === 0} onClick={() => moveStep(i, -1)} style={{ padding: 0, width: 36 }}>↑</button>
+                <button className="btn btn-ghost" title="아래로" disabled={i === steps.length - 1} onClick={() => moveStep(i, 1)} style={{ padding: 0, width: 36 }}>↓</button>
+                <button className="btn btn-ghost" title={steps.length <= APPROVAL_MIN ? '최소 1단계는 필요합니다' : '삭제'} disabled={steps.length <= APPROVAL_MIN} onClick={() => removeStep(i)} style={{ padding: 0, width: 42 }}><Trash2 size={15} /></button>
               </div>
             ))}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
-              <button className="btn btn-ghost" onClick={addStep}>＋ 단계 추가</button>
+              <button className="btn btn-ghost" onClick={addStep} disabled={steps.length >= APPROVAL_MAX} title={steps.length >= APPROVAL_MAX ? '최대 3단계까지 지정할 수 있습니다' : ''}>＋ 단계 추가</button>
+              <span className="muted" style={{ fontSize: 12 }}>{steps.length}/{APPROVAL_MAX}단계</span>
               <div style={{ flex: 1 }} />
               {apMsg && <span style={{ fontSize: 12.5, fontWeight: 600, color: apMsg.ok ? 'var(--ok)' : 'var(--red)' }}>{apMsg.text}</span>}
               <button className="btn btn-primary" onClick={saveApproval} disabled={apBusy}>{apBusy ? '저장 중…' : '저장'}</button>

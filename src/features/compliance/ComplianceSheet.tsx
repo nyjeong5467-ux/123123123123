@@ -4,8 +4,8 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
-import { api } from '../../lib/api'
 import '../../styles/riskreport.css'
+import { type ApprovalStep, defaultApproval, fetchApproval } from '../../lib/approval' // [118]
 
 /* ===================== 데이터 모델 ===================== */
 export type OX = '' | 'O' | 'X'
@@ -225,15 +225,12 @@ export function ComplianceSheetPrint(p: { schoolName: string; periodKey: string;
   const s = p.sheet
   const ox = (v: OX) => (v ? `( ${v} )` : '( O , X )')
   // [104] 결재란 — 대장 결재선 기준 칸 구성
-  const [appr, setAppr] = useState<{ title: string; name: string }[]>([
-    { title: '담 당', name: '' }, { title: '행정실장', name: '' }, { title: '교 장', name: '' },
-  ])
+  // [118] 결재선 공용 규칙(학교 내부 1~3단계, 기본 안전담당자·행정실장·교장)
+  const [appr, setAppr] = useState<ApprovalStep[]>(defaultApproval())
   useEffect(() => {
     if (!p.sid) return
     let alive = true
-    api<{ steps: { title: string; name: string }[] }>(`/schools/${p.sid}/approval-line`)
-      .then((r) => { if (alive && r?.steps?.length) setAppr(r.steps) })
-      .catch(() => { /* 기본 3칸 유지 */ })
+    fetchApproval(p.sid).then((st) => { if (alive) setAppr(st) })
     return () => { alive = false }
   }, [p.sid])
   return createPortal(
@@ -250,7 +247,7 @@ export function ComplianceSheetPrint(p: { schoolName: string; periodKey: string;
         {/* [104] 결재란 — 대장 결재선 칸 (우측 상단) */}
         <table className="rr-approve" style={{ top: 40, right: 46 }}>
           <tbody>
-            <tr><td className="g" rowSpan={2}>결재</td>{appr.map((st) => <th key={st.title}>{st.title}</th>)}</tr>
+            <tr><td className="g" rowSpan={2}>결재</td>{appr.map((st, i) => <th key={i}>{st.title}</th>)}</tr>
             <tr>{appr.map((_, i) => <td key={i} />)}</tr>
           </tbody>
         </table>

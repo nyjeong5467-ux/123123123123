@@ -4,7 +4,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
-import { api } from '../../lib/api'
 import type { DeptInfoDoc, DeptInfo } from './DeptHazardInfo'
 import type { AssessDoc, BehaviorDoc, StateDoc } from './AssessmentTable'
 import { riskLabel } from './AssessmentTable'
@@ -12,6 +11,7 @@ import type { ReportInfoData } from './ReportInfo'
 import { emptyReportInfo } from './ReportInfo'
 import type { ParticipantRow } from './Participants'
 import '../../styles/riskreport.css'
+import { type ApprovalStep, defaultApproval, fetchApproval } from '../../lib/approval' // [118]
 
 const PARTS: [string, string][] = [
   ['catering', '급식'], ['facility', '시설관리'], ['cleaning', '미화'], ['commute', '통학'], ['night_duty', '당직'],
@@ -30,15 +30,12 @@ export type ReportData = {
 
 export function RiskReport(p: { schoolName: string; data: ReportData; onClose: () => void; sid?: string }) {
   // [104] 표지 결재란 — 대장 결재선(GET /approval-line) 기준으로 칸 구성 (미조회 시 기본 3칸)
-  const [appr, setAppr] = useState<{ title: string; name: string }[]>([
-    { title: '담 당', name: '' }, { title: '행정실장', name: '' }, { title: '교 장', name: '' },
-  ])
+  // [118] 결재선 공용 규칙(학교 내부 1~3단계, 기본 안전담당자·행정실장·교장)
+  const [appr, setAppr] = useState<ApprovalStep[]>(defaultApproval())
   useEffect(() => {
     if (!p.sid) return
     let alive = true
-    api<{ steps: { title: string; name: string }[] }>(`/schools/${p.sid}/approval-line`)
-      .then((r) => { if (alive && r?.steps?.length) setAppr(r.steps) })
-      .catch(() => { /* 기본 3칸 유지 */ })
+    fetchApproval(p.sid).then((st) => { if (alive) setAppr(st) })
     return () => { alive = false }
   }, [p.sid])
 
@@ -66,7 +63,7 @@ export function RiskReport(p: { schoolName: string; data: ReportData; onClose: (
       <div className="rr-page rr-cover">
         <table className="rr-approve">
           <tbody>
-            <tr><td className="g" rowSpan={2}>결재</td>{appr.map((s) => <th key={s.title}>{s.title}</th>)}</tr>
+            <tr><td className="g" rowSpan={2}>결재</td>{appr.map((s, i) => <th key={i}>{s.title}</th>)}</tr>
             <tr>{appr.map((_, i) => <td key={i} />)}</tr>
           </tbody>
         </table>
