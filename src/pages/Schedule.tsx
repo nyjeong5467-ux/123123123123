@@ -76,8 +76,10 @@ export function Schedule() {
   const [eRegion, setERegion] = useState('')
   const [eNote, setENote] = useState('')
   const [saving, setSaving] = useState(false)
-  const [schoolList, setSchoolList] = useState<{ id: string; name: string }[]>([]) // picker용 전체 학교(정식명)
+  // picker용 학교(정식명) — 담당자·소속으로 탭 필터.
+  const [schoolList, setSchoolList] = useState<{ id: string; name: string; manager: string; agency: string }[]>([])
   const [pickQuery, setPickQuery] = useState('')
+  const [pickTab, setPickTab] = useState<'mine' | 'affil' | 'all'>('mine') // 담당학교/전체학교(소속)/모든학교(admin)
 
   useEffect(() => {
     let alive = true
@@ -95,8 +97,13 @@ export function Schedule() {
             if (alive) setAccNames(users.filter((u) => u.role === 'field_inspector' && u.name).map((u) => u.name))
           } catch { /* 조사원 계정 없으면 무시 */ }
           try {
-            const sc = await api<{ id: string; name: string }[]>('/schools')
-            if (alive) setSchoolList(Array.isArray(sc) ? sc.filter((s) => s && s.name).map((s) => ({ id: s.id, name: s.name })) : [])
+            const sc = await api<{ id: string; name: string; manager?: string; inspection_agency?: string }[]>('/schools')
+            if (alive) setSchoolList(Array.isArray(sc)
+              ? sc.filter((s) => s && s.name).map((s) => ({
+                id: s.id, name: s.name,
+                manager: (s.manager || '').trim(), agency: (s.inspection_agency || '').trim(),
+              }))
+              : [])
           } catch { /* 학교 목록 못 받으면 picker 없이 직접입력만 */ }
         }
         setLoading(false)
@@ -179,6 +186,7 @@ export function Schedule() {
     setERegion(p.region || '')
     setENote(p.note || '')
     setPickQuery('')
+    setPickTab('mine')
     setEdit({ date })
   }
 
@@ -209,11 +217,33 @@ export function Schedule() {
     () => eSchools.split('\n').map((s) => s.trim()).filter(Boolean),
     [eSchools],
   )
+  // 편집 대상 조사원의 소속 — 그 사람 담당 학교들의 소속(최빈값)으로 판정(데이터 기반, 별도 소스 불필요).
+  const targetAffil = useMemo(() => {
+    const cnt: Record<string, number> = {}
+    for (const s of schoolList) if (s.manager && s.manager === target && s.agency) cnt[s.agency] = (cnt[s.agency] || 0) + 1
+    let best = ''; let bc = 0
+    for (const [k, v] of Object.entries(cnt)) if (v > bc) { best = k; bc = v }
+    return best
+  }, [schoolList, target])
+
+  // 탭별 후보 풀 — 담당학교(그 조사원 담당) / 전체학교(그 조사원 소속) / 모든학교(admin, 소속 무관).
+  const tabPool = useMemo(() => {
+    if (pickTab === 'mine') return schoolList.filter((s) => s.manager && s.manager === target)
+    if (pickTab === 'affil') return targetAffil ? schoolList.filter((s) => s.agency === targetAffil) : schoolList
+    return schoolList
+  }, [schoolList, pickTab, target, targetAffil])
+
+  const poolCounts = useMemo(() => ({
+    mine: schoolList.filter((s) => s.manager && s.manager === target).length,
+    affil: targetAffil ? schoolList.filter((s) => s.agency === targetAffil).length : schoolList.length,
+    all: schoolList.length,
+  }), [schoolList, target, targetAffil])
+
   const filteredSchools = useMemo(() => {
     const q = pickQuery.trim()
-    const arr = q ? schoolList.filter((s) => s.name.includes(q)) : schoolList
+    const arr = q ? tabPool.filter((s) => s.name.includes(q)) : tabPool
     return [...arr].sort((a, b) => a.name.localeCompare(b.name, 'ko')).slice(0, 80)
-  }, [schoolList, pickQuery])
+  }, [tabPool, pickQuery])
   function toggleSchool(name: string) {
     const cur = eSchools.split('\n').map((s) => s.trim()).filter(Boolean)
     const i = cur.indexOf(name)
@@ -435,7 +465,30 @@ export function Schedule() {
         >
           {schoolList.length > 0 && (
             <div className="field" style={{ marginBottom: 12 }}>
-              <span>학교 검색·선택 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>(가나다순 · 클릭해서 담기 · 정식명으로 등록되어 자동세션과 매칭)</span></span>
+              <span>학교 검색·선택 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>
+                ({target || '담당자'}{targetAffil ? ` · ${targetAffil}` : ''} · 가나다순 · 클릭해서 담기 · 정식명으로 등록되어 자동세션과 매칭)</span></span>
+              {/* 범위 탭: 담당학교(그 조사원 담당) / 전체학교(그 조사원 소속) / 모든학교(admin·소속 무관) */}
+              <div role="tablist" aria-label="학교 범위" style={{ display: 'flex', gap: 6, margin: '4px 0 6px' }}>
+                {([
+                  { key: 'mine' as const, label: '담당학교', n: poolCounts.mine },
+                  { key: 'affil' as const, label: '전체학교', n: poolCounts.affil },
+                  ...(isHq ? [{ key: 'all' as const, label: '모든 학교', n: poolCounts.all }] : []),
+                ]).map((t) => {
+                  const on = pickTab === t.key
+                  return (
+                    <button key={t.key} type="button" role="tab" aria-selected={on}
+                      onClick={() => { setPickTab(t.key); setPickQuery('') }}
+                      style={{
+                        border: '1px solid ' + (on ? 'var(--violet, #7c5cfb)' : 'var(--line, #e5e7eb)'),
+                        background: on ? 'var(--violet, #7c5cfb)' : 'transparent',
+                        color: on ? '#fff' : 'var(--muted, #6b7280)',
+                        borderRadius: 999, padding: '3px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      }}>
+                      {t.label} <span style={{ fontWeight: 400, opacity: 0.85 }}>{t.n}</span>
+                    </button>
+                  )
+                })}
+              </div>
               <div style={{ position: 'relative' }}>
                 <Search size={14} style={{ position: 'absolute', left: 9, top: 11, color: 'var(--muted)' }} />
                 <input className="input" style={{ paddingLeft: 30 }} value={pickQuery}
@@ -443,7 +496,13 @@ export function Schedule() {
               </div>
               <div style={{ maxHeight: 168, overflowY: 'auto', border: '1px solid var(--line, #e5e7eb)', borderRadius: 8, marginTop: 6 }}>
                 {filteredSchools.length === 0 ? (
-                  <div className="muted" style={{ padding: '10px 12px', fontSize: 12 }}>검색 결과가 없습니다 — 아래 직접 입력을 사용하세요.</div>
+                  <div className="muted" style={{ padding: '10px 12px', fontSize: 12 }}>
+                    {pickQuery.trim()
+                      ? '검색 결과가 없습니다 — 다른 탭이나 아래 직접 입력을 사용하세요.'
+                      : pickTab === 'mine'
+                        ? '담당 학교가 없습니다 — 「전체학교」 탭이나 아래 직접 입력을 사용하세요.'
+                        : '표시할 학교가 없습니다 — 아래 직접 입력을 사용하세요.'}
+                  </div>
                 ) : filteredSchools.map((s) => {
                   const on = selectedNames.includes(s.name)
                   return (
@@ -453,8 +512,8 @@ export function Schedule() {
                     </label>
                   )
                 })}
-                {!pickQuery.trim() && schoolList.length > 80 && (
-                  <div className="muted" style={{ padding: '6px 12px', fontSize: 11 }}>… {schoolList.length}교 중 80교 표시. 검색으로 좁혀 찾으세요.</div>
+                {!pickQuery.trim() && tabPool.length > 80 && (
+                  <div className="muted" style={{ padding: '6px 12px', fontSize: 11 }}>… {tabPool.length}교 중 80교 표시. 검색으로 좁혀 찾으세요.</div>
                 )}
               </div>
               {selectedNames.length > 0 && (
