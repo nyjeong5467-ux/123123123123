@@ -8,6 +8,9 @@ import { PARTDEF } from '../pages/InspectionForm'
 import type { InspExtra } from '../lib/inspExtra'
 import { SignImage, waitForSheetImages } from './SignImage'
 import '../styles/inspectsheet.css'
+import { normalizeApproval } from '../lib/approval' // [118]
+// [120] 기본 확인자 단계(직책에 '안전' 포함, 없으면 1단계)
+const primaryIdx = (line: { title: string }[]) => Math.max(0, line.findIndex((s) => s.title.includes('안전')))
 
 // 기존 사용처(Inspection.tsx 등) 호환 재수출 — SignImage 본체는 components/SignImage.tsx로 이동.
 export { SignImage } from './SignImage'
@@ -17,7 +20,7 @@ export type SheetPart = {
   part: string
   items: SheetItem[]
   // image_ref: 손글씨 서명 이미지 저장경로(01_안전점검/YYYY-MM/sign_*.png). 없으면 텍스트 서명. [054]
-  signatures: { signer: string; signed_at?: string | null; image_ref?: string | null }[]
+  signatures: { signer: string; signed_at?: string | null; image_ref?: string | null; image_data?: string | null }[] // image_data: 웹 서명패드 PNG(dataURL, 제출 전 메일 PDF용) [120]
 }
 export type SheetData = {
   schoolName: string
@@ -57,56 +60,62 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
   // 현장앱 다중 결재란(있으면 우선) — {직책, 서명자, 서명이미지 저장경로}
   const approvalLines = extra?.approval_lines ?? []
 
+  // [120] 결재란 — 결재선 전 단계 칸(안전담당자·행정실장·교장). 서명한 확인자는 해당 직책 칸에 서명(손글씨 이미지 우선, 없으면 성명),
+  // 미서명 칸은 수기 결재용 공란. 주서명(확인자·담당자)은 기본 확인자 칸(안전담당자)에, 현장앱/웹 추가 확인자(approval_lines)는 직책이 같은 칸에.
+  const line = normalizeApproval(sheet.approval)
+  const primary = primaryIdx(line)
+  const mainSig = sheet.parts.flatMap((p) => p.signatures).find((s) => s.signer || s.image_ref || s.image_data)
+  type Cell = { title: string; name: string; imageRef?: string | null; imageData?: string | null }
+  const cells: Cell[] = line.map((st) => ({ title: st.title, name: '' }))
+  if (finalSigner || signImageRef || mainSig?.image_data) {
+    cells[primary] = { ...cells[primary], name: finalSigner, imageRef: signImageRef || null, imageData: mainSig?.image_data || null }
+  }
+  for (const ln of approvalLines) {
+    if (!ln.signer && !ln.image_ref && !ln.image_data) continue
+    const k = cells.findIndex((c, i) => c.title === ln.title && !(c.name || c.imageRef || c.imageData) && !(i === primary && finalSigner))
+    const cell = { title: ln.title || '확인자', name: ln.signer || '', imageRef: ln.image_ref || null, imageData: ln.image_data || null }
+    if (k >= 0) cells[k] = cell
+    else if (!cells.some((c) => c.title === cell.title && c.name === cell.name)) cells.push(cell) // 결재선 밖 서명도 유실 없이 칸 추가
+  }
+  const photoSlots = ordered.flatMap((p) => {
+    const def = PARTDEF.find((d) => d.key === p.part)
+    return ((def && extra?.photos?.[def.label]) || []).filter((s) => s.name || s.dataUrl || s.caption)
+  })
+
   return (
       <div className="inss-page">
         {/* 제목 + 결재란 */}
-        <div className="inss-head">
+        <div className="inss-head" data-brk>
           <h1>종사자 안전·보건 점검표</h1>
-          {/* [104] 결재란 — 대장 결재선(steps)만큼 칸 생성. 담당(자) 칸에는 서명자 표기, 나머지는 수기 결재용 공란 */}
           <table className="inss-approve">
             <tbody>
-              {/* 결재란 — 현장앱 서명(approval_lines) 우선 → 대장 결재선(sheet.approval [104]) → 단일 담당자 */}
-              {approvalLines.length > 0 ? (
-                <>
-                  <tr>
-                    <td className="lab" rowSpan={2}>결<br />재</td>
-                    {approvalLines.map((ln, i) => (
-                      <td className="t" key={i}>{ln.title || '확인자'}</td>
-                    ))}
-                  </tr>
-                  <tr>
-                    {approvalLines.map((ln, i) => (
-                      <td className="sign" key={i}>{ln.signer || ''}</td>
-                    ))}
-                  </tr>
-                </>
-              ) : (
-                <>
-                  <tr>
-                    <td className="lab" rowSpan={2}>결<br />재</td>
-                    {(sheet.approval?.length ? sheet.approval : [{ title: '담당자', name: '' }]).map((s, i) => (
-                      <td className="t" key={i}>{s.title}</td>
-                    ))}
-                  </tr>
-                  <tr>
-                    {(sheet.approval?.length ? sheet.approval : [{ title: '담당자', name: '' }]).map((s, i) => (
-                      <td className="sign" key={i}>{s.title.includes('담당') ? finalSigner : ''}</td>
-                    ))}
-                  </tr>
-                </>
-              )}
+              <tr>
+                <td className="lab" rowSpan={2}><span>결</span><span>재</span></td>
+                {cells.map((c, i) => <td className="t" key={i}>{c.title}</td>)}
+              </tr>
+              <tr>
+                {cells.map((c, i) => (
+                  <td className="sign" key={i}>
+                    {c.imageRef
+                      ? <SignImage refPath={c.imageRef} />
+                      : c.imageData
+                        ? <img src={c.imageData} alt="서명" className="sgimg" />
+                        : c.name && <span className="sg">{c.name}</span>}
+                  </td>
+                ))}
+              </tr>
             </tbody>
           </table>
         </div>
 
         {/* 기본정보 */}
-        <div className="inss-sec"><i />기본정보</div>
-        <div className="inss-info">
+        <div className="inss-sec" data-brk><i />기본정보</div>
+        <div className="inss-info" data-brk>
           <label><span>학교(기관)명</span><div className="v">{sheet.schoolName}</div></label>
           <label><span>소속명</span><div className="v">{info?.org || ''}</div></label>
           <label><span>부서명</span><div className="v">{info?.dept || ''}</div></label>
           <label><span>직책</span><div className="v">{info?.role || ''}</div></label>
-          <label><span>작성자</span><div className="v">{info?.writer || finalSigner || sheet.manager || ''}</div></label>
+          <label><span>작성자</span><div className="v">{info?.writer || sheet.manager || ''}</div></label>
           <label><span>작성일</span><div className="v">{info?.writeDate || signedAt || sheet.date}</div></label>
           <label><span>점검일</span><div className="v">{info?.inspectDate || sheet.date}</div></label>
           <label><span>점검장소</span><div className="v">{info?.place || ''}</div></label>
@@ -114,18 +123,17 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
         </div>
 
         {/* 점검대상 */}
-        <div className="inss-sec"><i />점검대상</div>
-        <div className="inss-targets">
+        <div className="inss-sec" data-brk><i />점검대상</div>
+        <div className="inss-targets" data-brk>
           {PART_ORDER.map((k) => (
             <span key={k} className="tg">
-              <i className={'bx' + (targets.has(k) ? ' on' : '')}>{targets.has(k) ? '✓' : ''}</i>
+              <i className={'bx' + (targets.has(k) ? ' on' : '')}>{targets.has(k) && <CheckMark white />}</i>
               {PART_NAME[k]}
             </span>
           ))}
         </div>
 
-        {/* 공정별 점검표 — 표준 문항 전체를 그리고, 저장된 결과를 코드로 매칭해 표시 [056]
-            (과거 기록에 일부 항목만 저장돼 있어도 양식은 항상 전 문항으로 보임) */}
+        {/* 공정별 점검표 — 표준 문항 전체를 그리고, 저장된 결과를 코드로 매칭해 표시 [056] */}
         {ordered.map((p) => {
           const def = PARTDEF.find((d) => d.key === p.part)
           const saved = new Map(p.items.map((it) => [it.code, it]))
@@ -137,7 +145,6 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
                 return { code, main, sub, result: it?.result ?? null, remark: it?.remark ?? '' }
               })
             : p.items.map((it) => ({ code: it.code, main: it.label, sub: undefined as string | undefined, result: it.result ?? null, remark: it.remark ?? '' }))
-          // 표준 문항 코드와 다른 과거 기록(구형식 코드 GS-01 등)은 표 하단에 이어 표시 — 저장값 유실 없이
           for (const it of p.items) {
             if (!rows.some((r) => r.code === it.code)) {
               rows.push({ code: it.code, main: it.label, sub: undefined, result: it.result ?? null, remark: it.remark ?? '' })
@@ -145,26 +152,28 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
           }
           return (
             <div key={p.part} className="inss-part">
-              <div className="inss-sec"><i />{PART_NAME[p.part] || p.part}</div>
+              {/* 섹션 제목·표 머리·첫 행은 한 덩어리(페이지 분리 시 제목만 남지 않게) */}
+              <div className="inss-sec" data-brk><i />{PART_NAME[p.part] || p.part}</div>
               <table className="inss-tbl">
+                <colgroup><col className="q" /><col className="c" /><col className="c" /><col className="c" /><col className="r" /></colgroup>
                 <thead>
                   <tr>
-                    <th className="q">점검항목</th>
-                    <th className="c">양호</th>
-                    <th className="c">미흡</th>
-                    <th className="c">해당없음</th>
-                    <th className="r">비고(보완계획)</th>
+                    <th>점검항목</th>
+                    <th>양호</th>
+                    <th>미흡</th>
+                    <th>해당없음</th>
+                    <th>비고(보완계획)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r, i) => {
                     const col = r.result != null ? RES_COL[r.result] : undefined
                     return (
-                      <tr key={r.code}>
+                      <tr key={r.code} data-brk={i > 0 ? '' : undefined}>
                         <td className="q">{i + 1}. {r.main}{r.sub && <div className="sub">{r.sub}</div>}</td>
-                        <td className="c">{col === 0 ? '✓' : ''}</td>
-                        <td className="c">{col === 1 ? '✓' : ''}</td>
-                        <td className="c">{col === 2 ? '✓' : ''}</td>
+                        <td className="c">{col === 0 && <CheckMark />}</td>
+                        <td className="c">{col === 1 && <CheckMark />}</td>
+                        <td className="c">{col === 2 && <CheckMark />}</td>
                         <td className="r"><div className="memo">{r.remark || ''}</div></td>
                       </tr>
                     )
@@ -178,72 +187,37 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
           )
         })}
 
-        {/* 기타 의견 [057] */}
-        <div className="inss-sec"><i />기타 의견</div>
+        {/* 기타 의견 */}
+        <div className="inss-sec" data-brk><i />기타 의견</div>
         <div className="inss-etc">{extra?.etc || ''}</div>
 
-        {/* 사진대지 [057] */}
-        <div className="inss-sec"><i />사진대지</div>
-        {(() => {
-          // 부가정보에 있는 모든 공정 사진을 표시 — 점검표에 포함된 공정만이 아니라 전 공정 순회.
-          // (앱은 파트별 점검을 개별 제출해 사진이 다른 파트 id 묶음에 실려 올 수 있음 [사진표시 수정])
-          const groups = PART_ORDER
-            .map((key) => {
-              const def = PARTDEF.find((d) => d.key === key)
-              const slots = (def && extra?.photos?.[def.label]) || []
-              return { key, name: PART_NAME[key] || key, slots: slots.filter((s) => s.name || s.dataUrl || s.caption) }
-            })
-            .filter((g) => g.slots.length > 0)
-          if (groups.length === 0) return <div className="inss-empty">등록된 사진이 없습니다.</div>
-          return groups.map((g) => (
-            <div key={g.key} className="inss-photogrp">
-              <div className="t">{g.name}</div>
-              <div className="inss-photos">
-                {g.slots.map((s, i) => (
-                  <figure key={i} className="inss-photo">
-                    {s.dataUrl ? <img src={s.dataUrl} alt={s.caption || s.name} /> : <div className="ph">{s.name || '사진'}</div>}
-                    <figcaption>{s.caption || s.name || ''}</figcaption>
-                  </figure>
-                ))}
-              </div>
+        {/* 사진대지 — 실물 양식처럼 2열 사진 박스 + 설명 박스 */}
+        <div className="inss-sec" data-brk><i />사진대지</div>
+        {photoSlots.length === 0
+          ? <div className="inss-empty">등록된 사진이 없습니다.</div>
+          : (
+            <div className="inss-photos">
+              {photoSlots.map((sl, i) => (
+                <figure key={i} className="inss-photo" data-brk={i % 2 === 0 ? '' : undefined}>
+                  <div className="img">
+                    {sl.dataUrl ? <img src={sl.dataUrl} alt={sl.caption || sl.name} /> : <span className="ph">{sl.name || '사진'}</span>}
+                  </div>
+                  <figcaption>{sl.caption || ''}</figcaption>
+                </figure>
+              ))}
             </div>
-          ))
-        })()}
-
-        {/* 확인자 [057] — 현장앱 다중 결재란(approval_lines)이 있으면 주서명 + 결재선 서명을 모두 표시,
-            없으면 단일 확인자. (기존엔 결재선이 있으면 주서명 이미지가 빠졌음 [서명·사진 출력 수정]) */}
-        <div className="inss-sec"><i />확인자</div>
-        {approvalLines.length > 0 ? (
-          <>
-            {signImageRef && (
-              <div className="inss-signer">
-                <span className="lab">확인자(담당자)</span>
-                <span className="nm">{finalSigner || ''}</span>
-                <SignImage refPath={signImageRef} />
-                {signedAt && <span className="dt">서명일 {signedAt}</span>}
-              </div>
-            )}
-            {approvalLines.map((ln, i) => (
-              <div className="inss-signer" key={i}>
-                <span className="lab">{ln.title || '확인자'}</span>
-                <span className="nm">{ln.signer || ''}</span>
-                {ln.image_ref
-                  ? <SignImage refPath={ln.image_ref} />
-                  : <span className="st">{ln.signer ? '(서명)' : '(미서명)'}</span>}
-              </div>
-            ))}
-          </>
-        ) : (
-          <div className="inss-signer">
-            <span className="lab">확인자(담당자)</span>
-            <span className="nm">{finalSigner || ''}</span>
-            {signImageRef
-              ? <SignImage refPath={signImageRef} />
-              : <span className="st">{finalSigner ? '(서명)' : '(미서명)'}</span>}
-            {signedAt && <span className="dt">서명일 {signedAt}</span>}
-          </div>
-        )}
+          )}
+        {/* [120] 하단 확인자 섹션 제거 — 서명은 상단 결재란에 표기 */}
       </div>
+  )
+}
+
+// [120] 체크 표시 — 실물 양식과 같은 가는 선 체크(SVG, 인쇄·PDF 캡처 모두 선명)
+function CheckMark({ white }: { white?: boolean }) {
+  return (
+    <svg className="inss-ck" viewBox="0 0 16 16" width={white ? 12 : 17} height={white ? 12 : 17} aria-hidden>
+      <path d="M3 8.4 6.4 11.6 13 4.6" fill="none" stroke={white ? '#fff' : '#333'} strokeWidth={white ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 
@@ -257,6 +231,8 @@ export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onCl
   // document.body 포탈 — 앱 레이아웃(오버플로·포지셔닝) 영향 없이 인쇄 시 양식만 출력되게 [054]
   return createPortal(
     <div className="inss-overlay" role="dialog" aria-label="종사자 안전·보건 점검표">
+      {/* [120] 인쇄 용지 A4 세로 고정 — 번들된 다른 인쇄 CSS(riskreport 가로)보다 우선 */}
+      <style>{'@media print { @page { size: A4 portrait; margin: 12mm 12mm } }'}</style>
       <div className="inss-bar">
         <b>종사자 안전·보건 점검표 — {sheet.schoolName}{sheet.date ? ` · ${sheet.date}` : ' · 작성중'}</b>
         <div className="sp" />

@@ -66,18 +66,45 @@ export function InspectionMailModal(p: {
         // 서명 이미지(SignImage — 비동기 fetch→blob)·사진 <img>가 전부 로드될 때까지 대기 후 캡처.
         // 250ms 고정 대기만으로는 캡처가 이미지 로드보다 먼저 일어나 PDF의 서명·사진 칸이 비었음. [서명·사진 출력 수정]
         await waitForSheetImages(el)
+        // [120] 페이지 분할 — 통 이미지를 297mm마다 자르던 방식(행·사진이 반으로 잘림) 대신
+        // 행·섹션·사진 경계(data-brk)에서만 끊고, 2쪽부터는 위 여백을 둔 A4 페이지로 조립
+        const cssW = el.offsetWidth // 794px (A4 폭, .inss-pdf)
+        const pageCss = (cssW * 297) / 210 // A4 높이(px)
+        const MARGIN = 38 // 2쪽 이후 위·아래 여백(px) — 1쪽은 양식 자체 padding
+        const elTop = el.getBoundingClientRect().top
+        const breaks = Array.from(el.querySelectorAll<HTMLElement>('[data-brk]'))
+          .map((n) => n.getBoundingClientRect().top - elTop)
+          .filter((y) => y > 0)
+          .sort((x, y) => x - y)
+        const totalCss = el.offsetHeight
+        const slices: [number, number][] = []
+        let start = 0
+        while (start < totalCss - 1) {
+          const room = slices.length === 0 ? pageCss - MARGIN : pageCss - MARGIN * 2
+          const limit = start + room
+          if (limit >= totalCss) { slices.push([start, totalCss]); break }
+          const cand = breaks.filter((y) => y > start + 40 && y <= limit)
+          const end = cand.length ? cand[cand.length - 1] : limit
+          slices.push([start, end])
+          start = end
+        }
         const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false })
+        const k = canvas.width / cssW
         const { jsPDF } = window.jspdf
         const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
-        const pageW = 210
-        const pageH = 297
-        const imgH = (canvas.height * pageW) / canvas.width
-        const pages = Math.max(1, Math.ceil(imgH / pageH))
-        const img = canvas.toDataURL('image/jpeg', 0.92)
-        for (let i = 0; i < pages; i++) {
+        const pages = slices.length
+        slices.forEach(([y0, y1], i) => {
+          const pc = document.createElement('canvas')
+          pc.width = canvas.width
+          pc.height = Math.round(pageCss * k)
+          const ctx = pc.getContext('2d')!
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, pc.width, pc.height)
+          const dy = i === 0 ? 0 : MARGIN * k
+          ctx.drawImage(canvas, 0, Math.round(y0 * k), canvas.width, Math.round((y1 - y0) * k), 0, dy, canvas.width, Math.round((y1 - y0) * k))
           if (i > 0) doc.addPage()
-          doc.addImage(img, 'JPEG', 0, -i * pageH, pageW, imgH)
-        }
+          doc.addImage(pc.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297)
+        })
         const dataUri = doc.output('datauristring') as string
         const base64 = dataUri.split(',')[1] || ''
         const blobUrl = URL.createObjectURL(doc.output('blob') as Blob)
@@ -166,7 +193,7 @@ export function InspectionMailModal(p: {
       </div>
 
       {/* 화면 밖 양식 렌더 — PDF 캡처용 (사용자에게 보이지 않음) */}
-      <div ref={paperRef} style={{ position: 'fixed', left: -20000, top: 0, width: 940, background: '#fff' }} aria-hidden>
+      <div ref={paperRef} className="inss-pdf" style={{ position: 'fixed', left: -20000, top: 0, width: 794, background: '#fff' }} aria-hidden>
         <InspectionSheetBody sheet={p.sheet} />
       </div>
     </div>,

@@ -412,7 +412,8 @@ on('PUT', '/schools/:id/workers', (p, q, body) => {
   return { ok: true }
 })
 on('GET', '/schools/:id/ledger', (p) => ledgers[p.id] || { school: { id: p.id, name: '알 수 없음', is_private: false, education_count: null, special_notes: '', address: '' }, workers: [], worker_total: 0, education_count: null, headcount_mismatch: false, msds: [], accidents: [], histories: [] })
-on('GET', '/schools/:id/approval-line', (p) => ({ steps: store.approval[p.id] || [{ title: '담당자', name: schoolById(p.id)?.manager || '' }, { title: '행정실장', name: '' }, { title: '교장', name: schoolById(p.id)?.principal || '' }] }))
+// [118] 기본 결재선은 학교 내부 결재자만 — 안전담당자(행정실) → 행정실장 → 교장 (구: 협회 담당자를 1단계로 넣던 기본값 폐지)
+on('GET', '/schools/:id/approval-line', (p) => ({ steps: store.approval[p.id] || [{ title: '안전담당자', name: '' }, { title: '행정실장', name: '' }, { title: '교장', name: schoolById(p.id)?.principal || '' }] }))
 on('PUT', '/schools/:id/approval-line', (p, q, body) => { store.approval[p.id] = body?.steps || []; return { ok: true, steps: store.approval[p.id] } })
 on('GET', '/schools/:id/features', (p) => ({ features: store.features[p.id] || { elevator: true, shuttle_bus: p.id === 's01' } }))
 on('PUT', '/schools/:id/features', (p, q, body) => { store.features[p.id] = body?.features || {}; return { ok: true } })

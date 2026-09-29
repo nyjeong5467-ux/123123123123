@@ -13,7 +13,8 @@ export type InspExtra = {
   photos: Record<string, PhotoSlot[]>
   signer: string
   // 현장앱 다중 결재란 — {직책, 서명자, 서명이미지 저장경로}. 백엔드 _persist_approval_lines(/ops/docs/inspection-extras).
-  approval_lines?: { title: string; signer: string; image_ref?: string | null }[]
+  // image_data: 웹에서 추가한 확인자(행정실장·교장 등)의 서명패드 PNG(dataURL) — 저장경로(image_ref)가 없는 웹 서명용 [119]
+  approval_lines?: { title: string; signer: string; image_ref?: string | null; image_data?: string | null }[]
   // 서명 원본 스트로크 JSON 저장 참조(sign_<iid>.strokes.json) — 교육청 봇이 획 재생. 앱/웹 서명패드 공통 [G-6]
   sign_strokes_ref?: string
 }

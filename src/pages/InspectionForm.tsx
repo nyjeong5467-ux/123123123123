@@ -3,6 +3,7 @@
 // 경로: /inspection/new?school=<id>
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import { api, getToken } from '../lib/api'
 import { InspectionMailModal } from '../components/InspectionMailModal'
 import { SignImage } from '../components/SignImage'
@@ -11,6 +12,7 @@ import { SignaturePadModal, type SignStrokes } from '../components/SignaturePadM
 import type { SheetData } from '../components/InspectionSheetView'
 import { resolveExtra, type InspExtra } from '../lib/inspExtra'
 import '../styles/inspectform.css'
+import { type ApprovalStep, defaultApproval, normalizeApproval } from '../lib/approval' // [118]
 
 // 기존 사용처 호환 재수출 — InspExtra 본체는 lib/inspExtra.ts로 이동(공용 매칭 로직과 함께).
 export type { InspExtra } from '../lib/inspExtra'
@@ -97,7 +99,12 @@ type Ledger = {
   school: { id: string; name: string; is_private: boolean; address: string; email?: string }
   workers: Worker[]
 }
-type ApprovalStep = { title: string; name: string }
+// [118] ApprovalStep 타입은 lib/approval 공용
+// [119] 확인자 — 학교 대장 결재선 연동. 주확인자(안전담당자)는 기존 서명 흐름(서명패드·백엔드 sign),
+// [+ 확인자 추가]로 결재선의 다음 단계(행정실장·교장)를 추가 — 이들의 서명은 부가정보 approval_lines에 보관
+type ExtraConf = { step: number; title: string; name: string; signed: boolean; image: string }
+/** 기본(주) 확인자 단계 — 결재선에서 '안전'이 들어간 직책(안전담당자), 없으면 1단계 */
+const primaryStep = (steps: ApprovalStep[]) => Math.max(0, steps.findIndex((s) => s.title.includes('안전')))
 type PrevItem = { code: string; remark: string; result: string | null }
 type PrevSig = { signer: string; signed_at?: string | null; image_ref?: string | null }
 type PrevInsp = {
@@ -154,6 +161,12 @@ export function InspectionForm() {
   const [signImage, setSignImage] = useState('')
   const [signStrokes, setSignStrokes] = useState<SignStrokes | null>(null)
   const [padOpen, setPadOpen] = useState(false)
+  // [119] 추가 확인자(행정실장·교장 등) — padTarget: 서명패드 대상(-1 = 주확인자, n = extraConf 인덱스)
+  const [extraConf, setExtraConf] = useState<ExtraConf[]>([])
+  const [padTarget, setPadTarget] = useState(-1)
+  function patchExtra(i: number, patch: Partial<ExtraConf>) {
+    setExtraConf((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)))
+  }
   const [followupOn, setFollowupOn] = useState(false)
   // 수신 데이터(현장앱 제출분) — 이어서 작성/수정 모드에서 표시·보존 [서명·사진 출력 수정]
   // recvSigs: part key → 주서명(이미지 저장경로 포함), recvLines: 다중 결재란(서명 이미지 포함)
@@ -219,7 +232,7 @@ export function InspectionForm() {
   useEffect(() => {
     setLedger(null); setAnswers({}); setRemarks({}); setPhotos({}); setStatuses({})
     setPastVisits([]); setHistOpen(false)
-    setSigned(false); setDoneAll(false); setMailOpen(false); setSubmitErr(''); setPrevVals({}); setLoadErr('')
+    setSigned(false); setExtraConf([]); setDoneAll(false); setMailOpen(false); setSubmitErr(''); setPrevVals({}); setLoadErr('')
     setRecvSigs({}); setRecvLines([]); setEduSuccessIds([])
     setSignImage(''); setSignStrokes(null); setPadOpen(false)
     if (!sid) return
@@ -228,8 +241,15 @@ export function InspectionForm() {
       .then((d) => { if (alive) setLedger(d) })
       .catch((e) => { if (alive) setLoadErr(e instanceof Error ? e.message : '오류') })
     api<{ steps: ApprovalStep[] }>(`/schools/${sid}/approval-line`)
-      .then((d) => { if (alive) setApproval(d.steps || []) })
-      .catch(() => { if (alive) setApproval([]) })
+      .then((d) => {
+        if (!alive) return
+        const st = normalizeApproval(d.steps) // [118]
+        setApproval(st)
+        // [119] 주확인자 성명 = 결재선 안전담당자 성명 (이미 입력/수신된 값이 있으면 유지)
+        const nm = st[primaryStep(st)]?.name || ''
+        if (nm) setSignerName((v) => v || nm)
+      })
+      .catch(() => { if (alive) setApproval(defaultApproval()) })
     // 지난 점검값 추천(CARRY_VALUE): 이전 점검 기록의 비고값이 있으면 그것으로 시작
     api<PrevInsp[]>(`/inspections?school_id=${sid}`)
       .then((list) => {
@@ -456,7 +476,7 @@ export function InspectionForm() {
   const schoolMail = ledger?.school.email || schools.find((s) => s.id === sid)?.email || ''
   const mailSteps = approval.length
     ? approval.map((s) => (s.name ? `${s.title} ${s.name}` : s.title))
-    : ['업무담당', '행정실장', '교장']
+    : defaultApproval().map((s) => s.title) // [118] 기본 결재선
   const photoNames = PARTDEF.filter((d) => enabled[d.label]).flatMap((d) =>
     (photos[d.label] ?? []).filter((s) => s.name).map((s) => s.name),
   )
@@ -483,6 +503,14 @@ export function InspectionForm() {
     [recvSigs],
   )
 
+  /* [119] 결재란 서명 병합 — 현장앱 수신 결재선(recvLines) + 웹에서 추가·서명한 확인자(같은 직책은 웹 서명 우선) */
+  const webLines = extraConf
+    .filter((c) => c.signed && c.name.trim())
+    .map((c) => ({ title: c.title, signer: c.name.trim(), image_ref: '', image_data: c.image || null }))
+  const mergedLines = [...recvLines.filter((l) => !webLines.some((w) => w.title === l.title)), ...webLines]
+  const confLine = approval.length ? approval : defaultApproval()
+  const confPrimary = primaryStep(confLine)
+
   /* [062] 메일 첨부 PDF용 — 현재 입력 상태를 양식 데이터(SheetData)로 조립 */
   function buildSheet(): SheetData {
     return {
@@ -501,7 +529,7 @@ export function InspectionForm() {
         // 수신된 서명(이미지 경로 포함)이 있으면 그대로 — 없으면 웹 입력 서명 [서명·사진 출력 수정]
         signatures: recvSigs[d.key]?.length
           ? recvSigs[d.key]
-          : signed && signerName.trim() ? [{ signer: signerName.trim(), signed_at: today }] : [],
+          : signed && signerName.trim() ? [{ signer: signerName.trim(), signed_at: today, image_data: signImage || null }] : [], // [120] 웹 서명패드 이미지 → 메일 PDF 결재란
       })),
       extra: {
         ids: [],
@@ -513,7 +541,7 @@ export function InspectionForm() {
         etc,
         photos,
         signer: signed ? signerName.trim() : '',
-        approval_lines: recvLines.length ? recvLines : undefined, // 현장앱 결재선 서명 → 메일 PDF에도 출력
+        approval_lines: mergedLines.length ? mergedLines : undefined, // 현장앱 결재선 + 웹 추가 확인자 서명 → 메일 PDF 결재란 [119]
       },
     }
   }
@@ -545,7 +573,7 @@ export function InspectionForm() {
         photos,
         signer: signed ? signerName.trim() : '',
         // 현장앱 결재선(서명 이미지 경로) 보존 — 웹에서 재저장해도 수신 서명이 유실되지 않게 [서명·사진 출력 수정]
-        ...(recvLines.length ? { approval_lines: recvLines } : {}),
+        ...(mergedLines.length ? { approval_lines: mergedLines } : {}), // [119] 웹 추가 확인자 서명 포함
         // 서명 원본 스트로크 참조 보존/기록 — 교육청 봇이 웹 서명도 획 재생 [G-6]
         ...(keepStrokesRef ? { sign_strokes_ref: keepStrokesRef } : {}),
       }
@@ -1044,8 +1072,8 @@ export function InspectionForm() {
         <div className="insf-ch"><i className="insf-sq" /><h3>확인자</h3><div className="r">서명 후 제출할 수 있습니다</div></div>
         <div className="insf-sign">
           <label className="field">
-            <span>담당자</span>
-            <input className="input" placeholder="학교 업무담당자 성명" value={signerName}
+            <span>{confLine[confPrimary]?.title || '담당자'}</span>
+            <input className="input" placeholder="성명 (학교 대장 결재선 연동)" value={signerName}
               onChange={(e) => { setSignerName(e.target.value); setSigned(false); setSignImage(''); setSignStrokes(null) }} />
           </label>
           <label className="field">
@@ -1056,6 +1084,7 @@ export function InspectionForm() {
               onClick={() => {
                 if (!signerName.trim()) { setSubmitErr('담당자 성명을 먼저 입력하세요.'); return }
                 setSubmitErr('')
+                setPadTarget(-1)
                 setPadOpen(true)
               }}
               title={signed ? '클릭하면 다시 서명합니다' : '클릭하여 서명패드 열기'}
@@ -1071,6 +1100,52 @@ export function InspectionForm() {
             </span>
           </label>
         </div>
+        {/* [119] 추가 확인자 — 결재선의 다음 단계(행정실장·교장)를 순서대로 추가해 서명 */}
+        {extraConf.map((c, i) => (
+          <div className="insf-sign" key={c.step} style={{ marginTop: 12 }}>
+            <label className="field">
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {c.title}
+                <button type="button" className="btn btn-ghost" title="확인자 삭제" style={{ padding: '0 8px', height: 22, fontSize: 12 }}
+                  onClick={() => setExtraConf((prev) => prev.filter((_, idx) => idx !== i))}>✕</button>
+              </span>
+              <input className="input" placeholder="성명 (학교 대장 결재선 연동)" value={c.name}
+                onChange={(e) => patchExtra(i, { name: e.target.value, signed: false, image: '' })} />
+            </label>
+            <label className="field">
+              <span>서명</span>
+              <div
+                className={'insf-signbox' + (c.signed ? ' signed' : '')}
+                onClick={() => {
+                  if (!c.name.trim()) { setSubmitErr(`${c.title} 성명을 먼저 입력하세요.`); return }
+                  setSubmitErr('')
+                  setPadTarget(i)
+                  setPadOpen(true)
+                }}
+                title={c.signed ? '클릭하면 다시 서명합니다' : '클릭하여 서명패드 열기'}
+              >
+                {c.image
+                  ? <img src={c.image} alt="서명" style={{ maxHeight: 40, maxWidth: 170, objectFit: 'contain', verticalAlign: 'middle' }} />
+                  : c.signed ? `${c.name.trim()} ✓` : '클릭하여 서명하기'}
+              </div>
+            </label>
+          </div>
+        ))}
+        {(() => {
+          const used = new Set([confPrimary, ...extraConf.map((c) => c.step)])
+          const next = confLine.findIndex((_, idx) => !used.has(idx))
+          return (
+            <div style={{ marginTop: 12 }}>
+              <button type="button" className="btn btn-ghost" disabled={next < 0}
+                title={next < 0 ? '결재선의 확인자를 모두 추가했습니다' : ''}
+                onClick={() => {
+                  if (next < 0) return
+                  const st = confLine[next]
+                  setExtraConf((prev) => [...prev, { step: next, title: st.title, name: st.name, signed: false, image: '' }].sort((a, b) => a.step - b.step))
+                }}>＋ 확인자 추가</button>
+            </div>
+          )
+        })()}
         {/* 수신된 서명 — 현장앱이 제출한 손글씨 서명(주서명·결재선)을 그대로 표시 [서명·사진 출력 수정] */}
         {(mainRecvSigRef || recvLines.length > 0) && (
           <div style={{ marginTop: 12, borderTop: '1px solid var(--line-2, #eee)', paddingTop: 12 }}>
@@ -1096,13 +1171,23 @@ export function InspectionForm() {
       </div>
 
       {/* [G-6] 서명패드 모달 — 마우스/터치로 서명 그리기 → 적용 시 PNG+스트로크 보관(저장 시 전송) */}
-      {padOpen && (
+      {/* [119] 서명패드는 body 포탈로 — 화면 컨테이너(.page.rv)의 transform 때문에 fixed 모달이 스크롤 위치와 무관하게
+          페이지 중간에 그려져, 확인자 칸(페이지 하단)에서 열면 패드가 화면 밖에 뜨던 문제 수정 */}
+      {padOpen && createPortal(
         <SignaturePadModal
-          signer={signerName.trim()}
-          onApply={(png, strokes) => { setSignImage(png); setSignStrokes(strokes); setSigned(true); setPadOpen(false) }}
-          onNameOnly={() => { setSignImage(''); setSignStrokes(null); setSigned(true); setPadOpen(false) }}
+          signer={padTarget >= 0 ? (extraConf[padTarget]?.name.trim() || '') : signerName.trim()}
+          onApply={(png, strokes) => {
+            // [119] 추가 확인자 서명은 이미지(dataURL)만 보관 — 백엔드 sign(주서명)은 주확인자 1명
+            if (padTarget >= 0) { patchExtra(padTarget, { signed: true, image: png }); setPadOpen(false); return }
+            setSignImage(png); setSignStrokes(strokes); setSigned(true); setPadOpen(false)
+          }}
+          onNameOnly={() => {
+            if (padTarget >= 0) { patchExtra(padTarget, { signed: true, image: '' }); setPadOpen(false); return }
+            setSignImage(''); setSignStrokes(null); setSigned(true); setPadOpen(false)
+          }}
           onClose={() => setPadOpen(false)}
-        />
+        />,
+        document.body,
       )}
 
       {/* [062] 학교 메일 전송 모달 — 점검표 PDF 자동 첨부 + 학교 이메일 자동 입력 */}
