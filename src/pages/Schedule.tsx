@@ -479,8 +479,8 @@ export function Schedule() {
                     <button key={t.key} type="button" role="tab" aria-selected={on}
                       onClick={() => { setPickTab(t.key); setPickQuery('') }}
                       style={{
-                        border: '1px solid ' + (on ? 'var(--violet, #7c5cfb)' : 'var(--line, #e5e7eb)'),
-                        background: on ? 'var(--violet, #7c5cfb)' : 'transparent',
+                        border: '1px solid ' + (on ? 'var(--violet, #2b4c9b)' : 'var(--line, #e5e7eb)'),
+                        background: on ? 'var(--violet, #2b4c9b)' : 'transparent',
                         color: on ? '#fff' : 'var(--muted, #6b7280)',
                         borderRadius: 999, padding: '3px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                       }}>
@@ -506,7 +506,7 @@ export function Schedule() {
                 ) : filteredSchools.map((s) => {
                   const on = selectedNames.includes(s.name)
                   return (
-                    <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12.5, background: on ? 'var(--violet-soft, #f3f0ff)' : undefined }}>
+                    <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12.5, background: on ? 'var(--violet-soft, #eaf0fb)' : undefined }}>
                       <input type="checkbox" checked={on} onChange={() => toggleSchool(s.name)} />
                       {s.name}
                     </label>
@@ -519,7 +519,7 @@ export function Schedule() {
               {selectedNames.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                   {selectedNames.map((n) => (
-                    <span key={n} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--violet-soft, #f3f0ff)', color: 'var(--violet, #7c5cfb)', borderRadius: 999, padding: '2px 8px', fontSize: 12 }}>
+                    <span key={n} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--violet-soft, #eaf0fb)', color: 'var(--violet, #2b4c9b)', borderRadius: 999, padding: '2px 8px', fontSize: 12 }}>
                       {n}
                       <button type="button" onClick={() => toggleSchool(n)} aria-label={`${n} 제거`}
                         style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'inherit', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>

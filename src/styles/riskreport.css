@@ -34,7 +34,7 @@
   cursor: pointer;
   font-family: inherit;
 }
-.rr-toolbar .print { background: #7c5cfb; color: #fff; }
+.rr-toolbar .print { background: #2b4c9b; color: #fff; }
 .rr-toolbar .close { background: #4a4a56; color: #fff; }
 
 /* A4 가로 페이지 (96dpi ≈ 1123×794) */

@@ -55,7 +55,7 @@
 
 /* 섹션 제목 */
 .inss-sec { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 600; color: #222; margin: 22px 0 12px; }
-.inss-sec i { width: 9px; height: 9px; border-radius: 50%; background: #5b63c9; flex: none; }
+.inss-sec i { width: 9px; height: 9px; border-radius: 50%; background: #2b4c9b; flex: none; }
 
 /* 기본정보 — 라벨 왼쪽 + 라운드 박스 (3열) */
 .inss-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 22px; }
@@ -73,7 +73,7 @@
   width: 17px; height: 17px; border: 1.5px solid #555; border-radius: 2px; background: #fff;
   display: inline-flex; align-items: center; justify-content: center; font-style: normal;
 }
-.inss-targets .bx.on { background: #1c1f5e; border-color: #1c1f5e; }
+.inss-targets .bx.on { background: #1f3a7a; border-color: #1f3a7a; }
 
 /* 공정별 점검표 */
 .inss-part { margin-top: 8px; }

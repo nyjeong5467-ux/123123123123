@@ -378,7 +378,7 @@ export function Billing({ embedded = false }: { embedded?: boolean } = {}) {
  .sub{text-align:center;color:#888;font-size:12px;margin-bottom:14px}
  table{border-collapse:collapse;width:100%;font-size:12.5px}
  td,th{border:1px solid #333;padding:6px 8px;vertical-align:middle}
- .lbl{background:#f4eefe;font-weight:700;text-align:center;width:60px}
+ .lbl{background:#eaf0fb;font-weight:700;text-align:center;width:60px}
  .r{text-align:right}.c{text-align:center}
  .party{width:50%}
  .amt{font-size:15px;font-weight:800;text-align:right}

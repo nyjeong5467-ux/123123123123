@@ -1291,7 +1291,7 @@ export function Home() {
                 <div className="muted" style={{ fontSize: 11 }}>
                   {m.school_name} · {m.by} · {m.ts.slice(5, 16).replace('T', ' ')}
                   {m.type === 'todo' && (
-                    <b style={{ marginLeft: 6, color: m.due === 'today' ? 'var(--red, #c0392b)' : 'var(--violet, #7C5CFB)' }}>
+                    <b style={{ marginLeft: 6, color: m.due === 'today' ? 'var(--red, #c0392b)' : 'var(--violet, #2b4c9b)' }}>
                       {m.due === 'today' ? '오늘 할 일' : m.due === 'tomorrow' ? '내일 할 일' : '할 일'}
                     </b>
                   )}

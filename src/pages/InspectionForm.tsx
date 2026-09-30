@@ -1294,8 +1294,8 @@ export function InspectionForm() {
             </div>
             {pastVisits.map((v, i) => (
               <label key={v.date} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 10, cursor: 'pointer',
-                border: '1px solid ' + (i === histPick ? 'var(--violet,#7C5CFB)' : 'var(--line,#e7e9f2)'),
-                background: i === histPick ? 'var(--violet-soft,#efeaff)' : 'transparent', marginBottom: 6 }}>
+                border: '1px solid ' + (i === histPick ? 'var(--violet,#2b4c9b)' : 'var(--line,#e7e9f2)'),
+                background: i === histPick ? 'var(--violet-soft,#eaf0fb)' : 'transparent', marginBottom: 6 }}>
                 <input type="radio" name="histpick" checked={i === histPick} onChange={() => setHistPick(i)} style={{ accentColor: 'var(--violet)' }} />
                 <div style={{ flex: 1 }}>
                   <b style={{ fontSize: 13.5 }}>{v.date}</b>

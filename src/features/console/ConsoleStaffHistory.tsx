@@ -103,7 +103,7 @@ export default function ConsoleStaffHistory() {
                     onClick={() => pick(a.author_id)}
                     style={{
                       cursor: 'pointer',
-                      background: a.author_id === selected ? 'var(--violet-soft, rgba(124,92,251,.08))' : undefined,
+                      background: a.author_id === selected ? 'var(--violet-soft, rgba(43, 76, 155,.08))' : undefined,
                     }}>
                     <td>
                       <b style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

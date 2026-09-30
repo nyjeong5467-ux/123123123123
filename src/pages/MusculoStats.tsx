@@ -439,22 +439,22 @@ function MSGridStyle() {
 .msgrid-wrap { overflow-x: auto; border-top: 1px solid var(--line); border-radius: 0 0 4px 4px; }
 .msgrid { border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
 .msgrid th, .msgrid td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 0; white-space: nowrap; }
-.msgrid thead th { background: var(--card-2, #f5f3fb); font-weight: 800; font-size: 11px; padding: 5px 6px; text-align: center; line-height: 1.2; }
+.msgrid thead th { background: var(--card-2, #f3f6fc); font-weight: 800; font-size: 11px; padding: 5px 6px; text-align: center; line-height: 1.2; }
 .msgrid thead th.sub { font-size: 10.5px; font-weight: 700; color: var(--muted, #6b7280); }
-.msgrid thead th.vgrp { background: #efeaff; color: var(--violet, #7C5CFB); }
+.msgrid thead th.vgrp { background: #eaf0fb; color: var(--violet, #2b4c9b); }
 .msgrid .c { text-align: center; }
 .msgrid td { height: 30px; }
 .msgrid .stick { position: sticky; z-index: 1; background: var(--card, #fff); }
-.msgrid thead th.stick { z-index: 2; background: var(--card-2, #f5f3fb); }
+.msgrid thead th.stick { z-index: 2; background: var(--card-2, #f3f6fc); }
 .msgrid td.stick { box-shadow: 1px 0 0 var(--line); }
 .msgrid .idx { color: var(--muted, #6b7280); font-size: 11px; }
 .msgrid input, .msgrid select { width: 100%; box-sizing: border-box; border: 1px solid transparent; background: transparent; padding: 4px 6px; font-size: 12.5px; border-radius: 6px; color: inherit; font-family: inherit; }
 .msgrid input.ta-c { text-align: center; }
-.msgrid input:hover, .msgrid select:hover { background: var(--card-2, #f5f3fb); }
-.msgrid input:focus, .msgrid select:focus { border-color: var(--violet, #7C5CFB); background: var(--card, #fff); outline: none; box-shadow: 0 0 0 2px rgba(124,92,251,.18); }
+.msgrid input:hover, .msgrid select:hover { background: var(--card-2, #f3f6fc); }
+.msgrid input:focus, .msgrid select:focus { border-color: var(--violet, #2b4c9b); background: var(--card, #fff); outline: none; box-shadow: 0 0 0 2px rgba(43, 76, 155,.18); }
 .msgrid select.pcell { min-width: 44px; padding: 4px 2px; text-align: center; }
-.msgrid tbody tr:nth-child(even) td:not(.stick) { background: rgba(124,92,251,.045); }
-.msgrid tbody tr:hover td:not(.stick) { background: var(--card-2, #f5f3fb); }
+.msgrid tbody tr:nth-child(even) td:not(.stick) { background: rgba(43, 76, 155,.045); }
+.msgrid tbody tr:hover td:not(.stick) { background: var(--card-2, #f3f6fc); }
 .msgrid .dot { display: inline-block; width: 11px; height: 11px; border-radius: 999px; vertical-align: -1px; }
 `}</style>
   )
