@@ -8,9 +8,7 @@ import { PARTDEF } from '../pages/InspectionForm'
 import type { InspExtra } from '../lib/inspExtra'
 import { SignImage, waitForSheetImages } from './SignImage'
 import '../styles/inspectsheet.css'
-import { normalizeApproval } from '../lib/approval' // [118]
-// [120] 기본 확인자 단계(직책에 '안전' 포함, 없으면 1단계)
-const primaryIdx = (line: { title: string }[]) => Math.max(0, line.findIndex((s) => s.title.includes('안전')))
+import { normalizeApproval, primaryIdx } from '../lib/approval' // [118] [123] 확인자 공용 규칙(학교/기관 구분·주확인자=담당자)
 
 // 기존 사용처(Inspection.tsx 등) 호환 재수출 — SignImage 본체는 components/SignImage.tsx로 이동.
 export { SignImage } from './SignImage'
@@ -62,7 +60,7 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
 
   // [120] 결재란 — 결재선 전 단계 칸(안전담당자·행정실장·교장). 서명한 확인자는 해당 직책 칸에 서명(손글씨 이미지 우선, 없으면 성명),
   // 미서명 칸은 수기 결재용 공란. 주서명(확인자·담당자)은 기본 확인자 칸(안전담당자)에, 현장앱/웹 추가 확인자(approval_lines)는 직책이 같은 칸에.
-  const line = normalizeApproval(sheet.approval)
+  const line = normalizeApproval(sheet.approval, { name: sheet.schoolName }) // [123] 학교: 담당자·행정실장·교장 / 기관: 담당자·팀장·과장
   const primary = primaryIdx(line)
   const mainSig = sheet.parts.flatMap((p) => p.signatures).find((s) => s.signer || s.image_ref || s.image_data)
   type Cell = { title: string; name: string; imageRef?: string | null; imageData?: string | null }

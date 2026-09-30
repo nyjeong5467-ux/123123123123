@@ -12,7 +12,7 @@ import { SignaturePadModal, type SignStrokes } from '../components/SignaturePadM
 import type { SheetData } from '../components/InspectionSheetView'
 import { resolveExtra, type InspExtra } from '../lib/inspExtra'
 import '../styles/inspectform.css'
-import { type ApprovalStep, defaultApproval, normalizeApproval } from '../lib/approval' // [118]
+import { type ApprovalStep, defaultApproval, fetchApproval, primaryIdx } from '../lib/approval' // [118] [123]
 
 // 기존 사용처 호환 재수출 — InspExtra 본체는 lib/inspExtra.ts로 이동(공용 매칭 로직과 함께).
 export type { InspExtra } from '../lib/inspExtra'
@@ -103,8 +103,8 @@ type Ledger = {
 // [119] 확인자 — 학교 대장 결재선 연동. 주확인자(안전담당자)는 기존 서명 흐름(서명패드·백엔드 sign),
 // [+ 확인자 추가]로 결재선의 다음 단계(행정실장·교장)를 추가 — 이들의 서명은 부가정보 approval_lines에 보관
 type ExtraConf = { step: number; title: string; name: string; signed: boolean; image: string }
-/** 기본(주) 확인자 단계 — 결재선에서 '안전'이 들어간 직책(안전담당자), 없으면 1단계 */
-const primaryStep = (steps: ApprovalStep[]) => Math.max(0, steps.findIndex((s) => s.title.includes('안전')))
+/** 기본(주) 확인자 단계 — '담당'이 들어간 직책(담당자), 없으면 1단계 [123] lib/approval 공용 */
+const primaryStep = (steps: ApprovalStep[]) => primaryIdx(steps)
 type PrevItem = { code: string; remark: string; result: string | null }
 type PrevSig = { signer: string; signed_at?: string | null; image_ref?: string | null }
 type PrevInsp = {
@@ -240,16 +240,15 @@ export function InspectionForm() {
     api<Ledger>(`/schools/${sid}/ledger`)
       .then((d) => { if (alive) setLedger(d) })
       .catch((e) => { if (alive) setLoadErr(e instanceof Error ? e.message : '오류') })
-    api<{ steps: ApprovalStep[] }>(`/schools/${sid}/approval-line`)
-      .then((d) => {
+    // [123] 확인자 — 학교/기관 구분 기본값(학교: 담당자·행정실장·교장 / 기관: 담당자·팀장·과장)
+    fetchApproval(sid)
+      .then((st) => {
         if (!alive) return
-        const st = normalizeApproval(d.steps) // [118]
         setApproval(st)
-        // [119] 주확인자 성명 = 결재선 안전담당자 성명 (이미 입력/수신된 값이 있으면 유지)
+        // [119] 주확인자 성명 = 확인자 담당자 성명 (이미 입력/수신된 값이 있으면 유지)
         const nm = st[primaryStep(st)]?.name || ''
         if (nm) setSignerName((v) => v || nm)
       })
-      .catch(() => { if (alive) setApproval(defaultApproval()) })
     // 지난 점검값 추천(CARRY_VALUE): 이전 점검 기록의 비고값이 있으면 그것으로 시작
     api<PrevInsp[]>(`/inspections?school_id=${sid}`)
       .then((list) => {
@@ -476,7 +475,7 @@ export function InspectionForm() {
   const schoolMail = ledger?.school.email || schools.find((s) => s.id === sid)?.email || ''
   const mailSteps = approval.length
     ? approval.map((s) => (s.name ? `${s.title} ${s.name}` : s.title))
-    : defaultApproval().map((s) => s.title) // [118] 기본 결재선
+    : defaultApproval({ name: schoolName }).map((s) => s.title) // [123] 기본 확인자(학교/기관)
   const photoNames = PARTDEF.filter((d) => enabled[d.label]).flatMap((d) =>
     (photos[d.label] ?? []).filter((s) => s.name).map((s) => s.name),
   )
@@ -492,7 +491,7 @@ export function InspectionForm() {
     ]
     if (photoNames.length) lines.push(`· 사진대지 ${photoNames.length}매: ${photoNames.join(', ')}`)
     if (etc.trim()) lines.push('', '[기타 의견]', etc.trim())
-    lines.push('', `결재선(${mailSteps.join(' → ')})에 따라 결재 후 회신 부탁드립니다.`, '첨부: 종사자 안전·보건 점검표 PDF 1부', '', '(주)한국산업안전협회')
+    lines.push('', `확인자(${mailSteps.join(' → ')}) 확인 후 회신 부탁드립니다.`, '첨부: 종사자 안전·보건 점검표 PDF 1부', '', '(주)한국산업안전협회')
     return lines.join('\n')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schoolMail, schoolName, inspectDate, enabled, tally, etc, approval, photos])
@@ -508,7 +507,7 @@ export function InspectionForm() {
     .filter((c) => c.signed && c.name.trim())
     .map((c) => ({ title: c.title, signer: c.name.trim(), image_ref: '', image_data: c.image || null }))
   const mergedLines = [...recvLines.filter((l) => !webLines.some((w) => w.title === l.title)), ...webLines]
-  const confLine = approval.length ? approval : defaultApproval()
+  const confLine = approval.length ? approval : defaultApproval({ name: schoolName }) // [123]
   const confPrimary = primaryStep(confLine)
 
   /* [062] 메일 첨부 PDF용 — 현재 입력 상태를 양식 데이터(SheetData)로 조립 */
@@ -1073,7 +1072,7 @@ export function InspectionForm() {
         <div className="insf-sign">
           <label className="field">
             <span>{confLine[confPrimary]?.title || '담당자'}</span>
-            <input className="input" placeholder="성명 (학교 대장 결재선 연동)" value={signerName}
+            <input className="input" placeholder="성명 (학교 대장 확인자 연동)" value={signerName}
               onChange={(e) => { setSignerName(e.target.value); setSigned(false); setSignImage(''); setSignStrokes(null) }} />
           </label>
           <label className="field">
@@ -1109,7 +1108,7 @@ export function InspectionForm() {
                 <button type="button" className="btn btn-ghost" title="확인자 삭제" style={{ padding: '0 8px', height: 22, fontSize: 12 }}
                   onClick={() => setExtraConf((prev) => prev.filter((_, idx) => idx !== i))}>✕</button>
               </span>
-              <input className="input" placeholder="성명 (학교 대장 결재선 연동)" value={c.name}
+              <input className="input" placeholder="성명 (학교 대장 확인자 연동)" value={c.name}
                 onChange={(e) => patchExtra(i, { name: e.target.value, signed: false, image: '' })} />
             </label>
             <label className="field">
@@ -1137,7 +1136,7 @@ export function InspectionForm() {
           return (
             <div style={{ marginTop: 12 }}>
               <button type="button" className="btn btn-ghost" disabled={next < 0}
-                title={next < 0 ? '결재선의 확인자를 모두 추가했습니다' : ''}
+                title={next < 0 ? '확인자를 모두 추가했습니다' : ''}
                 onClick={() => {
                   if (next < 0) return
                   const st = confLine[next]
@@ -1210,7 +1209,7 @@ export function InspectionForm() {
               : <>모든 항목 입력 완료. 저장하면 <b>미흡 {tally.b}건</b>이 다음 달 점검 확인 대상으로 이월되고, 전남교육청 SHM System에 자동 전송됩니다.</>}
           </div>
           <div className="insf-mailline">
-            PDF 수신 <span className="to">{schoolMail || '학교 이메일 미등록'}</span> · 결재선 {mailSteps.join(' → ')}
+            PDF 수신 <span className="to">{schoolMail || '학교 이메일 미등록'}</span> · 확인자 {mailSteps.join(' → ')}
           </div>
           {draftNote && !submitErr && (
             <div className="insf-msg" style={{ color: 'var(--ok-ink)', fontWeight: 700, marginTop: 4 }}>{draftNote}</div>

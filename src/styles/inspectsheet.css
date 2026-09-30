@@ -135,3 +135,13 @@
 
 /* [120] 결재란 서명 이미지(현장앱 저장본·웹 서명패드) — 칸 크기에 맞춤 */
 .inss-approve .sign img { max-width: 104px !important; max-height: 54px !important; object-fit: contain; vertical-align: middle; }
+
+/* [121] 보기 = PDF 변환 서식 통일 — 화면의 '보기'도 PDF와 같은 A4 인쇄 서식으로 표시
+   (용지 폭 210mm · 여백 12mm = @page 여백 · 인쇄용 단선 표). 메일 PDF 캡처(.inss-pdf)는 영향 없음. */
+@media screen {
+  .inss-overlay .inss-bar { max-width: 210mm; box-sizing: border-box; }
+  .inss-overlay .inss-page { width: 210mm; max-width: none; box-sizing: border-box; padding: 12mm; border-radius: 0; }
+  .inss-overlay .inss-tbl, .inss-overlay .inss-approve { border-collapse: collapse; border: 0; }
+  .inss-overlay .inss-tbl th, .inss-overlay .inss-tbl td { border: 1px solid #c9c9d0; }
+  .inss-overlay .inss-approve td { border: 1px solid #cfcfd6; }
+}

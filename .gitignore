@@ -6,3 +6,8 @@ dist/
 tsconfig.tsbuildinfo
 ~$*
 commit-push-log.txt
+tools/approval-backup-*.json
+# [124] 이식 작업 임시물·커밋 메시지 초안 (공유 대상 아님)
+_port118/
+sync-push-*.bat
+commit-msg*.txt

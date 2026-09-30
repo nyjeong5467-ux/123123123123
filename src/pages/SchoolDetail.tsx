@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
-import { type ApprovalStep, APPROVAL_MAX, APPROVAL_MIN, APPROVAL_TITLE_SUGGEST, defaultApproval, normalizeApproval } from '../lib/approval' // [118]
+import { type ApprovalStep, APPROVAL_MAX, APPROVAL_MIN, APPROVAL_TITLE_SUGGEST, approvalLabel, defaultApproval, fetchApproval, normalizeApproval } from '../lib/approval' // [118] [123]
 import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
 import { MsdsFormModal } from '../components/MsdsFormModal'
@@ -116,7 +116,7 @@ const SD_SECTIONS: { id: string; label: string }[] = [
   { id: 'sd-info', label: '학교 정보' },
   { id: 'sd-memos', label: '현장 메모' },
   { id: 'sd-workers', label: '종사자' },
-  { id: 'sd-approval', label: '결재선' },
+  { id: 'sd-approval', label: '확인자' }, // [123] 결재선 → 확인자 용어 통일
   { id: 'sd-history', label: '담당자 이력' },
   { id: 'sd-works', label: '업무 이력' },
 ]
@@ -199,9 +199,9 @@ export function SchoolDetail() {
   useEffect(() => {
     let alive = true
     setApMsg(null)
-    api<{ steps: ApprovalStep[] }>(`/schools/${id}/approval-line`)
-      .then((d) => { if (alive) setSteps(normalizeApproval(d.steps)) }) // [118] 최대 3단계·빈 결재선은 기본값
-      .catch(() => { if (alive) setSteps(defaultApproval()) })
+    // [123] 최대 3단계·빈 확인자는 학교/기관 기본값(학교: 담당자·행정실장·교장 / 기관: 담당자·팀장·과장)
+    fetchApproval(id ?? '')
+      .then((st) => { if (alive) setSteps(st) })
     return () => { alive = false }
   }, [id])
 
@@ -484,7 +484,7 @@ export function SchoolDetail() {
     // [118] 저장 전 검증 — 1~3단계, 직책 필수
     const clean = steps.map((st) => ({ title: st.title.trim(), name: st.name.trim() }))
     if (clean.length < APPROVAL_MIN || clean.length > APPROVAL_MAX) {
-      setApMsg({ ok: false, text: `결재선은 ${APPROVAL_MIN}~${APPROVAL_MAX}단계로 지정해 주세요.` })
+      setApMsg({ ok: false, text: `확인자는 ${APPROVAL_MIN}~${APPROVAL_MAX}단계로 지정해 주세요.` })
       return
     }
     if (clean.some((st) => !st.title)) {
@@ -498,8 +498,8 @@ export function SchoolDetail() {
         method: 'PUT',
         body: JSON.stringify({ steps: clean }),
       })
-      setSteps(normalizeApproval(r.steps))
-      setApMsg({ ok: true, text: '결재선을 저장했습니다.' })
+      setSteps(normalizeApproval(r.steps, info))
+      setApMsg({ ok: true, text: '확인자를 저장했습니다.' })
       setApEdit(false) // [118] 단독 편집은 저장 후 닫힘
     } catch (e) {
       setApMsg({ ok: false, text: e instanceof Error ? e.message : '저장 실패' })
@@ -871,17 +871,17 @@ export function SchoolDetail() {
 
       <div className="ledger" id="sd-approval" style={{ marginBottom: 24 }}>
         <div className="lh">
-          <h2>결재선</h2>
+          <h2>확인자</h2>
           <div className="sp" />
           {(pageEdit || apEdit) && (
-            <button className="btn btn-ghost" onClick={() => { setSteps(defaultApproval(info?.principal || '')); setApMsg(null) }}>
-              기본값(안전담당자·행정실장·교장)
+            <button className="btn btn-ghost" onClick={() => { setSteps(defaultApproval(info)); setApMsg(null) }}>
+              기본값({approvalLabel(info)})
             </button>
           )}
           {/* [118] 결재선 섹션 단독 [결재선 편집] — 페이지 [편집]을 누르지 않아도 바로 수정 */}
           {!pageEdit && (
             <button className={apEdit ? 'btn btn-ghost' : 'btn btn-primary'} onClick={() => { setApEdit((v) => !v); setApMsg(null) }}>
-              {apEdit ? '편집 닫기' : '결재선 편집'}
+              {apEdit ? '편집 닫기' : '확인자 편집'}
             </button>
           )}
         </div>
@@ -894,7 +894,7 @@ export function SchoolDetail() {
                   <span className="pillx">{st.title || '직책'}{st.name ? ` ${st.name}` : ''}</span>
                 </span>
               ))
-              : <span className="muted">등록된 결재선이 없습니다.</span>}
+              : <span className="muted">등록된 확인자가 없습니다.</span>}
           </div>
           {/* 편집 영역은 적정 폭으로 제한 — 와이드 화면에서 입력칸이 무한정 늘어나지 않게 */}
           {(pageEdit || apEdit) && (

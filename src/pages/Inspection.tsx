@@ -292,7 +292,7 @@ export function Inspection() {
       extra = resolveExtra(r.doc?.[school.id], ids, date)
     } catch { /* 부가정보 없으면 기본 표시 */ }
     // [104] 대장 결재선 → 양식 결재란 칸 구성
-    const approval = await fetchApproval(school.id) // [118] 공용 규칙 — 실패·미등록 시 기본값(안전담당자·행정실장·교장)
+    const approval = await fetchApproval(school.id, school) // [123] 확인자 — 실패·미등록 시 기본값(학교: 담당자·행정실장·교장 / 기관: 담당자·팀장·과장)
     setSheetView({ schoolName: school.name, manager: school.manager, date, parts: fullParts, extra, approval })
   }
 
@@ -979,7 +979,7 @@ export function Inspection() {
           {/* 현장앱 결재선 서명 이미지 — 부가정보(approval_lines)에서 로드 [서명·사진 출력 수정] */}
           {detailLines.length > 0 && (
             <>
-              <div className="kv"><b>결재선</b><span>{detailLines.map((l) => l.title || '확인자').join(' → ')}</span></div>
+              <div className="kv"><b>확인자</b><span>{detailLines.map((l) => l.title || '확인자').join(' → ')}</span></div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, margin: '2px 0 8px' }}>
                 {detailLines.map((l, i) => (
                   <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
