@@ -32,6 +32,7 @@ import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
 import { FilePicker } from '../components/FilePicker'
 import { SchoolFormModal } from '../components/SchoolFormModal'
+import { SchoolScopePicker, type PickSchool } from '../components/SchoolScopePicker'
 import { AY_MONTH_NO, CycleHero, CYCLE_DOC_DEFAULT, migrateCycleDoc, type CycleDoc } from '../components/CycleHero'
 import { TodayHero } from '../components/TodayHero'
 import './../styles/home.css'
@@ -42,6 +43,7 @@ type School = {
   name: string
   school_level?: string
   manager?: string
+  inspection_agency?: string // 소속(국민안전기술원/한국산업안전협회) — 전체학교 스코프
   address?: string
   assigned_inspector_id?: string // 담당 점검자 (로그인 ID)
 }
@@ -281,6 +283,8 @@ export function Home() {
     return { main: '늦은 시간까지 애쓰시네요!', sub: '안전은 충분한 휴식에서 시작돼요. 오늘은 푹 쉬어요.' }
   }, [today])
   const layoutKey = `home-layout-${user?.login ?? 'anon'}`
+  // 방문계획은 계정별 문서 — 홈 등록이 전체 직원에게 뜨지 않도록(공유 visit-plans → 계정별).
+  const visitPlansKey = `visit-plans-${user?.login ?? 'anon'}`
   const [layout, setLayout] = useState<HomeBlock[]>(HOME_LAYOUT_DEFAULT)
   const [layoutDraft, setLayoutDraft] = useState<HomeBlock[]>(HOME_LAYOUT_DEFAULT)
   const [layoutEdit, setLayoutEdit] = useState(false)
@@ -376,34 +380,23 @@ export function Home() {
   const [plansReady, setPlansReady] = useState(false)
   useEffect(() => {
     let alive = true
-    api<{ doc: Record<string, Plan[]> }>('/ops/docs/visit-plans')
+    setPlansReady(false)   // 계정 전환 시 이전 계정 계획을 새 계정 문서로 덮어쓰지 않도록
+    api<{ doc: Record<string, Plan[]> }>('/ops/docs/' + visitPlansKey)
       .then((d) => {
         if (!alive) return
-        const doc = d.doc || {}
-        if (Object.keys(doc).length) {
-          setPlans(doc)
-        } else {
-          // 서버에 없으면 구 localStorage 데이터 1회 이관(있을 때만)
-          const legacy = loadLegacyPlans()
-          setPlans(legacy)
-          if (Object.keys(legacy).length) {
-            void api('/ops/docs/visit-plans', {
-              method: 'PUT', body: JSON.stringify({ doc: legacy }),
-            }).then(() => localStorage.removeItem(LS_PLANS)).catch(() => {})
-          }
-        }
+        setPlans(d.doc && Object.keys(d.doc).length ? d.doc : {})
         setPlansReady(true)
       })
       .catch(() => { if (alive) { setPlans(loadLegacyPlans()); setPlansReady(true) } })
     return () => { alive = false }
-  }, [])
+  }, [visitPlansKey])
   useEffect(() => {
     if (!plansReady) return   // 초기 로드 전 빈 상태로 서버를 덮어쓰지 않도록 가드
-    void api('/ops/docs/visit-plans', {
+    void api('/ops/docs/' + visitPlansKey, {
       method: 'PUT', body: JSON.stringify({ doc: plans }),
     }).catch(() => { /* 저장 실패는 무시 — 세션 내 상태로 동작 */ })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plans])
+  }, [plans, visitPlansKey])
 
   // 점검 일정(schedules) 오버레이 — 로그인 조사원 '본인 이름'으로 홈 캘린더에 표시.
   // 조사원은 /users 권한이 없어 로그인ID로 표시되므로, /auth/me 의 실제 이름으로 매칭한다.
@@ -562,10 +555,24 @@ export function Home() {
 
   /* ---- 오늘 방문: 실적 + 계획 병합 ---- */
   // 로그인 담당자의 담당 학교 집합 — 담당 배정이 있으면 오늘의 할 일을 담당 학교로 한정 [044]
+  // 담당자는 schools.manager(이름)로 관리됨(assigned_inspector_id는 미사용/공란) → manager 로 매칭.
   const myIds = useMemo(() => {
-    const mine = schools.filter((s) => s.assigned_inspector_id === (user?.login ?? ''))
+    const mine = schools.filter((s) => s.manager && s.manager === myName)
     return mine.length > 0 ? new Set(mine.map((s) => s.id)) : null // null = 담당 배정 없음 → 전체 표시
-  }, [schools, user])
+  }, [schools, myName])
+
+  // 로그인 사용자의 소속(담당 학교들의 최빈 소속) — 홈 학교 picker '전체학교' 스코프.
+  const myAffil = useMemo(() => {
+    const cnt: Record<string, number> = {}
+    for (const s of schools) if (s.manager === myName && s.inspection_agency) cnt[s.inspection_agency] = (cnt[s.inspection_agency] || 0) + 1
+    let best = ''; let bc = 0
+    for (const [k, v] of Object.entries(cnt)) if (v > bc) { best = k; bc = v }
+    return best
+  }, [schools, myName])
+  const schoolsLite = useMemo<PickSchool[]>(
+    () => schools.map((s) => ({ id: s.id, name: s.name, manager: s.manager, agency: s.inspection_agency })),
+    [schools],
+  )
 
   // 근무표(점검 일정)에서 특정 날짜의 방문 학교를 꺼낸다 — 캘린더와 동일 연동 규칙 [H-6b]:
   // 조사원 선택(schedWho) 시 그 사람, 조사원 계정은 본인, 본사 관리자 미선택 시 전체 조사원 합산.
@@ -1124,11 +1131,13 @@ export function Home() {
                       onBlur={() => setAddDate(null)}
                     >
                       <option value="">학교 선택…</option>
-                      {schools
-                        .filter((s) => !dayPlans.some((p) => p.school_id === s.id))
-                        .map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
+                      {/* 빠른 추가 = 담당학교 우선(없으면 전체). 상세 검색·소속별은 날짜 클릭 모달 picker에서 */}
+                      {(() => {
+                        const mine = schools.filter((s) => s.manager === myName)
+                        return (mine.length ? mine : schools)
+                          .filter((s) => !dayPlans.some((p) => p.school_id === s.id))
+                          .map((s) => <option key={s.id} value={s.id}>{s.name}</option>)
+                      })()}
                     </select>
                   )}
                 </div>
@@ -1453,20 +1462,17 @@ export function Home() {
               ))}
             </ul>
           )}
-          <div className="formrow" style={{ marginTop: 8 }}>
-            <label className="field" style={{ flex: 1 }}>
-              <span>학교 방문 추가</span>
-              <select className="select" value={daySchool}
-                onChange={(e) => {
-                  setDaySchool('')
-                  if (e.target.value) addPlan(dayModal, e.target.value)
-                }}>
-                <option value="">학교 선택…</option>
-                {schools
-                  .filter((s) => !(plans[dayModal] ?? []).some((p) => p.school_id === s.id))
-                  .map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </label>
+          <div className="field" style={{ marginTop: 8 }}>
+            <span>학교 방문 추가 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>
+              ({myName || '담당자'}{myAffil ? ` · ${myAffil}` : ''} · 담당/전체(소속)/모든 탭 · 클릭해서 추가)</span></span>
+            <SchoolScopePicker
+              schools={schoolsLite}
+              scopeName={myName}
+              scopeAffil={myAffil}
+              isHq={isHqUser}
+              excludeIds={(plans[dayModal] ?? []).map((p) => p.school_id).filter((x): x is string => !!x)}
+              onPick={(s) => addPlan(dayModal, s.id)}
+            />
           </div>
           <div className="formrow" style={{ marginTop: 8 }}>
             <label className="field" style={{ flex: 1 }}>
@@ -1479,7 +1485,7 @@ export function Home() {
               onClick={() => { addFreePlan(dayModal, dayFree); setDayFree('') }}>추가</button>
           </div>
           <div className="muted" style={{ marginTop: 10, fontSize: 11.5 }}>
-            일정은 서버에 저장되어 어느 PC에서나 동일하게 보입니다. 학교 일정은 방문 완료(임원 방문 기록) 시 완료 표시로 바뀝니다.
+            이 방문계획은 <b>내 계정에만</b> 저장됩니다(다른 직원에게는 보이지 않음). 학교 일정은 방문 완료 기록 시 완료 표시로 바뀝니다.
           </div>
         </Modal>
       )}
