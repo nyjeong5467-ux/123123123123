@@ -33,6 +33,7 @@ import { InfoTip } from '../components/InfoTip'
 import { FilePicker } from '../components/FilePicker'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { SchoolScopePicker, type PickSchool } from '../components/SchoolScopePicker'
+import { useAffiliationScope } from '../lib/affiliationScope'
 import { AY_MONTH_NO, CycleHero, CYCLE_DOC_DEFAULT, migrateCycleDoc, type CycleDoc } from '../components/CycleHero'
 import { TodayHero } from '../components/TodayHero'
 import './../styles/home.css'
@@ -573,6 +574,12 @@ export function Home() {
     () => schools.map((s) => ({ id: s.id, name: s.name, manager: s.manager, agency: s.inspection_agency })),
     [schools],
   )
+  // 소속 격리 — 'admin'(슈퍼)만 전체, 그 외는 자기 소속 학교만 화면에 노출.
+  const scope = useAffiliationScope()
+  const scopedSchools = useMemo(
+    () => schools.filter((s) => scope.visible({ id: s.id, name: s.name })),
+    [schools, scope],
+  )
 
   // 근무표(점검 일정)에서 특정 날짜의 방문 학교를 꺼낸다 — 캘린더와 동일 연동 규칙 [H-6b]:
   // 조사원 선택(schedWho) 시 그 사람, 조사원 계정은 본인, 본사 관리자 미선택 시 전체 조사원 합산.
@@ -719,8 +726,8 @@ export function Home() {
     return [...company, ...kosha].slice(0, 6)
   }, [accidents, koshaCases])
 
-  /* ---- 담당 학교 표 ---- */
-  const q = useTableQuery(schools, {
+  /* ---- 담당 학교 표 (소속 격리 적용) ---- */
+  const q = useTableQuery(scopedSchools, {
     searchFields: [(r) => r.name, (r) => r.manager ?? ''],
     filters: SCH_FILTERS,
     sortAccessors: SCH_SORTS,
@@ -1469,7 +1476,7 @@ export function Home() {
               schools={schoolsLite}
               scopeName={myName}
               scopeAffil={myAffil}
-              isHq={isHqUser}
+              showAll={scope.isSuper}
               excludeIds={(plans[dayModal] ?? []).map((p) => p.school_id).filter((x): x is string => !!x)}
               onPick={(s) => addPlan(dayModal, s.id)}
             />

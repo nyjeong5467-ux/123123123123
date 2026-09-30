@@ -113,6 +113,8 @@ export function Schedule() {
   }, [])
 
   const isHq = me ? HQ_ROLES.includes(me.role) : false
+  // 슈퍼('admin' 계정)만 '모든 학교'(타 소속 포함) 노출 — 그 외는 담당/전체(소속)만.
+  const isSuper = me?.login_id === 'admin'
   // 기본 탭: 관리자/경영진 → 종합관리표(전체 현황 우선), 조사원 → 내 근무표.
   const tab: TabKey = tabSel ?? (isHq ? 'master' : 'my')
 
@@ -472,7 +474,7 @@ export function Schedule() {
                 {([
                   { key: 'mine' as const, label: '담당학교', n: poolCounts.mine },
                   { key: 'affil' as const, label: '전체학교', n: poolCounts.affil },
-                  ...(isHq ? [{ key: 'all' as const, label: '모든 학교', n: poolCounts.all }] : []),
+                  ...(isSuper ? [{ key: 'all' as const, label: '모든 학교', n: poolCounts.all }] : []),
                 ]).map((t) => {
                   const on = pickTab === t.key
                   return (

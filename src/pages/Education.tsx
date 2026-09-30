@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type FilterDef, type TableQueryConfig } from '../lib/useTableQuery'
+import { useAffiliationScope } from '../lib/affiliationScope'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import '../styles/hier.css'
 import '../styles/eduhier.css'
@@ -341,9 +342,16 @@ export function Education() {
     return () => { alive = false }
   }, [sid, superReload])
 
+  // 소속 격리 — 'admin'(슈퍼)만 전체, 그 외는 자기 소속 학교만.
+  const scope = useAffiliationScope()
+  const scopedSchools = useMemo(
+    () => schools.filter((s) => scope.visible({ id: s.id, name: s.name })),
+    [schools, scope],
+  )
+
   // ── 1단계: 학교 목록 데이터 ──
   const schoolRows: SchoolRow[] = useMemo(
-    () => schools.map((s) => {
+    () => scopedSchools.map((s) => {
       const sum = sumMap[s.id]
       const prog = sum?.prog ?? null
       return {
@@ -354,7 +362,7 @@ export function Education() {
         latest: sum?.latest ?? '',
       }
     }),
-    [schools, sumMap],
+    [scopedSchools, sumMap],
   )
   const totalPeople = useMemo(() => schoolRows.reduce((a, r) => a + r.total, 0), [schoolRows])
   const overallPct = useMemo(() => {

@@ -7,12 +7,12 @@ import { Search } from 'lucide-react'
 export type PickSchool = { id: string; name: string; manager?: string; agency?: string }
 
 export function SchoolScopePicker({
-  schools, scopeName, scopeAffil, isHq, excludeIds = [], onPick, autoFocus, maxHeight = 220,
+  schools, scopeName, scopeAffil, showAll, excludeIds = [], onPick, autoFocus, maxHeight = 220,
 }: {
   schools: PickSchool[]
   scopeName: string     // 담당학교 기준 인물(로그인/대상 이름)
   scopeAffil: string    // 전체학교 기준 소속
-  isHq: boolean         // admin 이면 '모든 학교' 탭 노출
+  showAll: boolean      // 슈퍼(admin) 계정만 '모든 학교'(타 소속 포함) 탭 노출
   excludeIds?: string[] // 이미 담긴 학교(목록에서 제외)
   onPick: (s: PickSchool) => void
   autoFocus?: boolean
@@ -43,7 +43,7 @@ export function SchoolScopePicker({
   const tabs = [
     { key: 'mine' as const, label: '담당학교', n: counts.mine },
     { key: 'affil' as const, label: '전체학교', n: counts.affil },
-    ...(isHq ? [{ key: 'all' as const, label: '모든 학교', n: counts.all }] : []),
+    ...(showAll ? [{ key: 'all' as const, label: '모든 학교', n: counts.all }] : []),
   ]
 
   return (

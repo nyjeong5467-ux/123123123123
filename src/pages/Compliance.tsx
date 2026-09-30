@@ -14,6 +14,7 @@ import { Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
 import { MyWorkStrip } from '../components/table/MyWorkStrip'
 import { useAuth } from '../lib/auth'
+import { useAffiliationScope } from '../lib/affiliationScope'
 import {
   ComplianceSheetForm, ComplianceSheetPrint, emptySheet, periodLabel, sheetProgress,
   type CxDoc, type CxSheet,
@@ -162,25 +163,32 @@ export function Compliance() {
     }
   }
 
+  // 소속 격리 — 'admin'(슈퍼)만 전체, 그 외는 자기 소속 학교만.
+  const scope = useAffiliationScope()
+  const scopedSchools = useMemo(
+    () => schools.filter((s) => scope.visible({ id: s.id, name: s.name })),
+    [schools, scope],
+  )
+
   const rows: SchoolRow[] = useMemo(
-    () => schools.map((s) => ({
+    () => scopedSchools.map((s) => ({
       ...s,
       h1: sheetStatus(doc[s.id]?.[CUR_PERIODS[0]])[0],
       h2: sheetStatus(doc[s.id]?.[CUR_PERIODS[1]])[0],
     })),
-    [schools, doc],
+    [scopedSchools, doc],
   )
   const q = useTableQuery(rows, SCHOOL_QUERY)
 
   // 작성물 리스트(0807 개편) — 전 학교의 작성된 조사지를 평탄화해 반기 역순 표시
   const reportRows: CxReportRow[] = useMemo(() => {
     const out: CxReportRow[] = []
-    for (const s of schools) {
+    for (const s of scopedSchools) {
       const sheets = doc[s.id] ?? {}
       for (const key of Object.keys(sheets)) out.push({ school: s, periodKey: key, sheet: sheets[key] })
     }
     return out
-  }, [schools, doc])
+  }, [scopedSchools, doc])
   // [066] 내 조사지 작업 스트립 — 작성중(미제출) 조사지, 담당 배정 있으면 담당 학교 한정
   const myIds = useMemo(() => {
     const mine = schools.filter((s) => s.assigned_inspector_id === (user?.login ?? ''))

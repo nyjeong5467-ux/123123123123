@@ -11,6 +11,7 @@ import { MyWorkStrip } from '../components/table/MyWorkStrip'
 import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
 import { useAuth } from '../lib/auth'
+import { useAffiliationScope } from '../lib/affiliationScope'
 import { hasMusDraft } from '../lib/musDraft'
 import '../styles/hier.css'
 import '../styles/musculohier.css'
@@ -417,9 +418,16 @@ export function Musculo() {
     return () => { alive = false }
   }, [surveyId])
 
+  // 소속 격리 — 'admin'(슈퍼)만 전체, 그 외는 자기 소속 학교만.
+  const scope = useAffiliationScope()
+  const scopedSchools = useMemo(
+    () => schools.filter((s) => scope.visible({ id: s.id, name: s.name })),
+    [schools, scope],
+  )
+
   // ── 1단계: 학교 목록 데이터 ──
   const schoolRows: SchoolRow[] = useMemo(
-    () => schools.map((s) => {
+    () => scopedSchools.map((s) => {
       const list = surveyMap[s.id] ?? []
       const latest = list.reduce((m, it) => {
         const d = (it.created_at ?? '').slice(0, 10)
@@ -433,7 +441,7 @@ export function Musculo() {
         latest,
       }
     }),
-    [schools, surveyMap],
+    [scopedSchools, surveyMap],
   )
   const totalCount = useMemo(() => schoolRows.reduce((a, r) => a + r.count, 0), [schoolRows])
   const totalNeeds = useMemo(() => schoolRows.reduce((a, r) => a + r.needsReview, 0), [schoolRows])
@@ -441,8 +449,8 @@ export function Musculo() {
 
   // 작성물 리스트(0807 개편) — 전 학교 조사를 평탄화해 최신순 표시
   const reportRows: MusReportRow[] = useMemo(
-    () => schools.flatMap((s) => (surveyMap[s.id] ?? []).map((sv) => ({ school: s, sv }))),
-    [schools, surveyMap],
+    () => scopedSchools.flatMap((s) => (surveyMap[s.id] ?? []).map((sv) => ({ school: s, sv }))),
+    [scopedSchools, surveyMap],
   )
   // [066] 내 보고서 작업 스트립 — localStorage 보고서 초안(작성중) 기준, 담당 배정 있으면 담당 학교 한정
   const myIds = useMemo(() => {

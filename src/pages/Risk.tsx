@@ -9,6 +9,7 @@ import { Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
 import { MyWorkStrip } from '../components/table/MyWorkStrip'
 import { useAuth } from '../lib/auth'
+import { useAffiliationScope } from '../lib/affiliationScope'
 import { DeptHazardInfo, type DeptInfoDoc } from '../features/risk/DeptHazardInfo'
 import { HearingSurvey, type HearingDoc } from '../features/risk/HearingSurvey'
 import { AssessmentTable, type AssessDoc, type BehaviorDoc, type StateDoc } from '../features/risk/AssessmentTable'
@@ -368,9 +369,16 @@ export function Risk() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schools])
 
+  // 소속 격리 — 'admin'(슈퍼)만 전체, 그 외는 자기 소속 학교만.
+  const scope = useAffiliationScope()
+  const scopedSchools = useMemo(
+    () => schools.filter((s) => scope.visible({ id: s.id, name: s.name })),
+    [schools, scope],
+  )
+
   const reportRows: RiskReportRow[] = useMemo(() => {
     const out: RiskReportRow[] = []
-    for (const s of schools) {
+    for (const s of scopedSchools) {
       const doc = docMap[s.id]
       if (!doc) continue
       const sm = regularSummary(doc.d)
@@ -398,7 +406,7 @@ export function Risk() {
       }
     }
     return out
-  }, [schools, docMap])
+  }, [scopedSchools, docMap])
   // [066] 내 평가 작업 스트립 — 작성중(정기 작성 중·수시 진행 중), 담당 배정 있으면 담당 학교 기준 [059]와 동일 규칙
   const myIds = useMemo(() => {
     const mine = schools.filter((s) => s.assigned_inspector_id === (user?.login ?? ''))

@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Building2, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { useAffiliationScope } from '../lib/affiliationScope'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { SchoolFormModal } from '../components/SchoolFormModal'
@@ -207,7 +208,13 @@ export function SchoolsHub() {
       (!!myLogin && s.assigned_inspector_id === myLogin),
     [myName, myLogin],
   )
-  const mineCount = useMemo(() => rows.filter((r) => isMine(r.school)).length, [rows, isMine])
+  // 소속 격리 — 'admin'(슈퍼)만 전체, 그 외는 자기 소속 학교만(검색 포함).
+  const affScope = useAffiliationScope()
+  const visibleRows = useMemo(
+    () => rows.filter((r) => affScope.visible({ id: r.school.id, name: r.school.name })),
+    [rows, affScope],
+  )
+  const mineCount = useMemo(() => visibleRows.filter((r) => isMine(r.school)).length, [visibleRows, isMine])
   // 담당 학교가 있으면 기본 '담당', 없으면 '전체'. 이름(/auth/me) 로딩까지 기다린 뒤 결정.
   useEffect(() => {
     if (scopeInit || loading || !meLoaded) return
@@ -259,7 +266,7 @@ export function SchoolsHub() {
     const hasQuery = !!(nq || rq || mq)
     // 검색어가 있으면 담당 여부와 무관하게 전체에서 검색(다른 담당자 학교도 노출),
     // 검색어가 없으면 스코프(담당/전체) 적용 — 기본은 담당 학교만.
-    const base = hasQuery ? rows : scope === 'mine' ? rows.filter((r) => isMine(r.school)) : rows
+    const base = hasQuery ? visibleRows : scope === 'mine' ? visibleRows.filter((r) => isMine(r.school)) : visibleRows
     if (!hasQuery) return base
     return base.filter(
       (r) =>
@@ -267,7 +274,7 @@ export function SchoolsHub() {
         (!rq || (r.school.address ?? '').toLowerCase().includes(rq)) &&
         (!mq || (r.school.manager ?? '').toLowerCase().includes(mq)),
     )
-  }, [rows, applied, scope, isMine])
+  }, [visibleRows, applied, scope, isMine])
 
   const q = useTableQuery(searchedRows, {
     filters: HUB_FILTERS,
@@ -286,15 +293,15 @@ export function SchoolsHub() {
   // 축약 배너용 — 현재 스코프의 안전점검 미방문(이번 달 미실시) 수. 배지 로드 전엔 null
   const inspUnvisited = useMemo(() => {
     if (Object.keys(badges).length === 0) return null
-    const scoped = scope === 'mine' ? rows.filter((r) => isMine(r.school)) : rows
+    const scoped = scope === 'mine' ? visibleRows.filter((r) => isMine(r.school)) : visibleRows
     return scoped.filter((r) => badges[r.school.id] && badges[r.school.id].insp.cls !== 'ok').length
-  }, [rows, badges, scope, isMine])
+  }, [visibleRows, badges, scope, isMine])
 
   // 배너 도넛용 — 담당 학교 기준 업무별 완료 수 (담당 배정 없으면 전체 학교 기준)
   const workStats = useMemo<WorkStats | null>(() => {
     if (Object.keys(badges).length === 0) return null
-    const mineRows = rows.filter((r) => isMine(r.school))
-    const base = mineRows.length > 0 ? mineRows : rows
+    const mineRows = visibleRows.filter((r) => isMine(r.school))
+    const base = mineRows.length > 0 ? mineRows : visibleRows
     const count = (f: (id: string) => boolean) => base.filter((r) => f(r.school.id)).length
     return {
       total: base.length,
@@ -304,7 +311,7 @@ export function SchoolsHub() {
       mus: count((id) => badges[id]?.mus.cls === 'ok'),
       comp: count((id) => badges[id]?.comp.cls === 'ok'),
     }
-  }, [rows, badges, isMine])
+  }, [visibleRows, badges, isMine])
 
   return (
     <div className="page rv">

@@ -5,6 +5,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, ClipboardCheck, Trash2 } from 'lucide-react'
 import { api, getToken } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { useAffiliationScope } from '../lib/affiliationScope'
 import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
@@ -484,9 +485,16 @@ export function Inspection() {
     }
   }
 
+  // 소속 격리 — 'admin'(슈퍼)만 전체, 그 외는 자기 소속 학교만.
+  const scope = useAffiliationScope()
+  const scopedSchools = useMemo(
+    () => schools.filter((s) => scope.visible({ id: s.id, name: s.name })),
+    [schools, scope],
+  )
+
   // ── 1단계: 학교 목록 데이터 ──
   const schoolRows: SchoolRow[] = useMemo(
-    () => schools.map((s) => {
+    () => scopedSchools.map((s) => {
       const list = insMap[s.id] ?? []
       const latest = list.reduce((m, it) => {
         const d = dateOf(it)
@@ -501,7 +509,7 @@ export function Inspection() {
         latest,
       }
     }),
-    [schools, insMap],
+    [scopedSchools, insMap],
   )
   const totalCount = useMemo(() => schoolRows.reduce((a, r) => a + r.count, 0), [schoolRows])
   const totalSubmitted = useMemo(() => schoolRows.reduce((a, r) => a + r.submitted, 0), [schoolRows])
@@ -509,8 +517,8 @@ export function Inspection() {
 
   // 작성물 리스트(0807 개편 · 0809 점검표 단위 그룹) — 학교×점검일 1장 단위, 최신순
   const reportRows: InsReportRow[] = useMemo(
-    () => schools.flatMap((s) => groupToSheets(s, insMap[s.id] ?? [])),
-    [schools, insMap],
+    () => scopedSchools.flatMap((s) => groupToSheets(s, insMap[s.id] ?? [])),
+    [scopedSchools, insMap],
   )
   // [063] 학교명·지역명 확정형 검색 (학교 탭과 동일 UX) — 학교급은 rq의 level 필터로 반영
   const [applied, setApplied] = useState({ name: '', region: '' })

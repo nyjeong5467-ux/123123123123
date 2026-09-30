@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Building2, Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
+import { useAffiliationScope } from '../lib/affiliationScope'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 
@@ -65,7 +66,14 @@ export function SchoolStatus() {
     return () => { alive = false }
   }, [reload])
 
-  const q = useTableQuery(schools, {
+  // 소속 격리 — 'admin'(슈퍼)만 전체, 그 외는 자기 소속 학교만.
+  const scope = useAffiliationScope()
+  const scopedSchools = useMemo(
+    () => schools.filter((s) => scope.visible({ id: s.id, name: s.name })),
+    [schools, scope],
+  )
+
+  const q = useTableQuery(scopedSchools, {
     searchFields: [(r) => r.name, (r) => r.manager ?? '', (r) => r.principal ?? ''],
     filters: SCH_FILTERS,
     sortAccessors: SCH_SORTS,
