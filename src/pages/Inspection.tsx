@@ -15,7 +15,7 @@ import { InspectionSheetView, SignImage, type SheetData } from '../components/In
 import { resolveExtra, type InspExtra, type PhotoSlot } from '../lib/inspExtra'
 import '../styles/hier.css'
 import '../styles/inspecthier.css'
-import { fetchApproval } from '../lib/approval' // [118]
+import { fetchApproval, titleFor } from '../lib/approval' // [118] [126]
 
 const PART_LABEL: Record<string, string> = {
   catering: '급식', facility: '시설', cleaning: '미화', commute: '통학', night_duty: '당직',
@@ -312,7 +312,7 @@ export function Inspection() {
           ? [{ label: own, slots: photos[own] }]
           : Object.entries(photos).map(([label, slots]) => ({ label, slots }))
         setDetailPhotos(groups.filter((g) => (g.slots ?? []).some((s) => s.dataUrl)))
-        setDetailLines(extra?.approval_lines ?? [])
+        setDetailLines((extra?.approval_lines ?? []).map((l) => ({ ...l, title: titleFor(sel, l.title || '') }))) // [126] 기관 직책 표시
       })
       .catch(() => { if (alive) { setDetailPhotos([]); setDetailLines([]) } })
     return () => { alive = false }

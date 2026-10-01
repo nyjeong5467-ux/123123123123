@@ -8,7 +8,7 @@ import { PARTDEF } from '../pages/InspectionForm'
 import type { InspExtra } from '../lib/inspExtra'
 import { SignImage, waitForSheetImages } from './SignImage'
 import '../styles/inspectsheet.css'
-import { normalizeApproval, primaryIdx } from '../lib/approval' // [118] [123] 확인자 공용 규칙(학교/기관 구분·주확인자=담당자)
+import { normalizeApproval, primaryIdx, titleFor } from '../lib/approval' // [118] [123] 확인자 공용 규칙(학교/기관 구분·주확인자=담당자)
 
 // 기존 사용처(Inspection.tsx 등) 호환 재수출 — SignImage 본체는 components/SignImage.tsx로 이동.
 export { SignImage } from './SignImage'
@@ -68,8 +68,9 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
   if (finalSigner || signImageRef || mainSig?.image_data) {
     cells[primary] = { ...cells[primary], name: finalSigner, imageRef: signImageRef || null, imageData: mainSig?.image_data || null }
   }
-  for (const ln of approvalLines) {
-    if (!ln.signer && !ln.image_ref && !ln.image_data) continue
+  for (const ln0 of approvalLines) {
+    if (!ln0.signer && !ln0.image_ref && !ln0.image_data) continue
+    const ln = { ...ln0, title: titleFor({ name: sheet.schoolName }, ln0.title || '') } // [126] 기관: 행정실장→팀장·교장→과장
     const k = cells.findIndex((c, i) => c.title === ln.title && !(c.name || c.imageRef || c.imageData) && !(i === primary && finalSigner))
     const cell = { title: ln.title || '확인자', name: ln.signer || '', imageRef: ln.image_ref || null, imageData: ln.image_data || null }
     if (k >= 0) cells[k] = cell

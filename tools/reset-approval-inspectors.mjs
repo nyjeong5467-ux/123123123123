@@ -10,6 +10,7 @@
 //       - 되돌리기: node tools/reset-approval-inspectors.mjs --restore <백업파일>
 //
 // 실행: reset-approval.bat 더블클릭 (또는 node tools/reset-approval-inspectors.mjs)
+//       [126] 기관 확인자 직책 변환: fix-agency-approval.bat (--fix-agency)
 // 대상 서버 기본값: https://hanguksafe.kr  (로컬 목업 테스트: --server http://localhost:3001)
 // 계약 파일(api.ts/auth.tsx/vite.config.ts)은 사용·수정하지 않는 독립 스크립트.
 // ============================================================================
@@ -22,6 +23,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const argv = process.argv.slice(2)
 const argOf = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined }
 const RESTORE = argOf('--restore')
+const FIX_AGENCY = argv.includes('--fix-agency') // [126] 기관 확인자 직책 변환 모드
 let SERVER = (argOf('--server') || '').replace(/\/+$/, '')
 
 // ---- 입력 (줄 대기열 — 붙여넣기·파이프 입력에서도 줄이 유실되지 않게) ----
@@ -109,9 +111,61 @@ async function restore(file) {
   console.log(`[되돌리기] 완료 ${ok}/${list.length}`)
 }
 
+// ---- [126] 기관 확인자 직책 변환: 학교식(담당자·행정실장·교장) → 기관식(담당자·팀장·과장) ----
+// 화면은 표시 시 자동 변환하지만, 운영 백엔드의 PDF(report.pdf)는 저장값을 그대로 쓰므로 저장값 자체를 고친다.
+const isAgency = (s) => {
+  if (s?.org_kind && /교육청|기관/.test(s.org_kind)) return true
+  const n = String(s?.name ?? '').replace(/\(.*?\)/g, '').replace(/\s+/g, '')
+  return !!n && !/(학교|유치원)$/.test(n)
+}
+const AGENCY_TITLE = { 안전담당자: '담당자', 행정실장: '팀장', 행정주무관: '담당자', 교감: '팀장', 교장: '과장', 원감: '팀장', 원장: '과장' }
+const SCHOOL_HEAD = new Set(['교장', '원장'])
+async function fixAgency() {
+  const schools = (await api('GET', '/schools')).filter(isAgency)
+  console.log(`[1/3] 기관 ${schools.length}곳 확인자 조회 중...`)
+  const lines = (await pool(schools, 6, async (s) => {
+    try {
+      const r = await api('GET', `/schools/${s.id}/approval-line`)
+      return { school_id: s.id, school_name: s.name, principal: s.principal || '', steps: Array.isArray(r?.steps) ? r.steps : [] }
+    } catch { return null }
+  })).filter(Boolean)
+  const targets = []
+  for (const x of lines) {
+    const next = x.steps.length
+      ? x.steps.map((st) => {
+          const t = String(st?.title ?? '').trim()
+          const nm = String(st?.name ?? '').trim()
+          return { title: AGENCY_TITLE[t] ?? t, name: SCHOOL_HEAD.has(t) && (!nm || nm === x.principal) ? '' : nm }
+        })
+      : [{ title: '담당자', name: '' }, { title: '팀장', name: '' }, { title: '과장', name: '' }]
+    if (JSON.stringify(next) !== JSON.stringify(x.steps.map((st) => ({ title: String(st?.title ?? '').trim(), name: String(st?.name ?? '').trim() })))) targets.push({ ...x, next })
+  }
+  console.log(`[2/3] 변환 대상 ${targets.length}곳\n`)
+  for (const t of targets) {
+    const a = t.steps.map((st) => `${st.title}${st.name ? ' ' + st.name : ''}`).join(' → ') || '(비어 있음)'
+    const b = t.next.map((st) => `${st.title}${st.name ? ' ' + st.name : ''}`).join(' → ')
+    console.log(`  - ${t.school_name}: ${a}  ⇒  ${b}`)
+  }
+  if (!targets.length) { console.log('바꿀 항목이 없습니다.'); return }
+  const backupFile = path.join(HERE, `approval-backup-${stamp()}.json`)
+  fs.writeFileSync(backupFile, JSON.stringify({ server: SERVER, at: new Date().toISOString(), changed: targets.map((t) => t.school_id), lines }, null, 2), 'utf8')
+  console.log(`\n[백업] ${backupFile}`)
+  if ((await ask(`\n위 ${targets.length}개 기관의 확인자를 담당자·팀장·과장으로 바꿀까요? (y/N): `)).toLowerCase() !== 'y') {
+    console.log('중단했습니다. 아무것도 변경하지 않았습니다.')
+    return
+  }
+  let ok = 0
+  await pool(targets, 4, async (t) => {
+    try { await api('PUT', `/schools/${t.school_id}/approval-line`, { steps: t.next }); ok++ } catch (e) { console.log(`  실패 ${t.school_name}: ${e.message}`) }
+  })
+  console.log(`\n[3/3] 완료: ${ok}/${targets.length}곳`)
+  console.log(`  되돌리기: node tools/reset-approval-inspectors.mjs --restore "${backupFile}"`)
+}
+
 async function main() {
   await login()
   if (RESTORE) return restore(RESTORE)
+  if (FIX_AGENCY) return fixAgency()
 
   // 1) 협회 계정 이름 (학교 확인자 계정 제외)
   const users = await api('GET', '/users')

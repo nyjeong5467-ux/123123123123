@@ -12,7 +12,7 @@ import { SignaturePadModal, type SignStrokes } from '../components/SignaturePadM
 import type { SheetData } from '../components/InspectionSheetView'
 import { resolveExtra, type InspExtra } from '../lib/inspExtra'
 import '../styles/inspectform.css'
-import { type ApprovalStep, defaultApproval, fetchApproval, primaryIdx } from '../lib/approval' // [118] [123]
+import { type ApprovalStep, defaultApproval, fetchApproval, primaryIdx, titleFor } from '../lib/approval' // [118] [123]
 
 // 기존 사용처 호환 재수출 — InspExtra 본체는 lib/inspExtra.ts로 이동(공용 매칭 로직과 함께).
 export type { InspExtra } from '../lib/inspExtra'
@@ -506,7 +506,9 @@ export function InspectionForm() {
   const webLines = extraConf
     .filter((c) => c.signed && c.name.trim())
     .map((c) => ({ title: c.title, signer: c.name.trim(), image_ref: '', image_data: c.image || null }))
-  const mergedLines = [...recvLines.filter((l) => !webLines.some((w) => w.title === l.title)), ...webLines]
+  // [126] 수신 확인자 직책도 학교/기관 규칙으로 표시(기관: 행정실장→팀장·교장→과장)
+  const recvShown = recvLines.map((l) => ({ ...l, title: titleFor({ name: schoolName }, l.title || '') }))
+  const mergedLines = [...recvShown.filter((l) => !webLines.some((w) => w.title === l.title)), ...webLines]
   const confLine = approval.length ? approval : defaultApproval({ name: schoolName }) // [123]
   const confPrimary = primaryStep(confLine)
 
@@ -1156,7 +1158,7 @@ export function InspectionForm() {
                   <span style={{ fontSize: 12, color: 'var(--muted, #888)' }}>확인자(담당자){signerName ? ` · ${signerName}` : ''}</span>
                 </div>
               )}
-              {recvLines.map((ln, i) => (
+              {recvShown.map((ln, i) => (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                   {ln.image_ref
                     ? <SignImage refPath={ln.image_ref} />

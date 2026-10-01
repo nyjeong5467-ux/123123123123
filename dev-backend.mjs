@@ -116,16 +116,22 @@ function defaultApproval(org) {
   const t = kind === 'school' ? ['담당자', '행정실장', '교장'] : ['담당자', '팀장', '과장']
   return [{ title: t[0], name: '' }, { title: t[1], name: '' }, { title: t[2], name: kind === 'school' ? String(org?.principal ?? '').trim() : '' }]
 }
+const AGENCY_TITLE = { 안전담당자: '담당자', 행정실장: '팀장', 행정주무관: '담당자', 교감: '팀장', 교장: '과장', 원감: '팀장', 원장: '과장' }
+const SCHOOL_HEAD = new Set(['교장', '원장'])
+function titleFor(org, title) {
+  const t = String(title ?? '').trim()
+  if (orgKindOf(org) === 'agency') return AGENCY_TITLE[t] ?? t
+  return t === '안전담당자' ? '담당자' : t
+}
 function normalizeApproval(steps, org) {
+  const agency = orgKindOf(org) === 'agency'
+  const head = String(org?.principal ?? '').trim()
   const clean = (steps || [])
     .map((s) => ({ title: String(s?.title ?? '').trim(), name: String(s?.name ?? '').trim() }))
-    .map((s) => (s.title === '안전담당자' ? { ...s, title: '담당자' } : s))
     .filter((s) => s.title || s.name)
+    .map((s) => ({ title: titleFor(org, s.title), name: agency && SCHOOL_HEAD.has(s.title) && (!s.name || s.name === head) ? '' : s.name }))
     .slice(0, 3)
-  if (!clean.length) return defaultApproval(org)
-  const untouched = clean.length === 3 && /담당/.test(clean[0].title) && !clean[0].name && clean[1].title === '행정실장' && !clean[1].name && clean[2].title === '교장'
-  if (orgKindOf(org) === 'agency' && untouched) return defaultApproval(org)
-  return clean
+  return clean.length ? clean : defaultApproval(org)
 }
 const PART_ORDER = ['catering', 'night_duty', 'commute', 'facility', 'cleaning']
 const RES_COL = { good: 0, ok: 0, poor: 1, fix: 1, na: 2 }
@@ -163,8 +169,9 @@ async function buildSheetHtml(iid) {
   if (finalSigner || mainImg) cells[primary] = { ...cells[primary], name: finalSigner, img: mainImg }
   for (const ln of extra?.approval_lines || []) {
     if (!ln.signer && !ln.image_ref && !ln.image_data) continue
-    const cell = { title: ln.title || '확인자', name: ln.signer || '', img: ln.image_data || imgOf(ln.image_ref) }
-    const k = cells.findIndex((c, i) => c.title === ln.title && !(c.name || c.img) && !(i === primary && finalSigner))
+    const lt = titleFor(school, ln.title || '') // [126] 기관: 행정실장→팀장·교장→과장
+    const cell = { title: lt || '확인자', name: ln.signer || '', img: ln.image_data || imgOf(ln.image_ref) }
+    const k = cells.findIndex((c, i) => c.title === lt && !(c.name || c.img) && !(i === primary && finalSigner))
     if (k >= 0) cells[k] = cell
     else if (!cells.some((c) => c.title === cell.title && c.name === cell.name)) cells.push(cell)
   }

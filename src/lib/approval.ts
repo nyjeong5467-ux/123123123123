@@ -46,23 +46,32 @@ export function defaultApproval(org?: OrgLike): ApprovalStep[] {
 /** 기본(주) 확인자 단계 — '담당'이 들어간 직책(담당자·구 안전담당자), 없으면 1단계 */
 export const primaryIdx = (line: { title: string }[]) => Math.max(0, line.findIndex((s) => (s.title || '').includes('담당')))
 
-// 구 기본값(안전담당자·행정실장·교장, 성명은 교장만) 그대로인 기관 확인자 → 기관 기본값으로 교체 판정
-const isUntouchedSchoolDefault = (st: ApprovalStep[]) =>
-  st.length === 3 &&
-  /담당/.test(st[0].title) && !st[0].name &&
-  st[1].title === '행정실장' && !st[1].name &&
-  st[2].title === '교장'
+// [126] 기관 직책 변환 — 학교식 직책으로 저장된 기관 확인자(구 기본값·현장앱 제출분)를 기관 직책으로
+const AGENCY_TITLE: Record<string, string> = { 안전담당자: '담당자', 행정실장: '팀장', 행정주무관: '담당자', 교감: '팀장', 교장: '과장', 원감: '팀장', 원장: '과장' }
+const SCHOOL_HEAD = new Set(['교장', '원장'])
+/** 직책 표시명 — 공통: 안전담당자→담당자 / 기관: 행정실장→팀장, 교장→과장 등 */
+export function titleFor(org: OrgLike, title: string): string {
+  const t = (title ?? '').trim()
+  if (orgKindOf(org) === 'agency') return AGENCY_TITLE[t] ?? t
+  return t === '안전담당자' ? '담당자' : t
+}
 
-/** 서버 응답 정리 — 최대 3단계, 구 직책명(안전담당자→담당자) 정리, 비어 있으면 학교/기관 기본값.
- *  기관인데 손대지 않은 학교 기본값이 저장돼 있으면 기관 기본값(담당자·팀장·과장)으로 표시. */
+/** 서버 응답 정리 — 최대 3단계, 직책명 정리(학교/기관), 비어 있으면 학교/기관 기본값.
+ *  기관: 학교식 직책(행정실장·교장)으로 저장돼 있어도 담당자·팀장·과장으로 표시 [126].
+ *  이때 교장 칸의 성명이 기관장(principal)이거나 자동 기본값이면 과장 칸에는 비워 둔다. */
 export function normalizeApproval(steps: ApprovalStep[] | null | undefined, org?: OrgLike): ApprovalStep[] {
+  const agency = orgKindOf(org) === 'agency'
+  const head = (org?.principal ?? '').trim()
   const clean = (steps ?? [])
     .map((s) => ({ title: (s?.title ?? '').trim(), name: (s?.name ?? '').trim() }))
-    .map((s) => (s.title === '안전담당자' ? { ...s, title: '담당자' } : s))
     .filter((s) => s.title || s.name)
+    .map((s) => {
+      const title = titleFor(org, s.title)
+      const dropName = agency && SCHOOL_HEAD.has(s.title) && (!s.name || s.name === head)
+      return { title, name: dropName ? '' : s.name }
+    })
     .slice(0, APPROVAL_MAX)
   if (!clean.length) return defaultApproval(org)
-  if (org && orgKindOf(org) === 'agency' && isUntouchedSchoolDefault(clean)) return defaultApproval(org)
   return clean
 }
 
