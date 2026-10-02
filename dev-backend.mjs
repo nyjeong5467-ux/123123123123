@@ -170,10 +170,16 @@ async function buildSheetHtml(iid) {
   for (const ln of extra?.approval_lines || []) {
     if (!ln.signer && !ln.image_ref && !ln.image_data) continue
     const lt = titleFor(school, ln.title || '') // [126] 기관: 행정실장→팀장·교장→과장
-    const cell = { title: lt || '확인자', name: ln.signer || '', img: ln.image_data || imgOf(ln.image_ref) }
+    const cell = { title: lt, name: ln.signer || '', img: ln.image_data || imgOf(ln.image_ref) }
+    // [129] 직책 없는 '확인자' 서명은 별도 칸을 만들지 않음 — 담당자 칸이 비었을 때만 채움 (InspectionSheetView와 동일)
+    if (!lt || lt === '확인자') {
+      const pc = cells[primary]
+      if (pc && !(pc.name || pc.img)) cells[primary] = { ...cell, title: pc.title }
+      continue
+    }
     const k = cells.findIndex((c, i) => c.title === lt && !(c.name || c.img) && !(i === primary && finalSigner))
     if (k >= 0) cells[k] = cell
-    else if (!cells.some((c) => c.title === cell.title && c.name === cell.name)) cells.push(cell)
+    else if (!cells.some((c) => c.title === cell.title)) cells.push(cell)
   }
 
   const info = extra?.info || {}

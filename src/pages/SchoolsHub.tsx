@@ -120,7 +120,7 @@ const HUB_EXPORT: ExportColumn<Row>[] = [
   { header: '학교(기관)명', value: (r) => r.school.name },
   { header: '학교(기관)장', value: (r) => r.school.principal ?? '' },
   { header: '관리감독자', value: (r) => r.school.supervisor ?? '' },
-  { header: '담당자', value: (r) => r.school.manager ?? '' },
+  { header: '조사원', value: (r) => r.school.manager ?? '' },
   { header: '안전점검기관', value: (r) => r.school.inspection_agency ?? '' },
   { header: '종사자수', value: (r) => r.total ?? '' },
   { header: '인원대조', value: (r) => (r.mismatch ? '불일치' : '일치') },
@@ -368,7 +368,7 @@ export function SchoolsHub() {
         </div>
         {scope === 'all' && (
           <div className="shub-field">
-            <span className="lab">담당자</span>
+            <span className="lab">조사원</span>
             <div className="in">
               <input
                 value={mgrQ}
@@ -379,7 +379,7 @@ export function SchoolsHub() {
                 <button
                   className="shub-search-clear"
                   onClick={() => { setMgrQ(''); setApplied((a) => ({ ...a, manager: '' })) }}
-                  aria-label="담당자 지우기"
+                  aria-label="조사원 지우기"
                 >
                   <X size={14} />
                 </button>
@@ -416,7 +416,7 @@ export function SchoolsHub() {
                 <SortableTh q={q} col="level">구분</SortableTh>
                 <SortableTh q={q} col="name">학교(기관)명</SortableTh>
                 <SortableTh q={q} col="principal">학교(기관)장</SortableTh>
-                <SortableTh q={q} col="manager">담당자</SortableTh>
+                <SortableTh q={q} col="manager">조사원</SortableTh>
                 <SortableTh q={q} col="workers" className="c">종사자수</SortableTh>
                 {scope === 'mine' && <th>업무 바로가기</th>}
                 <th className="c">대장</th>

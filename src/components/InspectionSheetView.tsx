@@ -1,7 +1,7 @@
 // 종사자 안전·보건 점검표 — 실물 양식 보기 [054]
 // 점검표 1장(학교×점검일, 공정별 점검 묶음)을 제출 PDF와 같은 서식으로 표시.
 // [인쇄 / PDF 저장]으로 브라우저 인쇄 → PDF 생성 가능. 조회 전용(수정은 이어서 작성에서).
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
 import { PARTDEF } from '../pages/InspectionForm'
@@ -71,10 +71,17 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
   for (const ln0 of approvalLines) {
     if (!ln0.signer && !ln0.image_ref && !ln0.image_data) continue
     const ln = { ...ln0, title: titleFor({ name: sheet.schoolName }, ln0.title || '') } // [126] 기관: 행정실장→팀장·교장→과장
+    const cell = { title: ln.title, name: ln.signer || '', imageRef: ln.image_ref || null, imageData: ln.image_data || null }
+    // [129] 직책 없이 '확인자'로만 들어온 서명(현장앱 주서명 사본)은 별도 '확인자' 칸을 만들지 않는다 —
+    //       담당자(주확인자) 칸이 비어 있을 때만 그 칸에 넣고, 이미 서명이 있으면 중복이므로 버린다.
+    if (!ln.title || ln.title === '확인자') {
+      const pc = cells[primary]
+      if (pc && !(pc.name || pc.imageRef || pc.imageData)) cells[primary] = { ...cell, title: pc.title }
+      continue
+    }
     const k = cells.findIndex((c, i) => c.title === ln.title && !(c.name || c.imageRef || c.imageData) && !(i === primary && finalSigner))
-    const cell = { title: ln.title || '확인자', name: ln.signer || '', imageRef: ln.image_ref || null, imageData: ln.image_data || null }
     if (k >= 0) cells[k] = cell
-    else if (!cells.some((c) => c.title === cell.title && c.name === cell.name)) cells.push(cell) // 결재선 밖 서명도 유실 없이 칸 추가
+    else if (!cells.some((c) => c.title === cell.title)) cells.push(cell) // 확인자 라인에 없는 직책의 서명은 유실 없이 칸 추가
   }
   const photoSlots = ordered.flatMap((p) => {
     const def = PARTDEF.find((d) => d.key === p.part)
@@ -220,13 +227,29 @@ function CheckMark({ white }: { white?: boolean }) {
   )
 }
 
-export function InspectionSheetView({ sheet, onClose }: { sheet: SheetData; onClose: () => void }) {
+// [128] autoPrint — [PDF 변환] 버튼용: 보기 창을 열자마자 인쇄 창을 띄운다(대상에서 'PDF로 저장' 선택).
+//       '보기'의 [인쇄 / PDF 저장]과 완전히 같은 출력물 = 보기·PDF 변환 서식 단일화.
+export function InspectionSheetView({ sheet, onClose, autoPrint }: { sheet: SheetData; onClose: () => void; autoPrint?: boolean }) {
   const bodyRef = useRef<HTMLDivElement>(null)
   // 서명 이미지(비동기 fetch)가 아직 로딩 중일 때 바로 인쇄하면 서명 칸이 비어 출력됨 — 로드 완료 후 인쇄.
   async function printSheet() {
     if (bodyRef.current) await waitForSheetImages(bodyRef.current)
+    // 인쇄 창의 기본 PDF 파일명 = 문서 제목 → '안전점검표_학교명_점검일'로 잠시 바꿨다가 복원
+    const prevTitle = document.title
+    document.title = `안전점검표_${sheet.schoolName || '학교'}${sheet.date ? `_${sheet.date}` : ''}`
+    const restore = () => { document.title = prevTitle; window.removeEventListener('afterprint', restore) }
+    window.addEventListener('afterprint', restore)
     window.print()
+    setTimeout(restore, 60_000) // afterprint 미발생 브라우저 대비
   }
+  const printedRef = useRef(false)
+  useEffect(() => {
+    if (!autoPrint) return
+    // 양식이 그려진 뒤 1회만 인쇄 (개발 모드의 effect 이중 실행에도 1회)
+    const t = setTimeout(() => { if (printedRef.current) return; printedRef.current = true; void printSheet() }, 150)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPrint])
   // document.body 포탈 — 앱 레이아웃(오버플로·포지셔닝) 영향 없이 인쇄 시 양식만 출력되게 [054]
   return createPortal(
     <div className="inss-overlay" role="dialog" aria-label="종사자 안전·보건 점검표">

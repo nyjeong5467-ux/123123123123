@@ -4,12 +4,12 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { api, getToken } from '../lib/api'
+import { api } from '../lib/api'
 import { InspectionMailModal } from '../components/InspectionMailModal'
 import { SignImage } from '../components/SignImage'
 import { InfoTip } from '../components/InfoTip'
 import { SignaturePadModal, type SignStrokes } from '../components/SignaturePadModal'
-import type { SheetData } from '../components/InspectionSheetView'
+import { InspectionSheetView, type SheetData } from '../components/InspectionSheetView'
 import { resolveExtra, type InspExtra } from '../lib/inspExtra'
 import '../styles/inspectform.css'
 import { type ApprovalStep, defaultApproval, fetchApproval, primaryIdx, titleFor } from '../lib/approval' // [118] [123]
@@ -186,33 +186,9 @@ export function InspectionForm() {
   const [statuses, setStatuses] = useState<Record<string, PartStatus>>({})
   const [doneAll, setDoneAll] = useState(false)
   const [mailOpen, setMailOpen] = useState(false) // [062] 학교 메일 전송 모달
-  const [pdfIds, setPdfIds] = useState<string[]>([]) // 제출 완료 후 점검표 PDF 대상 ids
-  const [pdfBusy, setPdfBusy] = useState(false)
-
-  // 완성 점검표 PDF — 백엔드 아카이브(GET /inspections/{id}/report.pdf). 수정 모드는
-  // 기존 점검(editIds), 신규는 제출 완료 후(pdfIds) 활성.
-  const pdfTargetId = pdfIds[0] || editIds[0] || ''
-  async function downloadFormPdf() {
-    if (!pdfTargetId) return
-    setPdfBusy(true)
-    try {
-      const res = await fetch(`/api/v1/inspections/${pdfTargetId}/report.pdf`, {
-        headers: { Authorization: `Bearer ${getToken() ?? ''}` },
-      })
-      if (!res.ok) throw new Error(`${res.status}`)
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `안전점검표_${(schools.find((s) => s.id === sid)?.name || '학교')}_${new Date().toISOString().slice(0, 10)}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (e) {
-      setSubmitErr(e instanceof Error ? `PDF 생성 실패: ${e.message}` : 'PDF 생성 실패')
-    } finally {
-      setPdfBusy(false)
-    }
-  }
+  // [128] PDF 변환 — '보기'와 같은 양식으로 통일: 현재 입력 내용을 보기 창(InspectionSheetView)으로 열고 인쇄 창을 띄움
+  //       (구: 백엔드 아카이브 GET /inspections/{id}/report.pdf 다운로드 — 서식이 보기와 달라 폐지)
+  const [pdfSheet, setPdfSheet] = useState<SheetData | null>(null)
 
   /* 학교 목록 + 기본 선택 */
   useEffect(() => {
@@ -748,7 +724,6 @@ export function InspectionForm() {
           : '전남교육청 전송 대기 등록 완료',
       } : p))
       setDoneAll(true)
-      setPdfIds(usedIds) // 제출 완료 → [PDF 변환] 활성(백엔드 아카이브 report.pdf)
       window.setTimeout(() => { setProg(null); setMailOpen(true) }, 1400) // 완료 잠깐 보여주고 자동 사라짐 → 메일창
     } else {
       setProg((p) => (p ? { ...p, phase: 'err', msg: '일부 파트 전송 실패 — 상태 확인 후 다시 시도하세요' } : p))
@@ -992,7 +967,7 @@ export function InspectionForm() {
 
       {/* 기타 의견 */}
       <div className="insf-fset">
-        <div className="insf-ch"><i className="insf-sq" /><h3>기타 의견<InfoTip>점검자 의견 — 메일 문구에 함께 들어갑니다</InfoTip></h3></div>
+        <div className="insf-ch"><i className="insf-sq" /><h3>기타 의견<InfoTip>조사원 의견 — 메일 문구에 함께 들어갑니다</InfoTip></h3></div>
         <textarea
           className="insf-etc"
           placeholder={'점검자 :\n* 2026 정기 위험성평가 진행중\n- 미화담당 위험성평가 결과 공유 및 위험성감소대책 교육 실시'}
@@ -1191,6 +1166,9 @@ export function InspectionForm() {
         document.body,
       )}
 
+      {/* [128] PDF 변환 — 보기 양식 + 자동 인쇄 창 */}
+      {pdfSheet && <InspectionSheetView sheet={pdfSheet} autoPrint onClose={() => setPdfSheet(null)} />}
+
       {/* [062] 학교 메일 전송 모달 — 점검표 PDF 자동 첨부 + 학교 이메일 자동 입력 */}
       {mailOpen && (
         <InspectionMailModal
@@ -1235,10 +1213,10 @@ export function InspectionForm() {
             <input type="checkbox" checked={followupOn} onChange={(e) => setFollowupOn(e.target.checked)} /> 추후보완
           </label>
           <button className="btn" disabled={!ledger} onClick={() => setMailOpen(true)}>✉ 메일</button>
-          <button className="btn" disabled={!pdfTargetId || pdfBusy}
-            title={pdfTargetId ? '완성된 안전점검표 PDF(결재란·항목·사진대지·서명 포함) 다운로드' : 'PDF 변환은 제출 후 가능합니다'}
-            onClick={() => void downloadFormPdf()}>
-            {pdfBusy ? 'PDF 생성 중…' : '▤ PDF 변환'}
+          <button className="btn" disabled={!ledger}
+            title="보기와 같은 양식으로 인쇄 창을 엽니다 — 대상에서 'PDF로 저장'을 선택하세요"
+            onClick={() => setPdfSheet(buildSheet())}>
+            ▤ PDF 변환
           </button>
           {/* 임시저장 버튼은 상단 헤더에만 — 하단 중복 버튼 제거 [061] */}
           {/* 업로드 버튼 자체가 진행형 — 게이지·성공·실패를 버튼에 내장(팝업 제거) [G-8 웹] */}

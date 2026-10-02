@@ -257,7 +257,7 @@ export function SelfDispatchModal({
       footer={<button className="btn btn-ghost" onClick={onClose}>닫기</button>}
     >
       <div className="muted" style={{ marginTop: -4, fontSize: 12.5 }}>
-        <b style={{ color: 'var(--ink)' }}>{school.name}</b> · 담당자 {school.manager || '—'}
+        <b style={{ color: 'var(--ink)' }}>{school.name}</b> · 조사원 {school.manager || '—'}
       </div>
 
       {/* 서브 탭 */}

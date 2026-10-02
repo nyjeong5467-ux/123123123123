@@ -731,7 +731,7 @@ export function Home() {
     searchFields: [(r) => r.name, (r) => r.manager ?? ''],
     filters: SCH_FILTERS,
     sortAccessors: SCH_SORTS,
-    searchPlaceholder: '학교명·담당자',
+    searchPlaceholder: '학교명·조사원',
   })
 
   /* ---- 사이클 히어로: 안전점검 월 세그먼트 ---- */
@@ -778,7 +778,7 @@ export function Home() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <h2>오늘의 할 일</h2>
                 <div className="hm-tagline">
-                  {today.getMonth() + 1}월 {today.getDate()}일 ({DOW_LABELS[today.getDay()]}) · 담당자 {todayGroups.length}명 · 방문 예정 {pendingCount}곳 · 완료 {doneCount}곳
+                  {today.getMonth() + 1}월 {today.getDate()}일 ({DOW_LABELS[today.getDay()]}) · 조사원 {todayGroups.length}명 · 방문 예정 {pendingCount}곳 · 완료 {doneCount}곳
                 </div>
               </div>
               <div className="hm-td-sum">
@@ -834,7 +834,7 @@ export function Home() {
                               <div className="t">
                                 {label}
                                 {sc?.school_level && <i>{sc.school_level}</i>}
-                                {sc?.manager && <span className="mg">담당 {sc.manager}</span>}
+                                {sc?.manager && <span className="mg">조사원 {sc.manager}</span>}
                               </div>
                             </div>
                             <span className="hm-td-pill">방문 예정</span>
@@ -1471,7 +1471,7 @@ export function Home() {
           )}
           <div className="field" style={{ marginTop: 8 }}>
             <span>학교 방문 추가 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>
-              ({myName || '담당자'}{myAffil ? ` · ${myAffil}` : ''} · 담당/전체(소속)/모든 탭 · 클릭해서 추가)</span></span>
+              ({myName || '조사원'}{myAffil ? ` · ${myAffil}` : ''} · 담당/전체(소속)/모든 탭 · 클릭해서 추가)</span></span>
             <SchoolScopePicker
               schools={schoolsLite}
               scopeName={myName}

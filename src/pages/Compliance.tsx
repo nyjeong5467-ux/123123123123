@@ -37,7 +37,7 @@ function sheetStatus(s: CxSheet | undefined): [string, string] {
 type CxReportRow = { school: School; periodKey: string; sheet: CxSheet }
 const CX_REPORT_QUERY: TableQueryConfig<CxReportRow> = {
   searchFields: [(r) => r.school.name, (r) => r.school.manager ?? ''],
-  searchPlaceholder: '학교명·담당자 검색',
+  searchPlaceholder: '학교명·조사원 검색',
   filters: [{
     key: 'status',
     label: '상태',
@@ -65,7 +65,7 @@ const LEVEL_ORDER_CX: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3,
 const CX_REPORT_EXPORT: ExportColumn<CxReportRow>[] = [
   { header: '조사지', value: (r) => periodLabel(r.periodKey) },
   { header: '학교', value: (r) => r.school.name },
-  { header: '담당자', value: (r) => r.school.manager || '' },
+  { header: '조사원', value: (r) => r.school.manager || '' },
   { header: '상태', value: (r) => sheetStatus(r.sheet)[0] },
   { header: '제출일', value: (r) => r.sheet.submitted_date || '' },
 ]
@@ -75,7 +75,7 @@ type SchoolRow = School & { h1: string; h2: string }
 const SCHOOL_LEVELS = ['유', '초', '중', '고', '기타']
 const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
   searchFields: [(r) => r.name, (r) => r.manager ?? ''],
-  searchPlaceholder: '학교명·담당자 검색',
+  searchPlaceholder: '학교명·조사원 검색',
   filters: [{
     key: 'level', label: '구분',
     options: SCHOOL_LEVELS.map((v) => ({ value: v, label: v })),
@@ -85,7 +85,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
 }
 const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
   { header: '학교', value: (r) => r.name },
-  { header: '담당자', value: (r) => r.manager || '' },
+  { header: '조사원', value: (r) => r.manager || '' },
   { header: '상반기', value: (r) => r.h1 },
   { header: '하반기', value: (r) => r.h2 },
 ]
@@ -293,7 +293,7 @@ export function Compliance() {
                   <SortableTh q={rq} col="period">반기</SortableTh>
                   <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                   <SortableTh q={rq} col="name">학교</SortableTh>
-                  <th>담당자</th>
+                  <th>조사원</th>
                   <th className="c">작성현황</th>
                   <th className="c">작업</th>
                 </tr>
@@ -339,7 +339,7 @@ export function Compliance() {
           <div className="rkh-schoolhead">
             <button className="rkh-back" onClick={() => setSel(null)}><ArrowLeft size={14} /> 학교 목록</button>
             <span className="rkh-schoolname">{sel.name}</span>
-            <span className="rkh-schoolmgr">담당자 {sel.manager || '—'}</span>
+            <span className="rkh-schoolmgr">조사원 {sel.manager || '—'}</span>
             {/* 위험성평가와 동일한 위치(학교 헤더 우측) — 리스트 위 상단 버튼 */}
             <div style={{ marginLeft: 'auto' }}>
               <button className="btn btn-primary" onClick={() => { setCreateErr(''); setCreateOpen(true) }}>

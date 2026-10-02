@@ -43,7 +43,7 @@ const SCH_EXPORT: ExportColumn<School>[] = [
   { header: '학교(기관)명', value: (r) => r.name },
   { header: '학교(기관)장', value: (r) => r.principal ?? '' },
   { header: '관리감독자', value: (r) => r.supervisor ?? '' },
-  { header: '담당자', value: (r) => r.manager ?? '' },
+  { header: '조사원', value: (r) => r.manager ?? '' },
   { header: '안전점검기관', value: (r) => r.inspection_agency ?? '' },
   { header: '교육생수', value: (r) => r.education_count ?? '' },
 ]
@@ -77,7 +77,7 @@ export function SchoolStatus() {
     searchFields: [(r) => r.name, (r) => r.manager ?? '', (r) => r.principal ?? ''],
     filters: SCH_FILTERS,
     sortAccessors: SCH_SORTS,
-    searchPlaceholder: '학교명·담당자',
+    searchPlaceholder: '학교명·조사원',
   })
 
   // 등록 폼 상태
@@ -152,7 +152,7 @@ export function SchoolStatus() {
                   <SortableTh q={q} col="name">학교(기관)명</SortableTh>
                   <SortableTh q={q} col="principal">학교(기관)장</SortableTh>
                   <th>관리감독자</th>
-                  <SortableTh q={q} col="manager">담당자</SortableTh>
+                  <SortableTh q={q} col="manager">조사원</SortableTh>
                   <th>안전점검기관</th>
                 </tr>
               </thead>
@@ -205,7 +205,7 @@ export function SchoolStatus() {
             <div className="formrow" style={{ marginTop: 14 }}>
               <label className="field"><span>학교(기관)장</span><input className="input" value={rPrincipal} onChange={(e) => setRPrincipal(e.target.value)} placeholder="학교(기관)장" /></label>
               <label className="field"><span>관리감독자</span><input className="input" value={rSupervisor} onChange={(e) => setRSupervisor(e.target.value)} placeholder="관리감독자" /></label>
-              <label className="field"><span>담당자</span><input className="input" value={rManager} onChange={(e) => setRManager(e.target.value)} placeholder="담당자" /></label>
+              <label className="field"><span>조사원</span><input className="input" value={rManager} onChange={(e) => setRManager(e.target.value)} placeholder="조사원" /></label>
               <label className="field"><span>안전점검기관</span><input className="input" value={rAgency} onChange={(e) => setRAgency(e.target.value)} placeholder="안전점검기관명" /></label>
             </div>
             <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>

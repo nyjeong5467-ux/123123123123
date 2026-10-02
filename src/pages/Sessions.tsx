@@ -415,7 +415,7 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
             <div className="sess-row">
               <span className="sess-search">
                 <Search size={14} />
-                <input className="input" placeholder="학교명·담당자 검색" value={schQ} onChange={(e) => setSchQ(e.target.value)} />
+                <input className="input" placeholder="학교명·조사원 검색" value={schQ} onChange={(e) => setSchQ(e.target.value)} />
               </span>
               <select className="select" value={schLevel} onChange={(e) => setSchLevel(e.target.value)} style={{ width: 120 }}>
                 <option value="">구분 전체</option>
@@ -605,7 +605,7 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
             <div className="sess-row">
               <span className="sess-search">
                 <Search size={14} />
-                <input className="input" placeholder="학교명·담당자 검색" value={eSchQ} onChange={(e) => setESchQ(e.target.value)} />
+                <input className="input" placeholder="학교명·조사원 검색" value={eSchQ} onChange={(e) => setESchQ(e.target.value)} />
               </span>
               <select className="select" value={eSchLevel} onChange={(e) => setESchLevel(e.target.value)} style={{ width: 120 }}>
                 <option value="">구분 전체</option>

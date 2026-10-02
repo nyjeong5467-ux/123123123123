@@ -117,7 +117,7 @@ const SD_SECTIONS: { id: string; label: string }[] = [
   { id: 'sd-memos', label: '현장 메모' },
   { id: 'sd-workers', label: '종사자' },
   { id: 'sd-approval', label: '확인자' }, // [123] 결재선 → 확인자 용어 통일
-  { id: 'sd-history', label: '담당자 이력' },
+  { id: 'sd-history', label: '조사원 이력' },
   { id: 'sd-works', label: '업무 이력' },
 ]
 function scrollToSection(sid: string) {
@@ -400,7 +400,7 @@ export function SchoolDetail() {
   // 메일 담당자 저장 — 학교 1건 병합(PUT), 성공 시 저장됨 표시
   async function saveContact() {
     if (!contact.email.trim()) {
-      setCtMsg({ ok: false, text: '담당자 이메일을 입력하세요.' })
+      setCtMsg({ ok: false, text: '학교 담당자 이메일을 입력하세요.' })
       return
     }
     setCtBusy(true)
@@ -415,7 +415,7 @@ export function SchoolDetail() {
           phone: contact.phone ?? '',
         }),
       })
-      setCtMsg({ ok: true, text: '담당자 연락처를 저장했습니다.' })
+      setCtMsg({ ok: true, text: '학교 담당자 연락처를 저장했습니다.' })
       window.setTimeout(() => setCtMsg(null), 4000)
     } catch (e) {
       setCtMsg({ ok: false, text: e instanceof Error ? e.message : '저장 실패' })
@@ -454,8 +454,8 @@ export function SchoolDetail() {
         alert('CSV에서 유효한 행을 찾지 못했습니다. 형식: 시작일,종료일,이름[,비고]')
         return
       }
-      if (window.confirm(`CSV ${rows.length}건으로 담당자 이력 전체를 교체할까요?`)) {
-        void putManagerHistory(rows).then((ok) => { if (!ok) alert('담당자 이력 저장에 실패했습니다.') })
+      if (window.confirm(`CSV ${rows.length}건으로 조사원 이력 전체를 교체할까요?`)) {
+        void putManagerHistory(rows).then((ok) => { if (!ok) alert('조사원 이력 저장에 실패했습니다.') })
       }
     }
     reader.readAsText(f)
@@ -638,7 +638,7 @@ export function SchoolDetail() {
               </label>
               <label className="field"><span>학교(기관)장</span><input className="input" value={infoDraft.principal ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, principal: e.target.value })} /></label>
               <label className="field"><span>관리감독자</span><input className="input" value={infoDraft.supervisor ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, supervisor: e.target.value })} /></label>
-              <label className="field"><span>담당자</span><input className="input" value={infoDraft.manager ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, manager: e.target.value })} /></label>
+              <label className="field"><span>조사원</span><input className="input" value={infoDraft.manager ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, manager: e.target.value })} /></label>
               <label className="field"><span>안전점검기관</span><input className="input" value={infoDraft.inspection_agency ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, inspection_agency: e.target.value })} /></label>
               <label className="field"><span>교육생 수</span><input className="input" type="number" min={0} value={infoDraft.education_count ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, education_count: e.target.value === '' ? null : Number(e.target.value) })} /></label>
               <label className="field"><span>이메일</span><input className="input" value={infoDraft.email ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, email: e.target.value })} /></label>
@@ -650,7 +650,7 @@ export function SchoolDetail() {
               <div className="kv"><b>설립 구분</b><span>{(info?.is_private ?? s.is_private) ? '사립' : '국공립'}</span></div>
               <div className="kv"><b>학교(기관)장</b><span>{info?.principal || '—'}</span></div>
               <div className="kv"><b>관리감독자</b><span>{info?.supervisor || '—'}</span></div>
-              <div className="kv"><b>담당자</b><span>{info?.manager || '—'}</span></div>
+              <div className="kv"><b>조사원</b><span>{info?.manager || '—'}</span></div>
               <div className="kv"><b>안전점검기관</b><span>{info?.inspection_agency || '—'}</span></div>
               <div className="kv"><b>교육생 수</b><span>{(info?.education_count ?? s.education_count) != null ? `${info?.education_count ?? s.education_count}명` : '—'}</span></div>
               <div className="kv"><b>이메일</b><span>{info?.email || '—'}</span></div>
@@ -658,10 +658,10 @@ export function SchoolDetail() {
             </div>
           )}
 
-          {/* 행정선생님(담당자) — /mail/school-contacts, 메일 수신자 프리필 + 앱 확인자 결재란 서명자 프리필 */}
+          {/* 학교 담당자(구 '행정선생님(담당자)') — /mail/school-contacts, 메일 수신자 프리필 + 앱 확인자 결재란 서명자 프리필 */}
           <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-              <b style={{ fontSize: 13.5 }}>행정선생님(담당자) — 메일 수신·결재란 자동 입력</b>
+              <b style={{ fontSize: 13.5 }}>학교 담당자 — 메일 수신·확인자 자동 입력</b>
               <InfoTip>메일 쓰기·현장앱 발송의 받는 사람과 앱 점검표 확인자 결재란 이름으로 자동 입력됩니다</InfoTip>
             </div>
             <div className="formrow">
@@ -682,7 +682,7 @@ export function SchoolDetail() {
               </label>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
                 <button className="btn btn-ghost" onClick={() => void saveContact()} disabled={ctBusy}>
-                  {ctBusy ? '저장 중…' : '담당자 저장'}
+                  {ctBusy ? '저장 중…' : '학교 담당자 저장'}
                 </button>
                 {ctMsg && <span className={'pillx ' + (ctMsg.ok ? 'ok' : 'late')} style={{ marginBottom: 6 }}>{ctMsg.text}</span>}
               </div>
@@ -946,7 +946,7 @@ export function SchoolDetail() {
 
       <div className="ledger" id="sd-history" style={{ marginTop: 24 }}>
         <div className="lh">
-          <h2>담당자 이력</h2>
+          <h2>조사원 이력</h2>
           <span className="pillx na">{mgrRows.length}건</span>
           <div className="sp" />
           <input ref={csvRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onCsvFile} />
@@ -974,7 +974,7 @@ export function SchoolDetail() {
                   ))}
               </div>
             )
-            : <div className="tstate">담당자 이력이 없습니다. 편집 또는 CSV 업로드로 등록하세요. (CSV 형식: 시작일,종료일,이름,비고)</div>}
+            : <div className="tstate">조사원 이력이 없습니다. 편집 또는 CSV 업로드로 등록하세요. (CSV 형식: 시작일,종료일,이름,비고)</div>}
         </div>
       </div>
 
@@ -1062,7 +1062,7 @@ export function SchoolDetail() {
       )}
       {mgrModal && (
         <Modal
-          title="담당자 이력 편집"
+          title="조사원 이력 편집"
           wide
           onClose={() => setMgrModal(false)}
           footer={(
@@ -1073,7 +1073,7 @@ export function SchoolDetail() {
           )}
         >
           {mgrErr && <div className="login-err" style={{ marginBottom: 12 }}>{mgrErr}</div>}
-          <p className="muted" style={{ marginTop: 0 }}>저장 시 전체 이력이 교체됩니다. 종료일이 비어 있으면 현재 담당자로 표시됩니다.</p>
+          <p className="muted" style={{ marginTop: 0 }}>저장 시 전체 이력이 교체됩니다. 종료일이 비어 있으면 현재 조사원로 표시됩니다.</p>
           <div style={{ display: 'grid', gridTemplateColumns: '150px 150px 1fr 1fr 42px', gap: 8, alignItems: 'center', marginBottom: 8, fontSize: 11.5, fontWeight: 700, color: 'var(--muted)' }}>
             <span>시작일</span><span>종료일</span><span>이름</span><span>비고</span><span />
           </div>
@@ -1081,7 +1081,7 @@ export function SchoolDetail() {
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '150px 150px 1fr 1fr 42px', gap: 8, alignItems: 'center', marginBottom: 8 }}>
               <input className="input" type="date" value={r.start} onChange={(e) => setMgrEdit((prev) => prev.map((x, idx) => idx === i ? { ...x, start: e.target.value } : x))} />
               <input className="input" type="date" value={r.end} onChange={(e) => setMgrEdit((prev) => prev.map((x, idx) => idx === i ? { ...x, end: e.target.value } : x))} />
-              <input className="input" placeholder="담당자 이름" value={r.name} onChange={(e) => setMgrEdit((prev) => prev.map((x, idx) => idx === i ? { ...x, name: e.target.value } : x))} />
+              <input className="input" placeholder="조사원 이름" value={r.name} onChange={(e) => setMgrEdit((prev) => prev.map((x, idx) => idx === i ? { ...x, name: e.target.value } : x))} />
               <input className="input" placeholder="비고 (선택)" value={r.note ?? ''} onChange={(e) => setMgrEdit((prev) => prev.map((x, idx) => idx === i ? { ...x, note: e.target.value } : x))} />
               <button className="btn btn-ghost" title="행 삭제" style={{ padding: 0, width: 42 }} onClick={() => setMgrEdit((prev) => prev.filter((_, idx) => idx !== i))}><Trash2 size={15} /></button>
             </div>

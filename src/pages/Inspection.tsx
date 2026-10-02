@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, ClipboardCheck, Trash2 } from 'lucide-react'
-import { api, getToken } from '../lib/api'
+import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useAffiliationScope } from '../lib/affiliationScope'
 import { Modal } from '../components/Modal'
@@ -103,7 +103,7 @@ type SchoolRow = School & {
 
 const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
   searchFields: [(r) => r.name, (r) => r.manager ?? ''],
-  searchPlaceholder: '학교명·담당자 검색',
+  searchPlaceholder: '학교명·조사원 검색',
   filters: [
     {
       key: 'level',
@@ -123,7 +123,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
 const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
   { header: '구분', value: (r) => r.school_level || '' },
   { header: '학교', value: (r) => r.name },
-  { header: '담당자', value: (r) => r.manager || '' },
+  { header: '조사원', value: (r) => r.manager || '' },
   { header: '점검 건수', value: (r) => r.count },
   { header: '작성중', value: (r) => r.draft },
   { header: '서명완료', value: (r) => r.signed },
@@ -143,7 +143,7 @@ type InsReportRow = {
 }
 const REPORT_QUERY: TableQueryConfig<InsReportRow> = {
   searchFields: [(r) => r.school.name, (r) => r.school.manager ?? ''],
-  searchPlaceholder: '학교명·담당자 검색',
+  searchPlaceholder: '학교명·조사원 검색',
   filters: [
     {
       key: 'status',
@@ -172,7 +172,7 @@ const REPORT_QUERY: TableQueryConfig<InsReportRow> = {
 const REPORT_EXPORT: ExportColumn<InsReportRow>[] = [
   { header: '점검일', value: (r) => r.date },
   { header: '학교', value: (r) => r.school.name },
-  { header: '담당자', value: (r) => r.school.manager || '' },
+  { header: '조사원', value: (r) => r.school.manager || '' },
   { header: '포함 공정', value: (r) => r.parts.map((p) => PART_LABEL[p.part] || p.part).join(' · ') },
   { header: '작성현황', value: (r) => STATUS[r.status]?.label || r.status },
   { header: '교육청전송', value: (r) => EDUOFFICE[r.eduoffice]?.label || r.eduoffice },
@@ -274,8 +274,9 @@ export function Inspection() {
   // 교육청 재전송(수정) — 전송완료 건을 수정 후 다시 대기열에 등재(봇이 기존 건 수정)
   const [resendBusy, setResendBusy] = useState(false)
   const [sheetView, setSheetView] = useState<SheetData | null>(null) // 실물 양식 보기 [054]
+  const [sheetAuto, setSheetAuto] = useState(false) // [128] PDF 버튼으로 연 경우 — 보기 창을 열고 바로 인쇄 창
   // 부가정보(기타의견·사진대지·확인자 등)를 함께 불러와 양식에 표시 [057]
-  async function openSheet(school: School, date: string, parts: Inspection[]) {
+  async function openSheet(school: School, date: string, parts: Inspection[], autoPrint = false) {
     // [perf-0828] 요약 캐시의 parts에는 items(점검 항목·사진 참조)가 없다 —
     // 이 학교 1곳만 전체 목록을 지연 조회해 실물양식용 완전판으로 교체(1클릭=1콜).
     let fullParts = parts
@@ -294,6 +295,7 @@ export function Inspection() {
     } catch { /* 부가정보 없으면 기본 표시 */ }
     // [104] 대장 결재선 → 양식 결재란 칸 구성
     const approval = await fetchApproval(school.id, school) // [123] 확인자 — 실패·미등록 시 기본값(학교: 담당자·행정실장·교장 / 기관: 담당자·팀장·과장)
+    setSheetAuto(autoPrint)
     setSheetView({ schoolName: school.name, manager: school.manager, date, parts: fullParts, extra, approval })
   }
 
@@ -424,22 +426,20 @@ export function Inspection() {
     }
   }
 
-  // 완성 점검표 PDF 다운로드 — 백엔드 아카이브(GET /inspections/{id}/report.pdf, Bearer 필요라 blob 경유)
+  // [128] 점검표 PDF — '보기'와 같은 양식으로 통일: 이 점검이 속한 점검표(학교×점검일)를 보기 창으로 열고 인쇄 창을 띄움
+  //       (구: 백엔드 아카이브 GET /inspections/{id}/report.pdf 다운로드 — 서식이 보기와 달라 폐지)
   const [pdfBusy, setPdfBusy] = useState(false)
   async function downloadReportPdf(iid: string) {
+    // 학교 화면 밖(내 작업 목록 등)에서 연 상세는 sel이 없을 수 있음 → 점검의 school_id로 학교를 찾는다
+    const school = sel ?? schools.find((x) => x.id === (detail as { school_id?: string } | null)?.school_id)
+    if (!school) { setDelMsg('PDF 생성 실패: 학교 정보를 찾지 못했습니다'); return }
     setPdfBusy(true)
     try {
-      const res = await fetch(`/api/v1/inspections/${iid}/report.pdf`, {
-        headers: { Authorization: `Bearer ${getToken() ?? ''}` },
-      })
-      if (!res.ok) throw new Error(`${res.status}`)
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `안전점검표_${dateOf(detail!) || iid.slice(0, 8)}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      const sheet = sel ? groupToSheets(sel, selItems).find((sh) => sh.parts.some((p) => p.id === iid)) : undefined
+      const parts = sheet?.parts ?? (detail ? [detail] : [])
+      const date = sheet?.date ?? (detail ? dateOf(detail) : '')
+      setDetail(null) // 상세 창을 닫고 보기 창(양식)만 표시
+      await openSheet(school, date, parts, true)
     } catch (e) {
       setDelMsg(e instanceof Error ? `PDF 생성 실패: ${e.message}` : 'PDF 생성 실패')
     } finally {
@@ -750,7 +750,7 @@ export function Inspection() {
                     <SortableTh q={rq} col="date">점검일</SortableTh>
                     <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                     <SortableTh q={rq} col="name">학교</SortableTh>
-                    <th>담당자</th>
+                    <th>조사원</th>
                     <th className="c">작성현황</th>
                     <th className="c">교육청 전송</th>
                     <th className="c">작업</th>
@@ -821,7 +821,7 @@ export function Inspection() {
           <div className="inh-schoolhead">
             <button className="inh-back" onClick={() => setSel(null)}><ArrowLeft size={14} /> 학교 목록</button>
             <span className="inh-schoolname">{sel.name}</span>
-            <span className="inh-schoolmgr">담당자 {sel.manager || '—'}</span>
+            <span className="inh-schoolmgr">조사원 {sel.manager || '—'}</span>
           </div>
 
           <div className="ledger" style={{ background: 'transparent', border: 0, boxShadow: 'none' }}>
@@ -836,7 +836,7 @@ export function Inspection() {
                   <tr>
                     <th>점검일</th>
                     <th>학교</th>
-                    <th>담당자</th>
+                    <th>조사원</th>
                     <th className="c">작성현황</th>
                     <th className="c">교육청 전송</th>
                     <th className="c">작업</th>
@@ -959,10 +959,10 @@ export function Inspection() {
                 <button
                   className="btn"
                   disabled={pdfBusy}
-                  title="완성된 안전점검표 PDF(결재란·항목·사진대지·서명 포함) 다운로드"
+                  title="보기와 같은 양식으로 인쇄 창을 엽니다 — 대상에서 'PDF로 저장'을 선택하세요"
                   onClick={() => void downloadReportPdf(detail.id)}
                 >
-                  {pdfBusy ? 'PDF 생성 중…' : '▤ 점검표 PDF'}
+                  {pdfBusy ? '여는 중…' : '▤ 점검표 PDF'}
                 </button>
               )}
               <button className="btn btn-primary" onClick={() => setDetail(null)}>닫기</button>
@@ -1062,7 +1062,7 @@ export function Inspection() {
         </Modal>
       )}
 
-      {sheetView && <InspectionSheetView sheet={sheetView} onClose={() => setSheetView(null)} />}
+      {sheetView && <InspectionSheetView sheet={sheetView} autoPrint={sheetAuto} onClose={() => { setSheetView(null); setSheetAuto(false) }} />}
     </div>
   )
 }

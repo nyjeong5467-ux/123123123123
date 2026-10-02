@@ -61,7 +61,7 @@ type SchoolRow = School & { total: number; completed: number; pct: number; lates
 const SCHOOL_LEVELS = ['유', '초', '중', '고', '기타']
 const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
   searchFields: [(r) => r.name, (r) => r.manager ?? ''],
-  searchPlaceholder: '학교명·담당자 검색',
+  searchPlaceholder: '학교명·조사원 검색',
   filters: [
     {
       key: 'level',
@@ -80,7 +80,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
 const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
   { header: '학교', value: (r) => r.name },
   { header: '구분', value: (r) => r.school_level || '' },
-  { header: '담당자', value: (r) => r.manager || '' },
+  { header: '조사원', value: (r) => r.manager || '' },
   { header: '교육 대상 인원', value: (r) => r.total },
   { header: '수료 인원', value: (r) => r.completed },
   { header: '평균 진도율(%)', value: (r) => r.pct },
@@ -577,7 +577,7 @@ export function Education() {
                   <tr>
                     <SortableTh q={q} col="name">학교</SortableTh>
                     <th>구분</th>
-                    <th>담당자</th>
+                    <th>조사원</th>
                     <SortableTh q={q} col="total" className="c">교육 대상</SortableTh>
                     <SortableTh q={q} col="pct">평균 진도율</SortableTh>
                     <SortableTh q={q} col="latest">최근 회차일</SortableTh>
@@ -632,7 +632,7 @@ export function Education() {
             <button className="edh-back" onClick={() => setSel(null)}><ArrowLeft size={14} /> 학교 목록</button>
             <span className="edh-schoolname">{sel.name}</span>
             {sel.school_level && <span className="pillx doing">{sel.school_level}</span>}
-            <span className="edh-schoolmeta">담당자 {sel.manager || '—'}</span>
+            <span className="edh-schoolmeta">조사원 {sel.manager || '—'}</span>
           </div>
 
           {/* 진도율 (기존 기능 보존) */}

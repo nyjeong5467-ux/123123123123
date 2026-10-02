@@ -128,7 +128,7 @@ type BurdenResult = { has_burden: boolean; burden_clauses: number[] }
 type MusReportRow = { school: School; sv: Survey }
 const MUS_REPORT_QUERY: TableQueryConfig<MusReportRow> = {
   searchFields: [(r) => r.school.name, (r) => r.school.manager ?? ''],
-  searchPlaceholder: '학교명·담당자 검색',
+  searchPlaceholder: '학교명·조사원 검색',
   filters: [
     {
       key: 'burden',
@@ -168,7 +168,7 @@ const LEVEL_ORDER_MU: Record<string, number> = { 유: 0, 초: 1, 중: 2, 고: 3,
 const MUS_REPORT_EXPORT: ExportColumn<MusReportRow>[] = [
   { header: '조사일', value: (r) => (r.sv.created_at ?? '').slice(0, 10) },
   { header: '학교', value: (r) => r.school.name },
-  { header: '담당자', value: (r) => r.school.manager || '' },
+  { header: '조사원', value: (r) => r.school.manager || '' },
   { header: '기본조사', value: (r) => r.sv.basic_surveys },
   { header: '증상조사표', value: (r) => r.sv.sheets },
   { header: '부담작업', value: (r) => (r.sv.has_burden ? '있음' : '없음') },
@@ -205,7 +205,7 @@ type SchoolRow = School & { count: number; burdenCount: number; needsReview: num
 
 const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
   searchFields: [(r) => r.name, (r) => r.manager ?? ''],
-  searchPlaceholder: '학교명·담당자 검색',
+  searchPlaceholder: '학교명·조사원 검색',
   sortAccessors: {
     name: (r) => r.name,
     manager: (r) => r.manager ?? '',
@@ -216,7 +216,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
 }
 const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
   { header: '학교', value: (r) => r.name },
-  { header: '담당자', value: (r) => r.manager || '' },
+  { header: '조사원', value: (r) => r.manager || '' },
   { header: '조사 건수', value: (r) => r.count },
   { header: '부담작업 있음', value: (r) => r.burdenCount },
   { header: '검수 대기', value: (r) => r.needsReview },
@@ -705,7 +705,7 @@ export function Musculo() {
                     <SortableTh q={rq} col="date">조사일</SortableTh>
                     <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                     <SortableTh q={rq} col="name">학교</SortableTh>
-                    <th>담당자</th>
+                    <th>조사원</th>
                     <th className="c">평가 구분</th>
                     <th className="c">작성현황</th>
                     <th className="c">작업</th>
@@ -753,7 +753,7 @@ export function Musculo() {
           <div className="muh-schoolhead">
             <button className="muh-back" onClick={backToList}><ArrowLeft size={14} /> 학교 목록</button>
             <span className="muh-schoolname">{sel.name}</span>
-            <span className="muh-schoolmgr">담당자 {sel.manager || '—'}</span>
+            <span className="muh-schoolmgr">조사원 {sel.manager || '—'}</span>
             <div className="muh-sp" />
             {/* [084] 구 보고서 작성 ghost 링크 제거 — 상단 바의 btn-primary 버튼으로 이동 */}
           </div>
@@ -777,7 +777,7 @@ export function Musculo() {
                       <tr>
                         <th>조사일</th>
                         <th>학교</th>
-                        <th>담당자</th>
+                        <th>조사원</th>
                         <th className="c">평가 구분</th>
                         <th className="c">작성현황</th>
                         <th className="c">작업</th>

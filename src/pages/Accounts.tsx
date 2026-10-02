@@ -753,7 +753,7 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
             {fromAcc && (
               <div className="muted" style={{ marginTop: 12, fontSize: 12.5, lineHeight: 1.7 }}>
                 <b>{fromAcc.name || fromAcc.login_id}</b> 담당 학교 <b>{cnt}개</b>가 선택한 조사원으로 재배정되고,
-                각 학교의 담당자 변경이력에 기록됩니다.
+                각 학교의 조사원 변경이력에 기록됩니다.
               </div>
             )}
             <label className="row" style={{ gap: 8, marginTop: 12, cursor: 'pointer', alignItems: 'center' }}>

@@ -180,7 +180,7 @@ export function TodayHero(p: {
                   <div className="t">
                     {it.name}
                     {sc?.school_level && <i>{sc.school_level}</i>}
-                    {sc?.manager && <span className="mg">담당 {sc.manager}</span>}
+                    {sc?.manager && <span className="mg">조사원 {sc.manager}</span>}
                   </div>
                   <div className="chips">
                     {it.done ? (

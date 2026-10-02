@@ -74,7 +74,7 @@ function Matrix({ doc, month, staffNames }: { doc: SchedDoc; month: string; staf
       <table className="mx-tbl">
         <thead>
           <tr>
-            <th className="mx-name mx-h">담당자</th>
+            <th className="mx-name mx-h">조사원</th>
             {dayMeta.map((m) => (
               <th key={m.d}
                 className={'mx-day mx-h' + (m.weekend || m.hol ? ' we' : '') + (m.today ? ' today' : '')}

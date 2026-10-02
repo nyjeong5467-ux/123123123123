@@ -502,7 +502,7 @@ function ComposeModal({
       {err && <div className="login-err" style={{ marginBottom: 12 }}>{err}</div>}
       <div className="formrow">
         <label className="field" style={{ minWidth: 220 }}>
-          <span>학교 선택 (선택 — 담당자 이메일 자동 입력)</span>
+          <span>학교 선택 (선택 — 학교 담당자 이메일 자동 입력)</span>
           <select className="select" value={schoolId} onChange={(e) => pickSchool(e.target.value)}>
             <option value="">학교 선택 안 함</option>
             {schools.map((s) => (

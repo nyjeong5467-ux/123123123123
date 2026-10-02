@@ -171,7 +171,7 @@ export function MusculoPhotos() {
           </div>
           <div className="twrap">
             <table className="tbl">
-              <thead><tr><th>학교</th><th>담당자</th><th className="c">사진 수</th><th /></tr></thead>
+              <thead><tr><th>학교</th><th>조사원</th><th className="c">사진 수</th><th /></tr></thead>
               <tbody>
                 {withPhotos.map((r) => (
                   <tr key={r.id} onClick={() => { setSel(r.id); setArea('') }} style={{ cursor: 'pointer' }}>
@@ -195,7 +195,7 @@ export function MusculoPhotos() {
           <div className="rkh-schoolhead">
             <button className="rkh-back" onClick={() => setSel('')}><ArrowLeft size={14} /> 학교 목록</button>
             <span className="rkh-schoolname">{nameOf(sel)?.name || sel}</span>
-            <span className="rkh-schoolmgr">담당자 {nameOf(sel)?.manager || '—'}</span>
+            <span className="rkh-schoolmgr">조사원 {nameOf(sel)?.manager || '—'}</span>
           </div>
 
           <div style={{ display: 'flex', gap: 8, margin: '12px 0 4px', flexWrap: 'wrap' }}>

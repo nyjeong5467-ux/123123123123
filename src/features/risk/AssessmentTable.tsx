@@ -192,7 +192,7 @@ export function AssessmentTable(p: {
       <div style={SEC}>
         <div style={SEC_H}>
           [정기평가] 위험성평가표
-          <span style={HINT}>점검자가 직접 작성 — 행 추가로 세부작업별 입력</span>
+          <span style={HINT}>조사원이 직접 작성 — 행 추가로 세부작업별 입력</span>
           {highRows.length > 0 && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 800, color: 'var(--amber-ink)', background: 'var(--amber-soft)', borderRadius: 999, padding: '3px 10px' }}>
               <TriangleAlert size={12} /> 위험성 8점 이상 {highRows.length}건 → 아래 감소대책(3-3·3-4) 작성 필요

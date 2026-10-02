@@ -312,7 +312,7 @@ export function Schedule() {
           <div className="lh">
             <h2>{yy}년 {mm}월 점검계획표</h2>
             <div className="sp" />
-            <span className="pillx doing">담당자 · {target || '—'}</span>
+            <span className="pillx doing">조사원 · {target || '—'}</span>
             {isHq && inspectors.length > 0 && (
               <select className="lselect" value={target} onChange={(e) => setWho(e.target.value)}>
                 {inspectors.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -468,7 +468,7 @@ export function Schedule() {
           {schoolList.length > 0 && (
             <div className="field" style={{ marginBottom: 12 }}>
               <span>학교 검색·선택 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>
-                ({target || '담당자'}{targetAffil ? ` · ${targetAffil}` : ''} · 가나다순 · 클릭해서 담기 · 정식명으로 등록되어 자동세션과 매칭)</span></span>
+                ({target || '조사원'}{targetAffil ? ` · ${targetAffil}` : ''} · 가나다순 · 클릭해서 담기 · 정식명으로 등록되어 자동세션과 매칭)</span></span>
               {/* 범위 탭: 담당학교(그 조사원 담당) / 전체학교(그 조사원 소속) / 모든학교(admin·소속 무관) */}
               <div role="tablist" aria-label="학교 범위" style={{ display: 'flex', gap: 6, margin: '4px 0 6px' }}>
                 {([

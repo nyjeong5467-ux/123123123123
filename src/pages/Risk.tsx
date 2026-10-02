@@ -121,7 +121,7 @@ type SchoolRow = School & { count: number; adhocCount: number; latest: string }
 
 const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
   searchFields: [(r) => r.name, (r) => r.manager ?? ''],
-  searchPlaceholder: '학교명·담당자 검색',
+  searchPlaceholder: '학교명·조사원 검색',
   sortAccessors: {
     name: (r) => r.name,
     manager: (r) => r.manager ?? '',
@@ -131,7 +131,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
 }
 const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
   { header: '학교', value: (r) => r.name },
-  { header: '담당자', value: (r) => r.manager || '' },
+  { header: '조사원', value: (r) => r.manager || '' },
   { header: '평가 건수', value: (r) => r.count },
   { header: '수시 건수', value: (r) => r.adhocCount },
   { header: '최근 평가일', value: (r) => r.latest },
@@ -921,7 +921,7 @@ export function Risk() {
                     <SortableTh q={rq} col="date">최근 저장</SortableTh>
                     <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                     <SortableTh q={rq} col="name">학교</SortableTh>
-                    <th>담당자</th>
+                    <th>조사원</th>
                     <th className="c">평가 구분</th>
                     <th className="c">작성현황</th>
                     <th className="c">작업</th>
@@ -965,7 +965,7 @@ export function Risk() {
           <div className="rkh-schoolhead">
             <button className="rkh-back" onClick={() => setSel(null)}><ArrowLeft size={14} /> 학교 목록</button>
             <span className="rkh-schoolname">{sel.name}</span>
-            <span className="rkh-schoolmgr">담당자 {sel.manager || '—'}</span>
+            <span className="rkh-schoolmgr">조사원 {sel.manager || '—'}</span>
             {/* 정기/수시 전환 버튼 — 사용자 구상안(0806): 상단 우측 버튼 + 아래 전체 폭 리스트 */}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               <button
