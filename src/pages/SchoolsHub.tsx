@@ -28,6 +28,9 @@ type School = {
   manager?: string
   inspection_agency?: string
   assigned_inspector_id?: string // 담당 점검자(로그인 ID 기준)
+  contracted?: boolean // 올해 계약 여부(미계약도 등록 — 검색은 되고 업무 대상 아님)
+  region?: string
+  org_kind?: string
 }
 type Ledger = {
   worker_total: number
@@ -107,6 +110,12 @@ const HUB_FILTERS: FilterDef<Row>[] = [
     options: LEVELS.map((l) => ({ value: l, label: l })),
     accessor: (r) => r.school.school_level ?? '',
   },
+  {
+    key: 'contract',
+    label: '계약',
+    options: [{ value: 'y', label: '계약' }, { value: 'n', label: '미계약' }],
+    accessor: (r) => (r.school.contracted === false ? 'n' : 'y'),
+  },
 ]
 const HUB_SORTS = {
   level: (r: Row) => LEVEL_ORDER[r.school.school_level ?? ''] ?? 99,
@@ -144,6 +153,7 @@ export function SchoolsHub() {
   const [mgrQ, setMgrQ] = useState('') // 담당자 입력값 (전체 학교에서만 노출) [043]
   const [applied, setApplied] = useState({ name: '', region: '', manager: '' }) // [조회]로 확정된 검색 조건
   const [levelQ, setLevelQ] = useState('') // 학교급 선택값 (조회 전 — [조회] 클릭 시 반영)
+  const [contractQ, setContractQ] = useState('') // 계약 여부 선택값('' 전체 / y 계약 / n 미계약)
 
   // 로그인 사용자 이름 — 학교 담당(manager)은 이름 기준이라 담당 매칭에 필요
   useEffect(() => {
@@ -271,7 +281,7 @@ export function SchoolsHub() {
     return base.filter(
       (r) =>
         (!nq || r.school.name.toLowerCase().includes(nq)) &&
-        (!rq || (r.school.address ?? '').toLowerCase().includes(rq)) &&
+        (!rq || (r.school.address ?? '').toLowerCase().includes(rq) || (r.school.region ?? '').toLowerCase().includes(rq)) &&
         (!mq || (r.school.manager ?? '').toLowerCase().includes(mq)),
     )
   }, [visibleRows, applied, scope, isMine])
@@ -285,6 +295,7 @@ export function SchoolsHub() {
   const doSearch = () => {
     setApplied({ name: nameQ.trim(), region: regionQ.trim(), manager: scope === 'all' ? mgrQ.trim() : '' })
     q.setFilter('level', levelQ)
+    q.setFilter('contract', contractQ)
     q.setPage(1)
   }
 
@@ -393,6 +404,11 @@ export function SchoolsHub() {
             <button key={l} className={levelQ === l ? 'on' : ''} onClick={() => setLevelQ(l)}>{l}</button>
           ))}
         </div>
+        <div className="shub-seg" role="group" aria-label="계약 여부">
+          <button className={contractQ === '' ? 'on' : ''} onClick={() => setContractQ('')}>계약+미계약</button>
+          <button className={contractQ === 'y' ? 'on' : ''} onClick={() => setContractQ('y')}>계약</button>
+          <button className={contractQ === 'n' ? 'on' : ''} onClick={() => setContractQ('n')}>미계약</button>
+        </div>
         <button className="btn btn-primary shub-go" onClick={doSearch}>조회</button>
       </div>
 
@@ -440,7 +456,7 @@ export function SchoolsHub() {
                   <tr key={r.school.id} onClick={() => nav(`/schools/${r.school.id}`)}>
                     <td>{(q.page - 1) * q.pageSize + i + 1}</td>
                     <td>{r.school.school_level ? <span className="pillx doing">{r.school.school_level}</span> : '—'}</td>
-                    <td><b>{r.school.name}</b></td>
+                    <td><b>{r.school.name}</b>{r.school.region && <span className="muted" style={{ marginLeft: 6, fontSize: 11.5 }}>{r.school.region}</span>}{r.school.contracted === false && <span className="pillx na" style={{ marginLeft: 6 }}>미계약</span>}</td>
                     <td>{r.school.principal || '—'}</td>
                     <td>{r.school.manager || '—'}</td>
                     <td className="c">{r.total != null ? <b>{r.total}명</b> : <span className="muted">—</span>}</td>

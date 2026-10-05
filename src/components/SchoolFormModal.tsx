@@ -14,9 +14,15 @@ type School = {
   supervisor?: string
   manager?: string
   inspection_agency?: string
+  contracted?: boolean
+  region?: string
+  office?: string
+  org_kind?: string
 }
 
 const LEVELS = ['유', '초', '중', '고', '기타']
+const ORG_KINDS = ['공립', '사립', '직속기관', '교육지원청']
+const OFFICES = ['본사', '목포', '광주']
 
 export function SchoolFormModal({
   onClose, onSaved, school,
@@ -37,6 +43,11 @@ export function SchoolFormModal({
   const [supervisor, setSupervisor] = useState(school?.supervisor ?? '')
   const [manager, setManager] = useState(school?.manager ?? '')
   const [inspectionAgency, setInspectionAgency] = useState(school?.inspection_agency ?? '')
+  // 학교·기관 마스터(2026-10): 계약 여부·지역·사무소·설립 구분 — 미계약도 등록해 검색은 되게
+  const [contracted, setContracted] = useState(school?.contracted ?? true)
+  const [region, setRegion] = useState(school?.region ?? '')
+  const [office, setOffice] = useState(school?.office ?? '')
+  const [orgKind, setOrgKind] = useState(school?.org_kind ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -58,6 +69,10 @@ export function SchoolFormModal({
       supervisor,
       manager,
       inspection_agency: inspectionAgency,
+      contracted,
+      region: region.trim(),
+      office,
+      org_kind: orgKind,
     })
     try {
       if (school) {
@@ -101,6 +116,28 @@ export function SchoolFormModal({
           <option value="">선택</option>
           {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
+      </label>
+      <label className="field">
+        <span>설립 구분</span>
+        <select className="select" value={orgKind} onChange={(e) => { setOrgKind(e.target.value); if (e.target.value === '사립') setIsPrivate(true) }}>
+          <option value="">선택</option>
+          {ORG_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+        </select>
+      </label>
+      <label className="field">
+        <span>지역(시·군)</span>
+        <input className="input" value={region} onChange={(e) => setRegion(e.target.value)} placeholder="예: 강진군 — 같은 이름 학교 구분" />
+      </label>
+      <label className="field">
+        <span>담당 사무소</span>
+        <select className="select" value={office} onChange={(e) => setOffice(e.target.value)}>
+          <option value="">선택</option>
+          {OFFICES.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      </label>
+      <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <input type="checkbox" checked={contracted} onChange={(e) => setContracted(e.target.checked)} />
+        <span>올해 계약 (해제하면 미계약 — 검색만 되고 업무 대상에서 제외)</span>
       </label>
       <label className="field">
         <span>학교(기관)장</span>
