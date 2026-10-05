@@ -73,7 +73,13 @@ type KoshaCase = {
   business: string
   boardno: string
 }
-type Plan = { id: string; name: string; school_id?: string }
+// tasks: 그 학교에서 그날 할 업무(비면 전체). 현장앱 자동세션이 이 문서(visit-plans-{login})를 읽어
+// 오늘 방문 학교와 학교별 업무를 구성한다 — 업무는 학교마다 고른다(누락 확인용).
+type Plan = { id: string; name: string; school_id?: string; tasks?: string[] }
+const PLAN_TASKS: { key: string; label: string }[] = [
+  { key: 'inspection', label: '안전점검' }, { key: 'risk', label: '위험성평가' }, { key: 'musculo', label: '근골격계' },
+  { key: 'education', label: '교육' }, { key: 'compliance', label: '이행점검' },
+]
 type HomeAlert = { level: 'danger' | 'warn' | 'info'; title: string; sub: string }
 
 /* ===================== 상수 · 헬퍼 ===================== */
@@ -515,6 +521,18 @@ export function Home() {
       [date]: [...(prev[date] ?? []), { id: newId(), name: s.name, school_id: s.id }],
     }))
     setAddDate(null)
+  }
+  // 학교별 업무 토글 — 비면 '전체 업무'
+  function togglePlanTask(date: string, planId: string, task: string) {
+    setPlans((prev) => ({
+      ...prev,
+      [date]: (prev[date] ?? []).map((p) => {
+        if (p.id !== planId) return p
+        const cur = p.tasks ?? []
+        const next = cur.includes(task) ? cur.filter((t) => t !== task) : [...cur, task]
+        return { ...p, tasks: next }
+      }),
+    }))
   }
   function removePlan(date: string, planId: string) {
     setPlans((prev) => {
@@ -1453,9 +1471,23 @@ export function Home() {
           {(plans[dayModal] ?? []).length > 0 && (
             <ul className="shub-notes" style={{ marginBottom: 10 }}>
               {(plans[dayModal] ?? []).map((p) => (
-                <li key={p.id}>
+                <li key={p.id} style={{ flexWrap: 'wrap' }}>
                   <span className="dt">{p.school_id ? '학교' : '일정'}</span>
                   <span className="tx">{p.name}</span>
+                  {p.school_id && (
+                    <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap', flex: 'none' }} title="이 학교에서 할 업무 — 비워 두면 앱에 전체 업무가 뜹니다">
+                      {PLAN_TASKS.map((t) => {
+                        const on = (p.tasks ?? []).includes(t.key)
+                        return (
+                          <button key={t.key} type="button" onClick={() => togglePlanTask(dayModal, p.id, t.key)}
+                            className={'pillx ' + (on ? 'doing' : 'na')}
+                            style={{ cursor: 'pointer', border: 0, padding: '1px 7px', fontSize: 11, opacity: on ? 1 : 0.55 }}>
+                            {t.label}
+                          </button>
+                        )
+                      })}
+                    </span>
+                  )}
                   {p.school_id && (
                     <button
                       type="button"
@@ -1493,6 +1525,7 @@ export function Home() {
           </div>
           <div className="muted" style={{ marginTop: 10, fontSize: 11.5 }}>
             이 방문계획은 <b>내 계정에만</b> 저장됩니다(다른 직원에게는 보이지 않음). 학교 일정은 방문 완료 기록 시 완료 표시로 바뀝니다.
+            <br />등록한 학교는 <b>그날 현장앱에 로그인하면 자동으로 뜹니다</b>(근무표와 합쳐짐). 학교 옆 업무 칩을 켜 두면 앱에서 그 업무가 먼저 보입니다.
           </div>
         </Modal>
       )}
