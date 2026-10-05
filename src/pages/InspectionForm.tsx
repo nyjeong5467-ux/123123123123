@@ -28,9 +28,15 @@ const Q_MI = ['바닥에 작업자가 걸려 넘어질 위험이 있는 장애�
 
 /* 비고가 '값'인 항목 — 지난 점검 값이 채워진 채 시작하고, 추천 보기에서 고를 수 있다 (CARRY_VALUE) */
 const CARRY_VALUE: Record<string, { v: string; opts: string[] }> = {
-  '급식-25': { v: '국소배기장치', opts: ['국소배기장치', '전체환기장치', '자연환기', '국소배기 + 전체환기'] },
+  '급식-25': { v: '국소배기 + 자연환기', opts: ['국소배기 + 자연환기', '국소배기장치', '전체환기장치', '자연환기'] },
   '급식-28': { v: '매주', opts: ['매주', '격주', '매월', '분기 1회'] },
   '급식-29': { v: '지상', opts: ['지상', '지하', '별동'] },
+}
+
+/* 과거 점검값 정정 매핑 — 지난 기록에 구(잘못된) 값이 저장돼 있어도 추천은 정정된 값으로.
+   [1006 협회 요청] 급식-25 환기 방법: '국소배기 + 전체환기' → '국소배기 + 자연환기' */
+const CARRY_FIX: Record<string, Record<string, string>> = {
+  '급식-25': { '국소배기 + 전체환기': '국소배기 + 자연환기', '국소배기장치': '국소배기 + 자연환기' },
 }
 
 /* 비고 추천문구 — 값입력형(CARRY_VALUE)과 달리 양호/미흡/해당없음 그대로 두고 비고칸만 한 번 탭으로 채우는 선택지.
@@ -244,7 +250,7 @@ export function InspectionForm() {
       .then((list) => {
         if (!alive) return
         const pv: Record<string, string> = {}
-        for (const insp of list) for (const it of insp.items || []) if (CARRY_VALUE[it.code] && it.remark) pv[it.code] = it.remark
+        for (const insp of list) for (const it of insp.items || []) if (CARRY_VALUE[it.code] && it.remark) pv[it.code] = CARRY_FIX[it.code]?.[it.remark] ?? it.remark
         setPrevVals(pv)
         // [비고 연속성] 과거 방문 목록 구성 — 날짜별 그룹(현재 수정 중인 점검은 제외),
         // 비고가 1칸이라도 있는 방문만. 최신 방문이 앞.
