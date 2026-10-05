@@ -9,6 +9,9 @@ rem   - cmd의 set /p 는 UTF-8 모드에서 한글 입력이 빈 값이 되어 
 rem     -> PowerShell 입력창으로 받아 UTF-8 파일로 커밋 (git commit -F)
 rem   - commit-msg.txt 가 있으면 그 내용을 메시지로 제안 (Y 누르면 그대로 사용, 커밋 후 자동 삭제)
 rem   [130] 동료의 새 커밋이 있으면 자동으로 그 위에 올림(rebase) · 못 올린 커밋만 있어도 재실행으로 올림
+rem   [131] 커밋 메시지의 도구 서명 줄(Co-Authored-By: Claude… / Claude-Session:) 자동 제거
+rem         - 입력한 메시지에서 제거 + 올리기 직전 아직 안 올린 커밋 전부 재검사(코드는 그대로, 메시지만 정리)
+rem         - 변경 감지(ls-files^|find)가 for /f 안에서 오류를 내 항상 '변경 있음'으로 판정되던 문제 정정
 rem ============================================================
 
 set "GIT="
@@ -34,10 +37,8 @@ echo === 변경된 파일 ===
 "!GIT!" status --short
 
 rem ---- 커밋할 변경이 있는지 ----
-set "NEEDCOMMIT=1"
-"!GIT!" diff --quiet && "!GIT!" diff --cached --quiet && (
-  for /f %%n in ('"!GIT!" ls-files --others --exclude-standard ^| find /c /v ""') do if %%n==0 set "NEEDCOMMIT="
-)
+set "NEEDCOMMIT="
+for /f "delims=" %%l in ('"!GIT!" status --porcelain 2^>nul') do set "NEEDCOMMIT=1"
 
 rem ---- [130] 새 변경이 없어도, 아직 못 올린 커밋이 있으면 올리기만 진행 ----
 if not defined NEEDCOMMIT (
@@ -79,6 +80,11 @@ if defined NEEDCOMMIT if not exist "%MSGFILE%" (
   exit /b 1
 )
 
+rem ---- [131] 메시지에서 도구 서명 줄 제거 ----
+if defined NEEDCOMMIT if exist "%MSGFILE%" (
+  powershell -NoProfile -Command "$p=$env:MSGFILE; $l=@([IO.File]::ReadAllLines($p) | Where-Object { $_ -notmatch '^(Co-Authored-By:\s*Claude|Claude-Session:)' }); [IO.File]::WriteAllText($p, ($l -join [Environment]::NewLine), (New-Object Text.UTF8Encoding $false))"
+)
+
 if defined NEEDCOMMIT (
   "!GIT!" add -A
   "!GIT!" -c i18n.commitEncoding=utf-8 commit -F "%MSGFILE%"
@@ -116,6 +122,25 @@ if not "!BEHIND!"=="0" (
   )
 )
 
+rem ---- [131] 올리기 직전: 아직 안 올린 커밋들의 메시지에서 도구 서명 줄 제거 (코드 내용은 변경 없음) ----
+set "AHEAD=0"
+for /f %%n in ('"!GIT!" rev-list --count origin/main..HEAD 2^>nul') do set "AHEAD=%%n"
+if "!AHEAD!"=="0" goto :push
+set "DIRTY=0"
+rem (for /f 안에서는 따옴표가 3쌍 이상이면 cmd가 앞뒤 따옴표를 잘라내므로 패턴에 따옴표·공백을 쓰지 않는다)
+for /f %%n in ('"!GIT!" rev-list --count --grep=Co-Authored-By:.*Claude --grep=Claude-Session: origin/main..HEAD 2^>nul') do set "DIRTY=%%n"
+if "!DIRTY!"=="0" goto :push
+echo 커밋 !DIRTY!개의 메시지에서 도구 서명 줄을 정리합니다...
+set "FILTER_BRANCH_SQUELCH_WARNING=1"
+"!GIT!" filter-branch -f --msg-filter "grep -viE '^(Co-Authored-By: *Claude|Claude-Session:)' || true" origin/main..HEAD >nul 2>&1
+if errorlevel 1 (
+  echo [주의] 서명 줄 정리에 실패했습니다. 올리지 않고 중단합니다 - 이 창을 캡처해 알려주세요.
+  pause
+  exit /b 1
+)
+rd /s /q ".git\refs\original" >nul 2>&1
+
+:push
 echo GitHub로 올리는 중...
 "!GIT!" push origin main
 if errorlevel 1 (
