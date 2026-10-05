@@ -13,6 +13,7 @@ import { InspectionSheetView, type SheetData } from '../components/InspectionShe
 import { resolveExtra, type InspExtra } from '../lib/inspExtra'
 import '../styles/inspectform.css'
 import { type ApprovalStep, defaultApproval, fetchApproval, primaryIdx, titleFor } from '../lib/approval' // [118] [123]
+import { useMyProfile } from '../lib/myProfile'
 
 // 기존 사용처 호환 재수출 — InspExtra 본체는 lib/inspExtra.ts로 이동(공용 매칭 로직과 함께).
 export type { InspExtra } from '../lib/inspExtra'
@@ -152,6 +153,19 @@ export function InspectionForm() {
   const [remarks, setRemarks] = useState<Record<string, string | undefined>>({})
   const [photos, setPhotos] = useState<Record<string, Slot[]>>({})
   const [etc, setEtc] = useState('')
+  // 기본정보(소속명·부서명·직책·작성자) — 로그인 사용자 프로필로 자동 채움(수정 가능).
+  // 예전엔 '(주)한국산업안전협회'가 하드코딩돼 기술원 직원이 작성해도 협회로 저장됐음.
+  const me = useMyProfile()
+  const [org, setOrg] = useState('')
+  const [dept, setDept] = useState('')
+  const [role, setRole] = useState('')
+  const [writer, setWriter] = useState('')
+  useEffect(() => {
+    if (!me.ready) return
+    setOrg((v) => v || me.affiliation)
+    setDept((v) => v || me.department)
+    setWriter((v) => v || me.name)
+  }, [me])
   const [place, setPlace] = useState('')
   const [accType, setAccType] = useState(ACC_TYPES[0])
   const [inspectDate, setInspectDate] = useState(today)
@@ -290,6 +304,10 @@ export function InspectionForm() {
               // 사진대지 — 앱 사진(라벨 키: 급식/통학/시설/미화/당직 = PARTDEF label과 동일)을 슬롯에 프리필
               if (extra.photos && Object.keys(extra.photos).length) setPhotos((p) => ({ ...extra.photos, ...p }))
               if (extra.etc) setEtc((v) => v || extra.etc)
+              if (extra.info?.org) setOrg(extra.info.org)
+              if (extra.info?.dept) setDept(extra.info.dept)
+              if (extra.info?.role) setRole(extra.info.role)
+              if (extra.info?.writer) setWriter(extra.info.writer)
               if (extra.info?.place) setPlace((v) => v || extra.info.place)
               if (extra.info?.accType) setAccType((v) => (v === ACC_TYPES[0] ? extra.info.accType : v))
               if (extra.info?.inspectDate) setInspectDate(extra.info.inspectDate)
@@ -455,7 +473,8 @@ export function InspectionForm() {
   const photoNames = PARTDEF.filter((d) => enabled[d.label]).flatMap((d) =>
     (photos[d.label] ?? []).filter((s) => s.name).map((s) => s.name),
   )
-  const mailSubject = `[한국산업안전협회] ${schoolName} 종사자 안전·보건 점검표 송부 (${inspectDate})`
+  const mailOrg = org.trim()
+  const mailSubject = `${mailOrg ? `[${mailOrg}] ` : ''}${schoolName} 종사자 안전·보건 점검표 송부 (${inspectDate})`
   const mailText = useMemo(() => {
     const lines = [
       `${schoolName} 업무담당자님께`,
@@ -467,10 +486,10 @@ export function InspectionForm() {
     ]
     if (photoNames.length) lines.push(`· 사진대지 ${photoNames.length}매: ${photoNames.join(', ')}`)
     if (etc.trim()) lines.push('', '[기타 의견]', etc.trim())
-    lines.push('', `확인자(${mailSteps.join(' → ')}) 확인 후 회신 부탁드립니다.`, '첨부: 종사자 안전·보건 점검표 PDF 1부', '', '(주)한국산업안전협회')
+    lines.push('', `확인자(${mailSteps.join(' → ')}) 확인 후 회신 부탁드립니다.`, '첨부: 종사자 안전·보건 점검표 PDF 1부', '', [mailOrg, writer.trim()].filter(Boolean).join(' '))
     return lines.join('\n')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolMail, schoolName, inspectDate, enabled, tally, etc, approval, photos])
+  }, [schoolMail, schoolName, inspectDate, enabled, tally, etc, approval, photos, mailOrg, writer])
 
   /* 수신된 주서명 이미지 경로 — 현장앱 제출분의 첫 image_ref (표시 + 메일 PDF) [서명·사진 출력 수정] */
   const mainRecvSigRef = useMemo(
@@ -511,7 +530,7 @@ export function InspectionForm() {
       extra: {
         ids: [],
         info: {
-          org: '(주)한국산업안전협회', dept: '(주)한국산업안전협회', role: '대표', writer: '(주)한국산업안전협회',
+          org, dept, role, writer,
           writeDate: today, inspectDate, place, accType,
         },
         targets: PARTDEF.filter((d) => enabled[d.label]).map((d) => d.key),
@@ -542,7 +561,7 @@ export function InspectionForm() {
       const entry: InspExtra = {
         ids,
         info: {
-          org: '(주)한국산업안전협회', dept: '(주)한국산업안전협회', role: '대표', writer: '(주)한국산업안전협회',
+          org, dept, role, writer,
           writeDate: today, inspectDate, place, accType,
         },
         targets: PARTDEF.filter((d) => enabled[d.label]).map((d) => d.key),
@@ -809,10 +828,11 @@ export function InspectionForm() {
                   : '학교를 선택하면 학교 특징에 따라 해당없음이 자동 적용됩니다.'}
             </span>
           </label>
-          <label className="field"><span>소속명</span><input className="input" value="(주)한국산업안전협회" disabled /></label>
-          <label className="field"><span>부서명</span><input className="input" value="(주)한국산업안전협회" disabled /></label>
-          <label className="field"><span>직책</span><input className="input" value="대표" disabled /></label>
-          <label className="field"><span>작성자</span><input className="input" value="(주)한국산업안전협회" disabled /></label>
+          <label className="field"><span>소속명</span><input className="input" value={org} onChange={(e) => setOrg(e.target.value)}
+            placeholder={me.ready && !me.affiliation ? '계정에 소속 태그가 없습니다 — 직접 입력' : '소속'} /></label>
+          <label className="field"><span>부서명</span><input className="input" value={dept} onChange={(e) => setDept(e.target.value)} placeholder="직급/부서" /></label>
+          <label className="field"><span>직책</span><input className="input" value={role} onChange={(e) => setRole(e.target.value)} placeholder="예: 대리" /></label>
+          <label className="field"><span>작성자</span><input className="input" value={writer} onChange={(e) => setWriter(e.target.value)} placeholder="이름" /></label>
           <label className="field"><span>작성일</span><input className="input" value={today} disabled /></label>
           <label className="field"><span>점검일</span><input className="input" type="date" value={inspectDate} onChange={(e) => setInspectDate(e.target.value)} /></label>
           <label className="field"><span>점검장소</span><input className="input" placeholder="예: 급식실, 시설창고" value={place} onChange={(e) => setPlace(e.target.value)} /></label>
