@@ -19,6 +19,7 @@
 //   POST /inspections/:id/sign               목업 서명 + 웹 서명패드 이미지 보관(sign_<id>.png)
 //   GET  /files/inspection/download?path=    보관한 서명 이미지 내려주기
 //   GET  /inspections(?school_id=)           목업 응답에 보관한 서명 image_ref를 채워서 전달
+//   PUT  /mail/school-contacts               학교 담당자 연락처 1건 저장(화면 형식 → 목업 형식 변환)
 //
 // 데이터는 전부 메모리 — 서버를 재시작하면 목업과 함께 초기화된다.
 // PDF용 브라우저 경로를 직접 지정하려면 환경변수 PDF_BROWSER=경로
@@ -362,6 +363,21 @@ const server = http.createServer(async (req, res) => {
       }
       console.log(`  [dev] POST ${p}${body.sign_image_b64 ? ' (+서명 이미지)' : ''}`)
       return sendJson(res, 200, { status: 'signed', ...out })
+    }
+
+    // [132] 학교 담당자 연락처 저장 — 화면·운영 백엔드는 학교 1건({school_id,email,name,phone})으로 보내는데
+    //       목업은 {contacts:{...}} 형식만 받아 저장이 안 되던 것을 변환해 전달
+    if (req.method === 'PUT' && p === '/mail/school-contacts') {
+      const buf = await readBody(req)
+      let body = {}
+      try { body = JSON.parse(buf.toString() || '{}') } catch { /* 빈 본문 */ }
+      if (body.school_id) {
+        const { school_id, ...c } = body
+        await mock('PUT', '/mail/school-contacts', { contacts: { [school_id]: { email: c.email || '', name: c.name || '', phone: c.phone || '' } } })
+        console.log(`  [dev] PUT ${p} (${school_id})`)
+        return sendJson(res, 200, { ok: true })
+      }
+      return proxy(req, res, buf)
     }
 
     // 보관한 서명 이미지
