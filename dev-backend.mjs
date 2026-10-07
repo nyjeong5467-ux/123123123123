@@ -78,6 +78,7 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const dateOf = (r) => String(r.submitted_at || r.signed_at || r.signatures?.[0]?.signed_at || r.created_at || '').slice(0, 10)
 
 // ---- 웹 서명패드 이미지 보관소 (목업은 sign_image_b64를 버리므로 여기서 보관) ----
+let lastLogin = '' // [136] 마지막 로그인 ID (목업 /auth/me 보강용)
 const signImages = new Map() // image_ref → base64 PNG
 const signRefOf = (iid) => `web-sign/sign_${iid}.png`
 function withSignRefs(list) {
@@ -378,6 +379,21 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 200, { ok: true })
       }
       return proxy(req, res, buf)
+    }
+
+    // [136] 로그인 사용자 정보 — 목업의 /auth/me 는 이름·ID가 없어 '내 담당 학교' 판정(삭제 권한 등)을 시험할 수 없음.
+    //       마지막 로그인 ID를 기억해 {login, name}을 붙여 준다. 이름은 계정 목록에 있으면 그 이름, 없으면 입력한 ID 그대로
+    //       (예: ID에 '박정우'를 넣고 로그인하면 박정우 조사원으로 시험 가능).
+    if (req.method === 'POST' && p === '/auth/login') {
+      const buf = await readBody(req)
+      try { lastLogin = String(JSON.parse(buf.toString() || '{}').login_id || '').trim() } catch { /* 무시 */ }
+      return proxy(req, res, buf)
+    }
+    if (req.method === 'GET' && p === '/auth/me') {
+      const me = (await mock('GET', '/auth/me')) || {}
+      const users = await mock('GET', '/users').catch(() => [])
+      const u = (users || []).find((x) => x.login_id === lastLogin)
+      return sendJson(res, 200, { ...me, login: me.login || lastLogin, name: me.name || u?.name || lastLogin })
     }
 
     // 보관한 서명 이미지
