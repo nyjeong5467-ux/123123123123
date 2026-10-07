@@ -395,10 +395,49 @@ const server = http.createServer(async (req, res) => {
   return proxy(req, res) // 그 외 전부 목업으로
 })
 
+// ---- [133] 학교 담당자 이메일 자동 채움 (로컬 목업 전용) ----
+// 목업 데이터는 메모리라 서버를 켤 때마다 비어 있음 → tools/school-contacts-data.json(엑셀 추출본)이 있으면
+// 시작할 때 기관명으로 매칭해 [학교 담당자]의 담당자 이메일을 채운다. 비어 있는 학교만, 실서버와 무관.
+// 규칙은 tools/import-school-contacts.mjs와 동일(안전·교육 > 표기 없음 > 그 외 > 계약 > 회계).
+async function seedSchoolContacts() {
+  const file = path.join(ROOT, 'tools', 'school-contacts-data.json')
+  if (!fs.existsSync(file)) return 0
+  const rows = JSON.parse(fs.readFileSync(file, 'utf8'))
+  const nk = (v) => String(v ?? '').replace(/\s+/g, '')
+  const rank = (t) => (/안전|교육/.test(t) ? 0 : !t ? 1 : /회계|세금/.test(t) && !/계약/.test(t) ? 4 : /계약/.test(t) ? 3 : 2)
+  const pick = (cell) => {
+    const str = String(cell ?? ''); const re = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g; const list = []; let m
+    while ((m = re.exec(str))) list.push({ email: m[0], tag: ((/^\s*\(([^)]*)\)/.exec(str.slice(m.index + m[0].length)) || [])[1] || '').trim() })
+    return list.sort((a, b) => rank(a.tag) - rank(b.tag))[0]?.email || ''
+  }
+  const schools = await mock('GET', '/schools')
+  const cur = (await mock('GET', '/mail/school-contacts'))?.contacts || {}
+  const byName = new Map()
+  for (const sc of schools) { const k = nk(sc.name); if (!byName.has(k)) byName.set(k, []); byName.get(k).push(sc) }
+  const contacts = {}
+  for (const r of rows) {
+    const email = pick(r.email)
+    if (!email) continue
+    let c = byName.get(nk(r.name)) || []
+    if (c.length > 1) {
+      const biz = String(r.biz_no || '').replace(/\D/g, '')
+      const f = c.filter((x) => (biz && String(x.biz_no || '').replace(/\D/g, '') === biz) || (r.address && nk(x.address) === nk(r.address)))
+      if (f.length === 1) c = f
+    }
+    if (c.length !== 1 || cur[c[0].id]?.email || contacts[c[0].id]) continue
+    contacts[c[0].id] = { email, name: cur[c[0].id]?.name || '', phone: cur[c[0].id]?.phone || '' }
+  }
+  if (Object.keys(contacts).length) await mock('PUT', '/mail/school-contacts', { contacts })
+  return Object.keys(contacts).length
+}
+
 server.listen(PORT, () => {
   console.log('  ┌──────────────────────────────────────────────┐')
   console.log('  │  dev-backend(임시 백엔드) :3001 → 목업 :3002   │')
   console.log('  │  보강: 점검표 PDF · 점검 요약 · 재전송 · 서명  │')
   console.log(`  │  PDF 브라우저: ${(findBrowser() ? '찾음' : '없음 (PDF 불가)').padEnd(30)}│`)
   console.log('  └──────────────────────────────────────────────┘')
+  seedSchoolContacts()
+    .then((n) => { if (n) console.log(`  [dev] 학교 담당자 이메일 ${n}곳 자동 채움 (tools/school-contacts-data.json)`) })
+    .catch((e) => console.log('  [dev] 학교 담당자 이메일 자동 채움 실패: ' + e.message))
 })
