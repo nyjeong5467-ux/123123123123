@@ -23,6 +23,9 @@ export type SheetPart = {
 export type SheetData = {
   schoolName: string
   manager?: string
+  // 학교의 안전점검기관(소속: 한국산업안전협회/국민안전기술원) — 기본정보 소속명·부서명·직책
+  // 폴백용(1008 협회 요청: 교육청 출력물처럼 표시, 앱 제출분은 info.org 가 비어 있음)
+  agency?: string
   date: string // 점검일 ('' = 작성중)
   parts: SheetPart[]
   extra?: InspExtra // 부가정보 — 기본정보·점검대상·기타의견·사진대지·확인자 [057]
@@ -118,9 +121,11 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
         <div className="inss-sec" data-brk><i />기본정보</div>
         <div className="inss-info" data-brk>
           <label><span>학교(기관)명</span><div className="v">{sheet.schoolName}</div></label>
-          <label><span>소속명</span><div className="v">{info?.org || ''}</div></label>
-          <label><span>부서명</span><div className="v">{info?.dept || ''}</div></label>
-          <label><span>직책</span><div className="v">{info?.role || ''}</div></label>
+          {/* 소속명·부서명·직책 — 미기재(앱 제출분)면 학교 소속기관으로 폴백, 직책은 교육청
+              기관 계정 표기와 동일하게 '대표'(1008 협회 요청 — 과거 기록 소급 표시) */}
+          <label><span>소속명</span><div className="v">{info?.org || sheet.agency || ''}</div></label>
+          <label><span>부서명</span><div className="v">{info?.dept || sheet.agency || ''}</div></label>
+          <label><span>직책</span><div className="v">{info?.role || ((info?.org || sheet.agency) ? '대표' : '')}</div></label>
           <label><span>작성자</span><div className="v">{info?.writer || sheet.manager || ''}</div></label>
           <label><span>작성일</span><div className="v">{info?.writeDate || signedAt || sheet.date}</div></label>
           <label><span>점검일</span><div className="v">{info?.inspectDate || sheet.date}</div></label>

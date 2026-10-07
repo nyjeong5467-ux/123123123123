@@ -58,7 +58,7 @@ type Inspection = {
   submitted_at?: string | null
   created_at?: string | null // 백엔드 엔티티에 아직 없음 — 생기면 자동 수용
 }
-type School = { id: string; name: string; manager?: string; school_level?: string; address?: string; assigned_inspector_id?: string }
+type School = { id: string; name: string; manager?: string; school_level?: string; address?: string; assigned_inspector_id?: string; inspection_agency?: string }
 
 // [perf-0828] 목록 요약은 GET /inspections/summary 1콜의 경량 항목(items/followups 없음).
 // 상세·실물양식 등 전체 데이터가 필요한 경로는 해당 학교 1곳만 GET /inspections?school_id= 로 지연 조회.
@@ -296,7 +296,7 @@ export function Inspection() {
     // [104] 대장 결재선 → 양식 결재란 칸 구성
     const approval = await fetchApproval(school.id, school) // [123] 확인자 — 실패·미등록 시 기본값(학교: 담당자·행정실장·교장 / 기관: 담당자·팀장·과장)
     setSheetAuto(autoPrint)
-    setSheetView({ schoolName: school.name, manager: school.manager, date, parts: fullParts, extra, approval })
+    setSheetView({ schoolName: school.name, manager: school.manager, agency: school.inspection_agency, date, parts: fullParts, extra, approval })
   }
 
   // 상세 모달 열릴 때 해당 점검의 사진대지 로드 — resolveExtra 폴백으로 앱 파트별 제출도 커버
