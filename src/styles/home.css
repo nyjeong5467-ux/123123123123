@@ -1485,13 +1485,14 @@
   font-size: 12px;
 }
 
-/* ===== 홈 하단: 현장 메모 피드 + 현장 앱 다운로드 [H-10] ===== */
+/* ===== 홈 하단: 현장 메모 피드 [H-10] — APK 카드는 자료실로 이동(2026-10-08) ===== */
 .hm-bottom {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 16px;
   margin-top: 16px;
 }
+.hm-bottom.hm-bottom-single { grid-template-columns: 1fr; }
 @media (max-width: 1080px) {
   .hm-bottom { grid-template-columns: 1fr; }
 }

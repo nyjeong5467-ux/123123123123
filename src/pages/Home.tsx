@@ -20,7 +20,6 @@ import {
   Paperclip,
   Plus,
   Siren,
-  Smartphone,
   StickyNote,
   X,
 } from 'lucide-react'
@@ -29,7 +28,6 @@ import { useAuth } from '../lib/auth'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { FilterBar, Pagination, SortableTh } from '../components/table'
 import { Modal } from '../components/Modal'
-import { InfoTip } from '../components/InfoTip'
 import { FilePicker } from '../components/FilePicker'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { SchoolScopePicker, type PickSchool } from '../components/SchoolScopePicker'
@@ -416,22 +414,14 @@ export function Home() {
     api<{ doc: SchedDoc | null }>('/ops/docs/schedules').then((d) => setSched(d.doc || {})).catch(() => {})
   }, [])
 
-  /* ---- 홈 하단: 현장 메모 피드 + 현장 앱 APK 링크 [H-10] ---- */
+  /* ---- 홈 하단: 현장 메모 피드 [H-10] — 서버가 본인 작성분만 반환(개인 메모) ---- */
+  /*      현장 앱 APK 다운로드는 자료실로 이동(2026-10-08 요청 — 홈 카드 제거).   */
   type FeedMemo = { school_id: string; school_name: string; id: string; ts: string; by: string; text: string; type: string; due?: string | null; done: boolean }
   const [memoFeed, setMemoFeed] = useState<FeedMemo[]>([])
-  const [apkUrl, setApkUrl] = useState('')
   useEffect(() => {
     let alive = true
     api<{ memos: FeedMemo[] }>('/field/school-memos/feed')
       .then((d) => { if (alive) setMemoFeed(Array.isArray(d.memos) ? d.memos : []) })
-      .catch(() => {})
-    // 릴리스 목록(무인증 공개 API)에서 현장앱 APK 링크만 — 경영 콘솔의 전체 다운로드 중 현장앱 발췌
-    api<{ name: string; url: string }[]>('/release')
-      .then((files) => {
-        if (!alive) return
-        const apk = (files || []).find((f) => f.name.endsWith('.apk'))
-        if (apk) setApkUrl(apk.url)
-      })
       .catch(() => {})
     return () => { alive = false }
   }, [dataReload])
@@ -1299,16 +1289,16 @@ export function Home() {
         ))}
       </div>
 
-      {/* ===== 홈 하단: 현장 메모 피드 + 현장 앱 다운로드 [H-10] ===== */}
-      <div className="hm-bottom">
+      {/* ===== 홈 하단: 현장 메모 피드 [H-10] — 본인 작성분만 표시(개인 메모) ===== */}
+      <div className="hm-bottom hm-bottom-single">
         <div className="hm-card hm-bottom-memos">
           <div className="hm-ch">
             <span className="hm-ic v"><StickyNote size={16} /></span>
-            <h3>현장 메모</h3>
-            <div className="hm-r">{memoFeed.length}건 · 조사원 앱과 실시간 공유</div>
+            <h3>내 현장 메모</h3>
+            <div className="hm-r">{memoFeed.length}건 · 내가 등록한 메모만 표시</div>
           </div>
           {memoFeed.length === 0 && (
-            <div className="hm-empty">아직 현장 메모가 없습니다. 조사원 앱의 [메모] 버튼으로 남기면 여기에 표시됩니다.</div>
+            <div className="hm-empty">아직 내 현장 메모가 없습니다. 조사원 앱의 [메모] 버튼으로 남기면 여기에 표시됩니다(본인에게만 보입니다).</div>
           )}
           {memoFeed.slice(0, 12).map((m) => (
             <div className="hm-todo" key={m.school_id + m.id} style={{ alignItems: 'flex-start' }}>
@@ -1336,23 +1326,6 @@ export function Home() {
                 onKeyDown={(e) => { if (e.key === 'Enter') nav('/schools/' + m.school_id) }}>학교 →</span>
             </div>
           ))}
-        </div>
-        <div className="hm-card hm-bottom-app">
-          <div className="hm-ch">
-            <span className="hm-ic g"><Smartphone size={16} /></span>
-            <h3>현장 앱 다운로드</h3>
-            <InfoTip>조사원 태블릿·휴대폰에 설치하는 현장 점검 앱(APK)입니다. 안드로이드에서 아래 버튼으로 받아 설치하세요.</InfoTip>
-          </div>
-          {apkUrl ? (
-            <a className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }} href={apkUrl} download>
-              <Smartphone size={15} /> 현장 앱 받기 (안드로이드 APK)
-            </a>
-          ) : (
-            <div className="hm-empty">앱 파일을 찾을 수 없습니다 — 관리자에게 문의하세요.</div>
-          )}
-          <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
-            설치 시 "출처를 알 수 없는 앱" 허용이 필요할 수 있습니다. 이미 설치돼 있으면 덮어쓰기 설치로 업데이트됩니다.
-          </div>
         </div>
       </div>
 

@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FolderOpen, FileText, Download, Trash2, Plus, Search } from 'lucide-react'
+import { FolderOpen, FileText, Download, Trash2, Plus, Search, Smartphone } from 'lucide-react'
 import { api, getToken } from '../lib/api'
 import { Modal } from '../components/Modal'
 import { FilePicker } from '../components/FilePicker'
+
+// 릴리스 서버(/release, 무인증 공개)의 배포 파일 — 자료실 '현장 앱' 섹션용(2026-10-08).
+// display_name: APK 는 원본명_빌드일(yymmdd).apk — 받는 파일명도 서버가 같은 이름으로 내려준다.
+type ReleaseFile = { name: string; display_name?: string; size: number; modified: string; url: string }
 
 type Category = '양식' | '지침' | '증빙' | '기타'
 
@@ -42,6 +46,17 @@ export function Resources({ embedded = false }: { embedded?: boolean } = {}) {
   const [catFilter, setCatFilter] = useState<Category | ''>('')
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
+  // 현장 앱(APK) — 릴리스 서버 목록 중 .apk 만(홈 카드에서 자료실로 이동, 2026-10-08)
+  const [apks, setApks] = useState<ReleaseFile[]>([])
+  useEffect(() => {
+    let alive = true
+    api<ReleaseFile[]>('/release')
+      .then((files) => {
+        if (alive) setApks((files || []).filter((f) => f.name.toLowerCase().endsWith('.apk')))
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   // 등록 폼 상태
   const [fTitle, setFTitle] = useState('')
@@ -183,6 +198,54 @@ export function Resources({ embedded = false }: { embedded?: boolean } = {}) {
         <button className="btn btn-primary" onClick={() => setOpen(true)}>
           <Plus size={16} /> 문서 등록
         </button>
+      </div>
+
+      {/* ===== 현장 앱(APK) 다운로드 — 홈 카드에서 이동(2026-10-08) ===== */}
+      <div className="ledger" style={{ marginBottom: 16 }}>
+        <div className="lh">
+          <h2><Smartphone size={18} /> 현장 앱 (안드로이드 APK)</h2>
+        </div>
+        <div className="twrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>파일명</th>
+                <th>크기</th>
+                <th>빌드(교체)일</th>
+                <th style={{ textAlign: 'right' }}>다운로드</th>
+              </tr>
+            </thead>
+            <tbody>
+              {apks.map((f) => (
+                <tr key={f.name} style={{ cursor: 'default' }}>
+                  <td>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                      <Smartphone size={16} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                      <b>{f.display_name || f.name}</b>
+                    </span>
+                  </td>
+                  <td>{humanSize(f.size)}</td>
+                  <td>{f.modified.slice(0, 16).replace('T', ' ')}</td>
+                  <td>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <a className="btn btn-primary" style={{ height: 34, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
+                        href={f.url} download>
+                        <Download size={15} /> APK 받기
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {apks.length === 0 && (
+                <tr><td colSpan={4}><div className="tstate">등록된 앱 파일이 없습니다 — 관리자에게 문의하세요.</div></td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ padding: '10px 16px', fontSize: 12, color: 'var(--muted)' }}>
+          조사원 태블릿·휴대폰에 설치하는 현장 점검 앱입니다. 설치 시 "출처를 알 수 없는 앱" 허용이
+          필요할 수 있고, 이미 설치돼 있으면 덮어쓰기 설치로 업데이트됩니다. 파일명 끝 숫자는 빌드일(버전)입니다.
+        </div>
       </div>
 
       <div className="ledger">
