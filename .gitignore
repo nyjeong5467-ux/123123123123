@@ -11,3 +11,8 @@ tools/approval-backup-*.json
 _port118/
 sync-push-*.bat
 commit-msg*.txt
+tools/school-contacts-*.json
+tools/school-contacts-*.csv
+# [135] 자동 올리기 요청·결과 파일
+push-request.txt
+push-result.txt

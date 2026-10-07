@@ -406,6 +406,13 @@ export function Inspection() {
   // 점검표 1장(sheet)은 공정별 여러 레코드로 구성되므로 각 레코드를 순차 삭제하고 정리된 파일 수를 합산.
   async function deleteInspections(ids: string[], schoolId: string) {
     if (!ids.length || delBusy) return
+    // [136] 다른 조사원 담당 학교의 점검표는 삭제 불가 (버튼도 비활성 — 이중 방어)
+    const target = schools.find((x) => x.id === schoolId)
+    if (!canDelete(target)) {
+      setDelMsg(`삭제 불가: 담당 조사원(${target?.manager || '미지정'})만 삭제할 수 있습니다`)
+      setTimeout(() => setDelMsg(''), 4000)
+      return
+    }
     if (!window.confirm('이 점검을 삭제하면 서명·사진·부가정보까지 영구 삭제되며 되돌릴 수 없습니다. 삭제할까요?')) return
     setDelBusy(ids[0])
     try {
@@ -487,6 +494,24 @@ export function Inspection() {
 
   // 소속 격리 — 'admin'(슈퍼)만 전체, 그 외는 자기 소속 학교만.
   const scope = useAffiliationScope()
+
+  // [136] 점검표 삭제 권한 — 내 담당 학교만. 담당 판정은 학교 목록과 같은 규칙:
+  //       학교의 조사원(manager) == 내 이름, 또는 예전 배정(assigned_inspector_id) == 내 로그인 ID.
+  //       'admin'(슈퍼 관리자)은 전체 삭제 가능.
+  const [myName, setMyName] = useState('')
+  useEffect(() => {
+    let alive = true
+    api<{ name?: string }>('/auth/me')
+      .then((m) => { if (alive) setMyName((m?.name || '').trim()) })
+      .catch(() => { /* 이름을 모르면 로그인 ID 배정만으로 판정 */ })
+    return () => { alive = false }
+  }, [])
+  const isSuperUser = scope.isSuper || (user?.login ?? '') === 'admin'
+  const canDelete = (sc?: School | null) =>
+    !!sc && (isSuperUser
+      || (!!myName && (sc.manager ?? '').trim() === myName)
+      || (!!user?.login && sc.assigned_inspector_id === user.login))
+  const NO_DEL = (sc?: School | null) => `다른 조사원 담당 학교입니다 — 담당 조사원(${sc?.manager || '미지정'})만 삭제할 수 있습니다`
   const scopedSchools = useMemo(
     () => schools.filter((s) => scope.visible({ id: s.id, name: s.name })),
     [schools, scope],
@@ -792,9 +817,9 @@ export function Inspection() {
                             <button
                               className="btn btn-danger"
                               style={{ height: 30, padding: '0 10px', fontSize: 12 }}
-                              disabled={delBusy === r.parts[0]?.id}
+                              disabled={delBusy === r.parts[0]?.id || !canDelete(r.school)}
                               onClick={(e) => { e.stopPropagation(); void deleteInspections(r.parts.map((p) => p.id), r.school.id) }}
-                              title="이 점검표를 삭제(서명·사진·부가정보 포함)"
+                              title={canDelete(r.school) ? '이 점검표를 삭제(서명·사진·부가정보 포함)' : NO_DEL(r.school)}
                             >
                               <Trash2 size={13} />
                             </button>
@@ -891,9 +916,9 @@ export function Inspection() {
                               <button
                                 className="btn btn-danger"
                                 style={{ height: 30, padding: '0 10px', fontSize: 12 }}
-                                disabled={delBusy === sheet.parts[0]?.id}
+                                disabled={delBusy === sheet.parts[0]?.id || !canDelete(sel)}
                                 onClick={(e) => { e.stopPropagation(); void deleteInspections(sheet.parts.map((p) => p.id), sel.id) }}
-                                title="이 점검표를 삭제(서명·사진·부가정보 포함)"
+                                title={canDelete(sel) ? '이 점검표를 삭제(서명·사진·부가정보 포함)' : NO_DEL(sel)}
                               >
                                 <Trash2 size={13} />
                               </button>
@@ -941,7 +966,8 @@ export function Inspection() {
             <>
               <button
                 className="btn btn-danger"
-                disabled={delBusy === detail.id}
+                disabled={delBusy === detail.id || !canDelete(sel)}
+                title={canDelete(sel) ? undefined : NO_DEL(sel)}
                 onClick={() => void deleteInspections([detail.id], sel?.id ?? '')}
               >
                 <Trash2 size={15} /> {delBusy === detail.id ? '삭제 중…' : '삭제'}

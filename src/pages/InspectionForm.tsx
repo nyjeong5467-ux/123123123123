@@ -879,7 +879,7 @@ export function InspectionForm() {
               <button key={d.key} type="button" className="insf-tg on"
                 onClick={() => setEnabled((p) => ({ ...p, [d.label]: false }))}>
                 <input type="checkbox" readOnly checked style={{ accentColor: 'var(--violet)', pointerEvents: 'none' }} />
-                {d.name} <span className="man">수동 추가</span>
+                {d.name}
               </button>
             ) : (
               <button key={d.key} type="button" className="insf-tg na"
@@ -911,7 +911,7 @@ export function InspectionForm() {
           <div className="insf-fset" key={d.key}>
             <div className="insf-ch">
               <i className="insf-sq" />
-              <h3>{d.name}<span className="cnt">{d.q!.length}개 항목 · {n > 0 ? `${n}명` : '수동 추가'}</span></h3>
+              <h3>{d.name}<span className="cnt">{d.q!.length}개 항목{n > 0 ? ` · ${n}명` : ''}</span></h3>
               <div className="r">{exn ? <b>자동 해당없음 {exn}개</b> : null}</div>
             </div>
             <table className="insf-chk">

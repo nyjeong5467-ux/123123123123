@@ -19,6 +19,7 @@
 //   POST /inspections/:id/sign               목업 서명 + 웹 서명패드 이미지 보관(sign_<id>.png)
 //   GET  /files/inspection/download?path=    보관한 서명 이미지 내려주기
 //   GET  /inspections(?school_id=)           목업 응답에 보관한 서명 image_ref를 채워서 전달
+//   PUT  /mail/school-contacts               학교 담당자 연락처 1건 저장(화면 형식 → 목업 형식 변환)
 //
 // 데이터는 전부 메모리 — 서버를 재시작하면 목업과 함께 초기화된다.
 // PDF용 브라우저 경로를 직접 지정하려면 환경변수 PDF_BROWSER=경로
@@ -77,6 +78,7 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const dateOf = (r) => String(r.submitted_at || r.signed_at || r.signatures?.[0]?.signed_at || r.created_at || '').slice(0, 10)
 
 // ---- 웹 서명패드 이미지 보관소 (목업은 sign_image_b64를 버리므로 여기서 보관) ----
+let lastLogin = '' // [136] 마지막 로그인 ID (목업 /auth/me 보강용)
 const signImages = new Map() // image_ref → base64 PNG
 const signRefOf = (iid) => `web-sign/sign_${iid}.png`
 function withSignRefs(list) {
@@ -364,6 +366,36 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { status: 'signed', ...out })
     }
 
+    // [132] 학교 담당자 연락처 저장 — 화면·운영 백엔드는 학교 1건({school_id,email,name,phone})으로 보내는데
+    //       목업은 {contacts:{...}} 형식만 받아 저장이 안 되던 것을 변환해 전달
+    if (req.method === 'PUT' && p === '/mail/school-contacts') {
+      const buf = await readBody(req)
+      let body = {}
+      try { body = JSON.parse(buf.toString() || '{}') } catch { /* 빈 본문 */ }
+      if (body.school_id) {
+        const { school_id, ...c } = body
+        await mock('PUT', '/mail/school-contacts', { contacts: { [school_id]: { email: c.email || '', name: c.name || '', phone: c.phone || '' } } })
+        console.log(`  [dev] PUT ${p} (${school_id})`)
+        return sendJson(res, 200, { ok: true })
+      }
+      return proxy(req, res, buf)
+    }
+
+    // [136] 로그인 사용자 정보 — 목업의 /auth/me 는 이름·ID가 없어 '내 담당 학교' 판정(삭제 권한 등)을 시험할 수 없음.
+    //       마지막 로그인 ID를 기억해 {login, name}을 붙여 준다. 이름은 계정 목록에 있으면 그 이름, 없으면 입력한 ID 그대로
+    //       (예: ID에 '박정우'를 넣고 로그인하면 박정우 조사원으로 시험 가능).
+    if (req.method === 'POST' && p === '/auth/login') {
+      const buf = await readBody(req)
+      try { lastLogin = String(JSON.parse(buf.toString() || '{}').login_id || '').trim() } catch { /* 무시 */ }
+      return proxy(req, res, buf)
+    }
+    if (req.method === 'GET' && p === '/auth/me') {
+      const me = (await mock('GET', '/auth/me')) || {}
+      const users = await mock('GET', '/users').catch(() => [])
+      const u = (users || []).find((x) => x.login_id === lastLogin)
+      return sendJson(res, 200, { ...me, login: me.login || lastLogin, name: me.name || u?.name || lastLogin })
+    }
+
     // 보관한 서명 이미지
     if (req.method === 'GET' && p === '/files/inspection/download') {
       const b64 = signImages.get(url.searchParams.get('path') || '')
@@ -379,10 +411,49 @@ const server = http.createServer(async (req, res) => {
   return proxy(req, res) // 그 외 전부 목업으로
 })
 
+// ---- [133] 학교 담당자 이메일 자동 채움 (로컬 목업 전용) ----
+// 목업 데이터는 메모리라 서버를 켤 때마다 비어 있음 → tools/school-contacts-data.json(엑셀 추출본)이 있으면
+// 시작할 때 기관명으로 매칭해 [학교 담당자]의 담당자 이메일을 채운다. 비어 있는 학교만, 실서버와 무관.
+// 규칙은 tools/import-school-contacts.mjs와 동일(안전·교육 > 표기 없음 > 그 외 > 계약 > 회계).
+async function seedSchoolContacts() {
+  const file = path.join(ROOT, 'tools', 'school-contacts-data.json')
+  if (!fs.existsSync(file)) return 0
+  const rows = JSON.parse(fs.readFileSync(file, 'utf8'))
+  const nk = (v) => String(v ?? '').replace(/\s+/g, '')
+  const rank = (t) => (/안전|교육/.test(t) ? 0 : !t ? 1 : /회계|세금/.test(t) && !/계약/.test(t) ? 4 : /계약/.test(t) ? 3 : 2)
+  const pick = (cell) => {
+    const str = String(cell ?? ''); const re = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g; const list = []; let m
+    while ((m = re.exec(str))) list.push({ email: m[0], tag: ((/^\s*\(([^)]*)\)/.exec(str.slice(m.index + m[0].length)) || [])[1] || '').trim() })
+    return list.sort((a, b) => rank(a.tag) - rank(b.tag))[0]?.email || ''
+  }
+  const schools = await mock('GET', '/schools')
+  const cur = (await mock('GET', '/mail/school-contacts'))?.contacts || {}
+  const byName = new Map()
+  for (const sc of schools) { const k = nk(sc.name); if (!byName.has(k)) byName.set(k, []); byName.get(k).push(sc) }
+  const contacts = {}
+  for (const r of rows) {
+    const email = pick(r.email)
+    if (!email) continue
+    let c = byName.get(nk(r.name)) || []
+    if (c.length > 1) {
+      const biz = String(r.biz_no || '').replace(/\D/g, '')
+      const f = c.filter((x) => (biz && String(x.biz_no || '').replace(/\D/g, '') === biz) || (r.address && nk(x.address) === nk(r.address)))
+      if (f.length === 1) c = f
+    }
+    if (c.length !== 1 || cur[c[0].id]?.email || contacts[c[0].id]) continue
+    contacts[c[0].id] = { email, name: cur[c[0].id]?.name || '', phone: cur[c[0].id]?.phone || '' }
+  }
+  if (Object.keys(contacts).length) await mock('PUT', '/mail/school-contacts', { contacts })
+  return Object.keys(contacts).length
+}
+
 server.listen(PORT, () => {
   console.log('  ┌──────────────────────────────────────────────┐')
   console.log('  │  dev-backend(임시 백엔드) :3001 → 목업 :3002   │')
   console.log('  │  보강: 점검표 PDF · 점검 요약 · 재전송 · 서명  │')
   console.log(`  │  PDF 브라우저: ${(findBrowser() ? '찾음' : '없음 (PDF 불가)').padEnd(30)}│`)
   console.log('  └──────────────────────────────────────────────┘')
+  seedSchoolContacts()
+    .then((n) => { if (n) console.log(`  [dev] 학교 담당자 이메일 ${n}곳 자동 채움 (tools/school-contacts-data.json)`) })
+    .catch((e) => console.log('  [dev] 학교 담당자 이메일 자동 채움 실패: ' + e.message))
 })

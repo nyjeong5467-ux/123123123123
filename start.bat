@@ -77,6 +77,7 @@ rem ---- [3/4] 예전 서버 정리 - 다른 폴더/이전 실행분이 포트�
 echo [3/4] 이전 서버 정리 중 - 포트 5173, 3001...
 taskkill /f /t /fi "WINDOWTITLE eq web-hq backend (mock:3001)*" >nul 2>&1
 taskkill /f /t /fi "WINDOWTITLE eq web-hq frontend (vite:5173)*" >nul 2>&1
+taskkill /f /t /fi "WINDOWTITLE eq web-hq auto-push*" >nul 2>&1
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr /c:":5173 " ^| findstr "LISTENING"') do taskkill /f /t /pid %%p >nul 2>&1
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr /c:":3001 " ^| findstr "LISTENING"') do taskkill /f /t /pid %%p >nul 2>&1
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr /c:":3002 " ^| findstr "LISTENING"') do taskkill /f /t /pid %%p >nul 2>&1
@@ -96,6 +97,8 @@ if exist "dev-backend.mjs" set "BACKEND=dev-backend.mjs"
 echo   백엔드: %BACKEND%
 start "web-hq backend (mock:3001)" cmd /k "node --watch %BACKEND%"
 start "web-hq frontend (vite:5173)" cmd /k "npm run dev -- --strictPort --force"
+rem  [135] 자동 올리기 - Claude가 수정 후 push-request.txt 를 남기면 이 PC의 git 로그인으로 커밋+푸시 (최소화 창)
+if exist "tools\auto-push.mjs" start "web-hq auto-push" /min cmd /k "node tools\auto-push.mjs"
 
 set "READY="
 for /l %%i in (1,1,40) do if not defined READY (

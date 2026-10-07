@@ -11,6 +11,7 @@ echo [off] web-hq 서버 종료 중...
 rem 1) start.bat이 연 창 제목 기준 종료 (하위 프로세스 포함 /t)
 taskkill /f /t /fi "WINDOWTITLE eq web-hq backend (mock:3001)*" >nul 2>&1
 taskkill /f /t /fi "WINDOWTITLE eq web-hq frontend (vite:5173)*" >nul 2>&1
+taskkill /f /t /fi "WINDOWTITLE eq web-hq auto-push*" >nul 2>&1
 
 rem 2) 창 없이 남은 프로세스는 포트 기준으로 종료
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3001" ^| findstr "LISTENING"') do taskkill /f /t /pid %%p >nul 2>&1
