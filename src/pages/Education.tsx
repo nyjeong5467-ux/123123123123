@@ -35,14 +35,22 @@ type EduSession = {
   note: string       // 특이사항(현장 입력)
   created_at: string
 }
-// 종사자별 이수현황(C-4) — GET /education/{sid}/records (progress: 0.0~1.0)
+// 교육진도표(C-4) — GET /education/{sid}/records (progress: 0.0~1.0)
+// 2026-10-21 수강생명단 반영: 순번·특이사항·교육메모·담당자 + 셀 편집(PATCH /education/records/{id})
 type EduRecord = {
   id: string
   person_name: string
   job: string
   progress: number
   completed: boolean
+  seq: number
+  note: string
+  memo: string
+  manager: string
+  updated_at: string
 }
+type CellField = 'person_name' | 'progress' | 'memo' | 'note'
+const PLACEHOLDER_NAME = /^수강생 \d+$/
 // 관리감독자 교육(C-2) — 백엔드 /education/{sid}/supervisors CRUD
 type Supervisor = {
   id: string
@@ -124,14 +132,19 @@ const RECORD_FILTERS: FilterDef<EduRecord>[] = [
   },
 ]
 const RECORD_SORTS = {
+  seq: (r: EduRecord) => r.seq || 0,
   name: (r: EduRecord) => r.person_name,
   progress: (r: EduRecord) => r.progress,
 }
 const RECORD_EXPORT: ExportColumn<EduRecord>[] = [
-  { header: '성명', value: (r) => r.person_name },
-  { header: '소속', value: (r) => r.job },
+  { header: '순번', value: (r) => r.seq || '' },
+  { header: '성명', value: (r) => (PLACEHOLDER_NAME.test(r.person_name) ? '' : r.person_name) },
+  { header: '현업업무', value: (r) => r.job },
+  { header: '특이사항', value: (r) => r.note || '' },
   { header: '진도율(%)', value: (r) => Math.round(r.progress * 100) },
+  { header: '교육메모', value: (r) => r.memo || '' },
   { header: '수료여부', value: (r) => (r.completed ? '수료' : '미수료') },
+  { header: '담당자', value: (r) => r.manager || '' },
 ]
 
 function today(): string {
@@ -260,11 +273,121 @@ export function Education() {
     initialSort: { key: 'date', dir: 'desc' },
   })
   const recordQ = useTableQuery(records, {
-    searchFields: [(r) => r.person_name, (r) => r.job],
+    searchFields: [(r) => r.person_name, (r) => r.job, (r) => r.note || '', (r) => r.memo || '', (r) => r.manager || ''],
     filters: RECORD_FILTERS,
     sortAccessors: RECORD_SORTS,
-    searchPlaceholder: '성명·소속',
+    initialSort: { key: 'seq', dir: 'asc' },
+    searchPlaceholder: '성명·업무·메모',
   })
+
+  // ── 교육진도표 셀 편집(게이지 % · 교육메모 · 특이사항 · 성명) ──
+  // 셀 클릭 → 그 자리에 작은 팝오버(숫자/텍스트 입력) → 저장 시 PATCH + 낙관적 반영.
+  const [cell, setCell] = useState<{ id: string; field: CellField } | null>(null)
+  const [cellVal, setCellVal] = useState('')
+  const [cellBusy, setCellBusy] = useState(false)
+  const [cellErr, setCellErr] = useState('')
+
+  function openCell(r: EduRecord, field: CellField) {
+    setCell({ id: r.id, field })
+    setCellErr('')
+    setCellVal(
+      field === 'progress' ? String(Math.round(r.progress * 100))
+        : field === 'person_name' ? (PLACEHOLDER_NAME.test(r.person_name) ? '' : r.person_name)
+          : (r[field] || ''),
+    )
+  }
+
+  async function patchRecord(id: string, body: Partial<Pick<EduRecord, CellField | 'completed'>>) {
+    const prev = records
+    setRecords((rs) => rs.map((r) => (r.id === id ? { ...r, ...body } : r)))
+    try {
+      const saved = await api<EduRecord>(`/education/records/${id}`, {
+        method: 'PATCH', body: JSON.stringify(body),
+      })
+      setRecords((rs) => rs.map((r) => (r.id === id ? { ...r, ...saved } : r)))
+      if ('progress' in body || 'completed' in body) {
+        setReload((n) => n + 1)       // 진도율 KPI
+        if (sid) refetchSummary(sid)  // 1단계 목록 게이지
+      }
+      return true
+    } catch (e) {
+      setRecords(prev)
+      setCellErr(e instanceof Error ? e.message : '저장 실패')
+      return false
+    }
+  }
+
+  async function saveCell() {
+    if (!cell || cellBusy) return
+    const { id, field } = cell
+    const body: Partial<Pick<EduRecord, CellField>> = {}
+    if (field === 'progress') {
+      const n = Number(cellVal.trim())
+      if (cellVal.trim() === '' || Number.isNaN(n) || n < 0 || n > 100) { setCellErr('0~100 사이 숫자를 입력하세요.'); return }
+      body.progress = n / 100
+    } else if (field === 'person_name') {
+      if (!cellVal.trim()) { setCellErr('성명을 입력하세요.'); return }
+      body.person_name = cellVal.trim()
+    } else {
+      body[field] = cellVal.trim()
+    }
+    setCellBusy(true)
+    const ok = await patchRecord(id, body)
+    setCellBusy(false)
+    if (ok) setCell(null)
+  }
+
+  function cellPopover(r: EduRecord, field: CellField) {
+    if (!cell || cell.id !== r.id || cell.field !== field) return null
+    const isText = field === 'memo' || field === 'note'
+    const label = field === 'progress' ? '진도율(%)' : field === 'memo' ? '교육메모' : field === 'note' ? '특이사항' : '성명'
+    return (
+      <div className="edh-pop" onClick={(e) => e.stopPropagation()}>
+        <div className="edh-pop-h">
+          <b>{label}</b>
+          {field === 'progress' && <span className="edh-dim">숫자만 · Enter 저장</span>}
+          {isText && <span className="edh-dim">Ctrl+Enter 저장</span>}
+        </div>
+        {isText ? (
+          <textarea
+            className="input" autoFocus rows={3} value={cellVal}
+            onChange={(e) => setCellVal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setCell(null)
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void saveCell() }
+            }}
+            placeholder={field === 'memo' ? '예) 26년 상반기 집합교육 참석 예정' : '예) 26.9.1자 신규채용'}
+          />
+        ) : (
+          <input
+            className="input" autoFocus value={cellVal}
+            type={field === 'progress' ? 'number' : 'text'}
+            min={0} max={100}
+            onChange={(e) => setCellVal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setCell(null)
+              if (e.key === 'Enter') { e.preventDefault(); void saveCell() }
+            }}
+            placeholder={field === 'progress' ? '0~100' : '성명'}
+          />
+        )}
+        {field === 'progress' && (
+          <div className="edh-pop-quick">
+            {[0, 25, 50, 75, 100].map((v) => (
+              <button key={v} type="button" className="btn btn-ghost" onClick={() => setCellVal(String(v))}>{v}%</button>
+            ))}
+          </div>
+        )}
+        {cellErr && <div className="edh-pop-err">{cellErr}</div>}
+        <div className="edh-pop-f">
+          <button type="button" className="btn btn-ghost" disabled={cellBusy} onClick={() => setCell(null)}>취소</button>
+          <button type="button" className="btn btn-primary" disabled={cellBusy} onClick={() => void saveCell()}>
+            {cellBusy ? '저장 중…' : '저장'}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // 학교 목록 1회 로드
   useEffect(() => {
@@ -523,7 +646,7 @@ export function Education() {
               교육 회차 대장<span className="n">{sessions.length}</span>
             </button>
             <button className={'tab' + (tab === 'people' ? ' active' : '')} onClick={() => setTab('people')}>
-              종사자별 이수현황<span className="n">{records.length}</span>
+              교육진도표<span className="n">{records.length}</span>
             </button>
             <button className={'tab' + (tab === 'supervisor' ? ' active' : '')} onClick={() => setTab('supervisor')}>
               관리감독자 교육<span className="n">{supers.length}</span>
@@ -737,44 +860,80 @@ export function Education() {
             </div>
           )}
 
-          {/* 종사자별 이수현황 (C-4) */}
+          {/* 교육진도표 (C-4) — 수강생명단 기반, 셀 클릭 편집(게이지·메모·특이사항·성명) */}
           {tab === 'people' && (
-            <div className="ledger">
+            <div className="ledger" onClick={() => { if (cell && !cellBusy) setCell(null) }}>
               <div className="lh">
-                <h2><GraduationCap size={18} /> 종사자별 이수현황</h2>
+                <h2><GraduationCap size={18} /> 교육진도표
+                  <InfoTip>진도율 게이지를 클릭해 숫자(0~100)로 입력하고, 교육메모·특이사항·성명 칸도 클릭해 바로 기입합니다. 현장 앱에서도 같은 표를 보고 진도·메모를 갱신합니다.</InfoTip>
+                </h2>
+                <span className="pillx doing">{records.length}명</span>
+                <span className="pillx na">미기입 성명 {records.filter((r) => PLACEHOLDER_NAME.test(r.person_name)).length}</span>
                 <div className="sp" />
                 <FilterBar q={recordQ} />
-                <ExportButton q={recordQ} columns={RECORD_EXPORT} filename={`종사자별이수현황_${sel.name}`} />
+                <ExportButton q={recordQ} columns={RECORD_EXPORT} filename={`교육진도표_${sel.name}`} />
               </div>
-              <div className="twrap">
+              <div className="twrap edh-sheet">
                 <table className="tbl">
                   <thead>
                     <tr>
-                      <th>No</th>
+                      <SortableTh q={recordQ} col="seq" className="c">순번</SortableTh>
                       <SortableTh q={recordQ} col="name">성명</SortableTh>
-                      <th>소속</th>
+                      <th>현업업무</th>
+                      <th>특이사항</th>
                       <SortableTh q={recordQ} col="progress">진도율</SortableTh>
-                      <th>수료여부</th>
+                      <th>교육메모</th>
+                      <th>수료</th>
+                      <th>담당자</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {ledgerLoading && <tr><td colSpan={5}><div className="tstate">불러오는 중…</div></td></tr>}
-                    {!ledgerLoading && ledgerError && <tr><td colSpan={5}><div className="tstate">오류: {ledgerError}</div></td></tr>}
-                    {!ledgerLoading && !ledgerError && recordQ.view.map((r, i) => (
-                      <tr key={r.id}>
-                        <td>{(recordQ.page - 1) * recordQ.pageSize + i + 1}</td>
-                        <td><b>{r.person_name}</b></td>
-                        <td>{r.job}</td>
-                        <td>{Math.round(r.progress * 100)}%</td>
-                        <td>
-                          {r.completed
-                            ? <span className="pillx ok">수료</span>
-                            : <span className="pillx todo">미수료</span>}
-                        </td>
-                      </tr>
-                    ))}
+                    {ledgerLoading && <tr><td colSpan={8}><div className="tstate">불러오는 중…</div></td></tr>}
+                    {!ledgerLoading && ledgerError && <tr><td colSpan={8}><div className="tstate">오류: {ledgerError}</div></td></tr>}
+                    {!ledgerLoading && !ledgerError && recordQ.view.map((r) => {
+                      const pct = Math.round(r.progress * 100)
+                      const unnamed = PLACEHOLDER_NAME.test(r.person_name)
+                      return (
+                        <tr key={r.id}>
+                          <td className="c edh-dim">{r.seq || '—'}</td>
+                          <td className="edh-cell" onClick={(e) => { e.stopPropagation(); openCell(r, 'person_name') }}>
+                            {unnamed ? <span className="edh-unnamed">{r.person_name} · 기입</span> : <b>{r.person_name}</b>}
+                            {cellPopover(r, 'person_name')}
+                          </td>
+                          <td>{r.job || <span className="edh-dim">—</span>}</td>
+                          <td className="edh-cell edh-text" onClick={(e) => { e.stopPropagation(); openCell(r, 'note') }}>
+                            {r.note ? <span className="muted">{r.note}</span> : <span className="edh-dim">—</span>}
+                            {cellPopover(r, 'note')}
+                          </td>
+                          <td className="edh-cell" onClick={(e) => { e.stopPropagation(); openCell(r, 'progress') }}>
+                            <span className="edh-gauge edh-gauge-btn" title="클릭해서 진도율 입력">
+                              <span className="edh-bar">
+                                <span className={'edh-fill' + (pct >= 100 ? ' done' : '')} style={{ width: `${Math.min(100, pct)}%` }} />
+                              </span>
+                              <span className="edh-pct">{pct}%</span>
+                            </span>
+                            {cellPopover(r, 'progress')}
+                          </td>
+                          <td className="edh-cell edh-text" onClick={(e) => { e.stopPropagation(); openCell(r, 'memo') }}>
+                            {r.memo ? <span>{r.memo}</span> : <span className="edh-dim">메모 입력…</span>}
+                            {cellPopover(r, 'memo')}
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className={'pillx edh-toggle ' + (r.completed ? 'ok' : 'todo')}
+                              title="클릭해서 수료/미수료 전환"
+                              onClick={(e) => { e.stopPropagation(); void patchRecord(r.id, { completed: !r.completed }) }}
+                            >
+                              {r.completed ? '수료' : '미수료'}
+                            </button>
+                          </td>
+                          <td className="edh-mgr">{r.manager || <span className="edh-dim">—</span>}</td>
+                        </tr>
+                      )
+                    })}
                     {!ledgerLoading && !ledgerError && recordQ.view.length === 0 && (
-                      <tr><td colSpan={5}><div className="tstate">조건에 맞는 종사자가 없습니다.</div></td></tr>
+                      <tr><td colSpan={8}><div className="tstate">{records.length === 0 ? '교육진도표에 수강생이 없습니다. 수강생명단을 인입하거나 [진도 일괄 입력]으로 추가하세요.' : '조건에 맞는 수강생이 없습니다.'}</div></td></tr>
                     )}
                   </tbody>
                 </table>
