@@ -16,3 +16,4 @@ tools/school-contacts-*.csv
 # [135] 자동 올리기 요청·결과 파일
 push-request.txt
 push-result.txt
+tools/kosha-key.txt
