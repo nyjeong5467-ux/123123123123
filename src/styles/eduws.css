@@ -1,0 +1,198 @@
+/* 교육 이수 현황 워크스페이스 — 좌측 카테고리 + 상단 누적 탭(학교별) + 현황/진도표. 접두사 edw- */
+
+.edw {
+  --edw-blue: #2f6fe4;
+  --edw-blue-d: #2458b8;
+  --edw-blue-soft: #e9f0fd;
+  --edw-green: #1ea97c;
+  --edw-green-soft: #e3f7ef;
+  --edw-amber: #e8912d;
+  --edw-amber-soft: #fff3e3;
+  --edw-gray-soft: #eef0f4;
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+  min-height: 680px;
+}
+:root[data-theme='dark'] .edw {
+  --edw-blue-soft: #1b2a4a; --edw-green-soft: #12302a; --edw-amber-soft: #3a2a14; --edw-gray-soft: #23242c;
+}
+
+/* ── 좌측 카테고리 ── */
+.edw-side { border-right: 1px solid var(--line); background: var(--bg); padding: 12px 0 16px; }
+.edw-side-h { display: flex; align-items: center; gap: 7px; padding: 4px 14px 10px; font-size: 13px; font-weight: 800; }
+.edw-group-t { padding: 8px 14px 4px; font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: 0.5px; }
+.edw-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 14px; border: 0; background: transparent;
+  text-align: left; font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; border-left: 3px solid transparent;
+}
+.edw-item:hover { background: var(--violet-soft); }
+.edw-item.active { background: var(--edw-blue-soft); border-left-color: var(--edw-blue); color: var(--edw-blue); font-weight: 800; }
+.edw-item .n { margin-left: auto; font-size: 11px; color: var(--muted); font-weight: 700; }
+.edw-side-recent { padding: 4px 14px 0; }
+.edw-side-recent button {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 6px; border: 0; background: transparent;
+  text-align: left; font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer; border-radius: 6px;
+}
+.edw-side-recent button:hover { background: var(--violet-soft); color: var(--ink); }
+.edw-scope { margin: 12px 14px 0; padding: 10px 12px; border-radius: 10px; background: var(--edw-blue-soft); font-size: 12px; line-height: 1.6; color: var(--ink-2); }
+.edw-scope b { color: var(--edw-blue); }
+
+/* ── 상단 누적 탭 ── */
+.edw-main { display: flex; flex-direction: column; min-width: 0; }
+.edw-tabs { display: flex; align-items: flex-end; gap: 2px; padding: 10px 12px 0; border-bottom: 2px solid var(--edw-blue); background: var(--bg); overflow-x: auto; }
+.edw-tab {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px 7px 14px; border: 1px solid var(--line); border-bottom: 0;
+  border-radius: 10px 10px 0 0; background: var(--surface); color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; max-width: 220px;
+}
+.edw-tab.active { background: var(--edw-blue); border-color: var(--edw-blue); color: #fff; }
+.edw-tab .x { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 99px; opacity: 0.7; }
+.edw-tab .x:hover { opacity: 1; background: rgba(0, 0, 0, 0.12); }
+.edw-tab.active .x:hover { background: rgba(255, 255, 255, 0.25); }
+.edw-tab .lbl { overflow: hidden; text-overflow: ellipsis; }
+.edw-body { padding: 16px 18px 20px; min-width: 0; }
+
+/* ── 페이지 헤더 ── */
+.edw-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.edw-head h3 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+.edw-head .sub { margin-top: 4px; font-size: 13px; color: var(--ink-2); }
+.edw-head .sp { flex: 1; }
+.edw-back { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--edw-blue); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 0; margin-bottom: 6px; }
+.edw-btn {
+  height: 38px; padding: 0 14px; border: 1px solid var(--edw-blue); border-radius: 8px; background: var(--surface); color: var(--edw-blue);
+  font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.edw-btn.fill { background: var(--edw-blue); color: #fff; }
+.edw-btn.fill:hover { background: var(--edw-blue-d); }
+.edw-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── 필터 바 ── */
+.edw-filters { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); margin-bottom: 14px; }
+.edw-filters label { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
+.edw-filters .select, .edw-filters .input { height: 36px; min-width: 150px; }
+.edw-filters .hint { width: 100%; font-size: 12px; color: var(--muted); }
+
+/* ── KPI 카드 ── */
+.edw-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.edw-kpi { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: var(--surface); display: flex; gap: 12px; align-items: flex-start; }
+.edw-kpi .ic { width: 34px; height: 34px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.edw-kpi .ic.b { background: var(--edw-blue-soft); color: var(--edw-blue); }
+.edw-kpi .ic.g { background: var(--edw-green-soft); color: var(--edw-green); }
+.edw-kpi .ic.a { background: var(--edw-amber-soft); color: var(--edw-amber); }
+.edw-kpi .ic.r { background: var(--red-soft, #fdecec); color: var(--red-ink); }
+.edw-kpi .l { font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
+.edw-kpi .v { font-size: 24px; font-weight: 800; line-height: 1.2; margin-top: 2px; display: flex; align-items: baseline; gap: 8px; }
+.edw-kpi .v .pct { font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: var(--edw-green-soft); color: var(--edw-green); }
+.edw-kpi .d { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+/* ── 본문 2열(학교 표 + 선택 학교 패널) ── */
+.edw-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
+.edw-card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.edw-card-h { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.edw-card-h h4 { margin: 0; font-size: 15px; font-weight: 800; }
+.edw-card-h .sp { flex: 1; }
+.edw-search { position: relative; }
+.edw-search .input { height: 34px; padding-left: 30px; width: 220px; }
+.edw-search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.edw-card-f { padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); display: flex; gap: 12px; align-items: center; }
+.edw-card-f .sp { flex: 1; }
+
+.edw-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.edw-tbl th { background: var(--bg); color: var(--ink-2); font-weight: 700; font-size: 12.5px; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.edw-tbl td { padding: 11px 12px; border-bottom: 1px solid var(--line-2); vertical-align: middle; }
+.edw-tbl tr.sel td { background: var(--edw-blue-soft); }
+.edw-tbl tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--edw-blue); }
+.edw-tbl tr.row:hover td { background: var(--violet-soft); cursor: pointer; }
+.edw-tbl .c { text-align: center; }
+.edw-tbl .r { text-align: right; }
+.edw-tbl .muted { color: var(--muted); }
+.edw-bar { display: inline-flex; align-items: center; gap: 8px; min-width: 150px; }
+.edw-bar .trk { flex: 1; height: 8px; border-radius: 99px; background: var(--edw-gray-soft); overflow: hidden; }
+.edw-bar .fil { height: 100%; border-radius: 99px; background: var(--edw-blue); transition: width 0.2s; }
+.edw-bar .fil.done { background: var(--edw-green); }
+.edw-bar .fil.amb { background: var(--edw-amber); }
+.edw-bar .pct { font-size: 12px; font-weight: 800; min-width: 36px; text-align: right; }
+.edw-bar.click { cursor: pointer; }
+.edw-bar.click:hover .trk { outline: 2px solid var(--edw-blue-soft); }
+
+/* 상태 pill */
+.edw-st { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.edw-st.done { background: var(--edw-green-soft); color: var(--edw-green); }
+.edw-st.prog { background: var(--edw-blue-soft); color: var(--edw-blue); }
+.edw-st.wait { background: var(--edw-amber-soft); color: var(--edw-amber); }
+.edw-st.none { background: var(--edw-gray-soft); color: var(--ink-2); }
+.edw-st.btn { cursor: pointer; border: 0; font: inherit; }
+
+/* 우측 선택 학교 패널 */
+.edw-panel { padding: 16px; }
+.edw-panel .cap { font-size: 12px; color: var(--muted); font-weight: 700; }
+.edw-panel .nm { font-size: 19px; font-weight: 800; margin-top: 2px; }
+.edw-panel .meta { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+.edw-donut { display: flex; align-items: center; gap: 14px; margin: 14px 0; }
+.edw-donut .ring { width: 84px; height: 84px; border-radius: 99px; display: grid; place-items: center; background: conic-gradient(var(--edw-blue) var(--p), var(--edw-gray-soft) 0); }
+.edw-donut .ring > span { width: 62px; height: 62px; border-radius: 99px; background: var(--surface); display: grid; place-items: center; font-size: 16px; font-weight: 800; color: var(--edw-blue); }
+.edw-donut .lb { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.edw-three { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 10px 0; margin-bottom: 12px; }
+.edw-three .k { font-size: 11.5px; color: var(--muted); font-weight: 700; }
+.edw-three .v { font-size: 18px; font-weight: 800; }
+.edw-three .v.g { color: var(--edw-green); } .edw-three .v.b { color: var(--edw-blue); } .edw-three .v.a { color: var(--edw-amber); }
+.edw-note { border-radius: 10px; padding: 10px 12px; background: var(--edw-amber-soft); color: var(--ink); font-size: 12.5px; line-height: 1.6; margin-bottom: 10px; }
+.edw-note b { color: var(--edw-amber); }
+.edw-note .big { font-size: 16px; font-weight: 800; color: var(--edw-amber); }
+.edw-panel .edw-btn { width: 100%; justify-content: center; margin-top: 8px; }
+.edw-info { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: var(--edw-blue-soft); font-size: 12.5px; color: var(--ink-2); }
+.edw-info svg { color: var(--edw-blue); flex: none; }
+
+/* 학교 탭 — 상단 요약 띠 + 하위 탭 */
+.edw-strip { border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--surface); }
+.edw-strip .t { font-size: 13px; font-weight: 800; margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+.edw-strip .t .sep { color: var(--line); }
+.edw-strip .t .muted { color: var(--muted); font-weight: 600; }
+.edw-subtabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 6px; }
+.edw-subtab { padding: 12px 16px; border: 0; background: transparent; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--ink-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: 6px; }
+.edw-subtab.active { color: var(--edw-blue); border-bottom-color: var(--edw-blue); }
+.edw-subtab .n { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--edw-gray-soft); color: var(--ink-2); }
+.edw-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.edw-toolbar .sp { flex: 1; }
+.edw-toolbar .cnt { font-size: 12.5px; color: var(--muted); font-weight: 700; }
+.edw-tbl .who { display: flex; flex-direction: column; gap: 1px; }
+.edw-tbl .who b { font-size: 13.5px; }
+.edw-tbl .who .job { font-size: 11.5px; color: var(--muted); }
+.edw-tbl .who .unnamed { color: var(--muted); font-weight: 700; }
+.edw-tbl .who .unnamed::before { content: '✎ '; }
+.edw-cell { position: relative; cursor: pointer; }
+.edw-cell:hover { background: var(--violet-soft); }
+.edw-memo { font-size: 12.5px; line-height: 1.45; max-width: 260px; white-space: normal; }
+.edw-memo.empty { color: var(--muted); }
+.edw-legend { display: flex; gap: 14px; align-items: center; font-size: 12px; color: var(--ink-2); }
+.edw-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.edw-pager { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+.edw-pager button { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; color: var(--ink-2); }
+.edw-pager button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 하단 선택 수강생 패널 */
+.edw-bottom { display: grid; grid-template-columns: 1.1fr 1fr 1.2fr; border: 1px solid var(--line); border-radius: 12px; margin-top: 14px; overflow: hidden; background: var(--surface); }
+.edw-bottom > div { padding: 14px 16px; border-right: 1px solid var(--line); }
+.edw-bottom > div:last-child { border-right: 0; background: var(--edw-amber-soft); }
+.edw-bottom h5 { margin: 0 0 4px; font-size: 14.5px; font-weight: 800; }
+.edw-bottom .meta { font-size: 12.5px; color: var(--ink-2); }
+.edw-bottom .link { border: 0; background: transparent; color: var(--edw-blue); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 0; margin-top: 8px; }
+.edw-bottom .warnh { display: flex; align-items: center; gap: 8px; font-weight: 800; color: var(--edw-amber); font-size: 13.5px; }
+.edw-bottom .warnh .sp { flex: 1; }
+
+/* 팝오버(진도·메모 편집) — 교육진도표와 동일 */
+.edw-pop { position: absolute; z-index: 30; top: calc(100% - 4px); left: 8px; min-width: 260px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 12px 32px rgba(20, 16, 50, 0.16); cursor: default; text-align: left; }
+.edw-pop-h { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 12.5px; }
+.edw-pop .input { width: 100%; box-sizing: border-box; }
+.edw-pop textarea.input { resize: vertical; min-height: 68px; font-size: 13px; line-height: 1.5; }
+.edw-pop-quick { display: flex; gap: 4px; margin-top: 8px; }
+.edw-pop-quick .btn { padding: 2px 8px; font-size: 11.5px; min-height: 0; height: 26px; }
+.edw-pop-err { margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--red-ink); }
+.edw-pop-f { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+
+@media (max-width: 1100px) { .edw-cols { grid-template-columns: 1fr; } .edw-kpis { grid-template-columns: repeat(2, 1fr); } .edw-bottom { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .edw { grid-template-columns: 1fr; } .edw-side { border-right: 0; border-bottom: 1px solid var(--line); } }
