@@ -498,7 +498,7 @@ export function Education() {
                 {schoolQ.view.map((s) => {
                   const r = s.total ? Math.round(s.completed / s.total * 100) : 0
                   return (
-                    <tr key={s.school_id} className={'row' + (selId === s.school_id ? ' sel' : '')} onClick={() => setSelId(s.school_id)} onDoubleClick={() => openTab(`school:${s.school_id}`)}>
+                    <tr key={s.school_id} className={'edw-r' + (selId === s.school_id ? ' edw-on' : '')} onClick={() => setSelId(s.school_id)} onDoubleClick={() => openTab(`school:${s.school_id}`)}>
                       <td><b>{s.school_name}</b>{s.unnamed > 0 && <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>성명 미기입 {s.unnamed}</span>}</td>
                       <td className="c">{s.total}명</td>
                       <td className="c">{s.completed}명</td>
@@ -627,7 +627,7 @@ export function Education() {
                   {!schoolLoading && !schoolErr && recQ.view.map((r) => {
                     const s = statusOf(r); const p = pct(r.progress); const unnamed = PLACEHOLDER_NAME.test(r.person_name)
                     return (
-                      <tr key={r.id} className={focusId === r.id || checked.has(r.id) ? 'sel' : ''} onClick={() => setFocusId(r.id)}>
+                      <tr key={r.id} className={focusId === r.id || checked.has(r.id) ? 'edw-on' : ''} onClick={() => setFocusId(r.id)}>
                         <td><input type="checkbox" checked={checked.has(r.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => setChecked((set) => { const n = new Set(set); if (e.target.checked) n.add(r.id); else n.delete(r.id); return n })} /></td>
                         <td className="c muted">{r.seq || ''}</td>
                         <td className="edw-cell" onClick={(e) => { e.stopPropagation(); setFocusId(r.id); openCell(r, 'person_name') }}>
