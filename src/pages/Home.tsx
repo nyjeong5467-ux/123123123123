@@ -32,7 +32,7 @@ import { FilePicker } from '../components/FilePicker'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { SchoolScopePicker, type PickSchool } from '../components/SchoolScopePicker'
 import { useAffiliationScope } from '../lib/affiliationScope'
-import { dedupeStories, scoreRelevance, type RelevanceTag } from '../lib/accidentRelevance'
+import { dedupeStories, groupByIssue, scoreRelevance, type RelevanceTag } from '../lib/accidentRelevance'
 import { AY_MONTH_NO, CycleHero, CYCLE_DOC_DEFAULT, migrateCycleDoc, type CycleDoc } from '../components/CycleHero'
 import { TodayHero } from '../components/TodayHero'
 import './../styles/home.css'
@@ -73,7 +73,7 @@ type KoshaCase = {
   boardno: string
 }
 // [137] 산재 관련 뉴스 — 백엔드 GET /accidents/news (학교 업무 관련 기사만, 최신순)
-type NewsItem = { source: 'news'; title: string; summary?: string; url: string; date: string; publisher?: string; tags?: RelevanceTag[]; score?: number; related?: number }
+type NewsItem = { source: 'news'; title: string; summary?: string; url: string; date: string; publisher?: string; tags?: RelevanceTag[]; score?: number; related?: number; issue?: string }
 const FEED_REFRESH_MS = 10 * 60 * 1000 // 10분마다 갱신
 // tasks: 그 학교에서 그날 할 업무(비면 전체). 현장앱 자동세션이 이 문서(visit-plans-{login})를 읽어
 // 오늘 방문 학교와 학교별 업무를 구성한다 — 업무는 학교마다 고른다(누락 확인용).
@@ -243,7 +243,7 @@ export function Home() {
             .filter((n) => n.rel.ok) // [138] 다른 지역(대전 등) 기사는 여기서 제외 — 전남 + 지역 언급 없는 전국 기사만
             .sort((a, b) => Number(b.rel.region === 'local') - Number(a.rel.region === 'local') || b.date.localeCompare(a.date))
             .map(({ rel, ...n }) => ({ ...n, tags: rel.tags }))
-          setNews(dedupeStories(list)) // 같은 사건을 여러 언론사가 쓴 기사는 1건으로(외 N건)
+          setNews(groupByIssue(dedupeStories(list)).sort((a, b) => Number((b.issue ?? '').startsWith('전남')) - Number((a.issue ?? '').startsWith('전남')) || b.date.localeCompare(a.date))) // [142] 같은 주제 기사는 1건으로(관련 N건) · 전남 우선 정렬 유지
         })
         .catch(() => { if (alive) setNews([]) })
       api<{ items: KoshaCase[] }>('/accidents/kosha/cases?pageNo=1&numOfRows=50')
@@ -1011,10 +1011,10 @@ export function Home() {
                   >
                     <span className="hm-pin hm-pin-news">뉴스</span>
                     <div className="hm-nbody">
-                      <div className="b">{it.n.title}</div>
+                      <div className="b">{it.n.issue && <span className="hm-issue">{it.n.issue}</span>}{it.n.title}</div>
                       <div className="m">
                         {it.n.date && <span className="dt">{it.n.date.slice(0, 10)}</span>}
-                        {it.n.publisher && <span>{it.n.publisher}{it.n.related ? ` 외 ${it.n.related}건` : ''}</span>}
+                        {it.n.publisher && <span>{it.n.publisher}{it.n.related ? ` · 관련 ${it.n.related}건` : ''}</span>}
                         {(it.n.tags ?? []).map((t) => <span key={t.label} className={'hm-tag' + (t.kind === 'type' ? ' ty' : '')}>{t.label}</span>)}
                       </div>
                     </div>

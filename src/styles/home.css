@@ -1512,3 +1512,6 @@
 .hm-bottom-memos .hm-todo:first-of-type { margin-top: 10px; }
 .hm-bottom-app .muted:first-of-type { margin-top: 12px; }
 .hm-bottom-app a.btn { text-decoration: none; }
+
+/* [142] 이슈(주제) 라벨 */
+.hm-issue { display: inline-block; margin-right: 6px; font-size: 10.5px; font-weight: 800; color: var(--violet); background: var(--violet-soft); border-radius: 5px; padding: 0 6px; }

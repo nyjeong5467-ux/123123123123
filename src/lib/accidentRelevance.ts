@@ -103,3 +103,35 @@ export function dedupeStories<T extends StoryRef & { related?: number; others?: 
   }
   return out.map((o) => o.it)
 }
+
+// [142] 이슈(주제) 단위 묶기 — 같은 사건이 아니어도 같은 주제가 이어지는 기사(예: 급식실 폐암 산재·배상 관련
+//       판결·통계·국감·배상 추진 기사)를 1행으로 묶는다. 주제 = 업무(급식실·시설관리·미화·통학·학교) × 대표 사고 유형.
+//       전남 기사는 따로 묶어 전남 소식이 전국 이슈에 묻히지 않게 한다. 대표 = 가장 최근 기사.
+const ISSUE_SECTOR: [string, RegExp][] = [
+  ['급식실', /급식|조리/], ['시설관리', /시설관리|시설\s*주무관|당직|경비원/], ['미화', /미화|청소/], ['통학', /통학/], ['학교', /./],
+]
+const ISSUE_TYPE: [string, RegExp][] = [
+  ['폐암', /폐암|조리흄|호흡기/], ['화상', /화상|뜨거운\s*물|국솥|튀김/], ['끼임', /끼임|끼여|협착|절단기|분쇄기/],
+  ['넘어짐', /넘어짐|미끄러|전도/], ['추락', /추락|떨어져|사다리/], ['근골격계', /근골격계|중량물/],
+  ['중대재해', /중대재해|사망|숨져|숨진/], ['산재', /./],
+]
+export function issueOf(text: string): { key: string; label: string } {
+  const t = text || ''
+  const sector = ISSUE_SECTOR.find(([, re]) => re.test(t))?.[0] ?? '학교'
+  const type = ISSUE_TYPE.find(([, re]) => re.test(t))?.[0] ?? '산재'
+  const local = LOCAL.test(t)
+  return { key: `${local ? 'L' : 'N'}|${sector}|${type}`, label: `${local ? '전남 ' : ''}${sector} ${type}` }
+}
+export function groupByIssue<T extends StoryRef & { summary?: string; related?: number; others?: StoryRef[] }>(items: T[]): (T & { issue: string })[] {
+  const sorted = [...items].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+  const map = new Map<string, T & { issue: string }>()
+  for (const it of sorted) {
+    const { key, label } = issueOf(`${it.title} ${it.summary ?? ''}`)
+    const cur = map.get(key)
+    if (!cur) { map.set(key, { ...it, issue: label, others: [...(it.others ?? [])], related: (it.others ?? []).length }); continue }
+    const add: StoryRef[] = [{ title: it.title, url: it.url, publisher: it.publisher, date: it.date }, ...(it.others ?? [])]
+    const others = [...(cur.others ?? []), ...add]
+    map.set(key, { ...cur, others, related: others.length })
+  }
+  return [...map.values()]
+}
