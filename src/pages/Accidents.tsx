@@ -29,7 +29,7 @@ import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { downloadCsv } from '../lib/csv'
-import { dedupeStories, groupByIssue, scoreRelevance, type RelevanceTag, type StoryRef } from '../lib/accidentRelevance'
+import { dedupeStories, groupByIssue, scoreRelevance, withinRetention, type RelevanceTag, type StoryRef } from '../lib/accidentRelevance'
 import '../styles/accidents.css'
 
 type Kind = 'accident' | 'disease'
@@ -518,6 +518,7 @@ export function Accidents() {
       .then((r) => {
         if (!alive) return
         const list = (Array.isArray(r?.items) ? r.items : [])
+          .filter((n) => withinRetention(n.date)) // [143] 보도 3개월 지난 기사는 자동 제외(저장·누적 안 함)
           .map((n) => ({ ...n, rel: scoreRelevance(n.title, n.summary) }))
           .filter((n) => n.rel.ok)
           .map(({ rel, ...n }) => ({ ...n, tags: rel.tags }))
@@ -768,7 +769,7 @@ export function Accidents() {
               <h2><Newspaper size={19} /> 산재 관련 뉴스
                 <InfoTip>
                   언론에 보도된 산재 기사 중 학교 업무(급식실·조리·시설관리·미화·통학 등)와 관련 있는 것만 모았습니다.
-                  전남 기사를 먼저 보여 주고 다른 지역 기사는 제외합니다. 같은 주제(예: 급식실 폐암 산재·배상)의 기사는 1행으로 묶고 '관련 N건'을 누르면 전체 기사를 펼쳐 볼 수 있습니다. 전남 소식은 따로 묶습니다. 최신 보도 순입니다. 제목을 누르면 기사 원문이 새 창으로 열립니다.
+                  전남 기사를 먼저 보여 주고 다른 지역 기사는 제외합니다. 같은 주제(예: 급식실 폐암 산재·배상)의 기사는 1행으로 묶고 '관련 N건'을 누르면 전체 기사를 펼쳐 볼 수 있습니다. 전남 소식은 따로 묶습니다. 최신 보도 순입니다. 기사는 저장하지 않고 최근 3개월치만 보여 주며, 3개월이 지난 기사는 자동으로 사라집니다. 제목을 누르면 기사 원문이 새 창으로 열립니다.
                 </InfoTip></h2>
               <div className="sp" />
               <button className="btn btn-ghost" onClick={exportNews} disabled={!news?.length} title="뉴스 목록을 CSV로 내보내기">

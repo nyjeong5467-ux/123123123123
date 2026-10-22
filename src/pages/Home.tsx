@@ -32,7 +32,7 @@ import { FilePicker } from '../components/FilePicker'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { SchoolScopePicker, type PickSchool } from '../components/SchoolScopePicker'
 import { useAffiliationScope } from '../lib/affiliationScope'
-import { dedupeStories, groupByIssue, scoreRelevance, type RelevanceTag } from '../lib/accidentRelevance'
+import { dedupeStories, groupByIssue, scoreRelevance, withinRetention, type RelevanceTag } from '../lib/accidentRelevance'
 import { AY_MONTH_NO, CycleHero, CYCLE_DOC_DEFAULT, migrateCycleDoc, type CycleDoc } from '../components/CycleHero'
 import { TodayHero } from '../components/TodayHero'
 import './../styles/home.css'
@@ -239,6 +239,7 @@ export function Home() {
         .then((r) => {
           if (!alive) return
           const list = (Array.isArray(r?.items) ? r.items : [])
+            .filter((n) => withinRetention(n.date)) // [143] 보도 3개월 지난 기사는 자동 제외(저장·누적 안 함)
             .map((n) => ({ ...n, rel: scoreRelevance(n.title, n.summary) }))
             .filter((n) => n.rel.ok) // [138] 다른 지역(대전 등) 기사는 여기서 제외 — 전남 + 지역 언급 없는 전국 기사만
             .sort((a, b) => Number(b.rel.region === 'local') - Number(a.rel.region === 'local') || b.date.localeCompare(a.date))

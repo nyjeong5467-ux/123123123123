@@ -386,9 +386,9 @@ async function fetchNews() {
   const errors = []
   const seen = new Set()
   const items = []
-  const since = Date.now() - 45 * 864e5 // 최근 45일
+  const since = Date.now() - 90 * 864e5 // [143] 최근 3개월(90일) — 저장·누적 없이 매번 조회, 지난 기사는 자연히 빠짐
   await Promise.all(NEWS_QUERIES.map(async (q) => {
-    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:45d')}&hl=ko&gl=KR&ceid=KR:ko`
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:90d')}&hl=ko&gl=KR&ceid=KR:ko`
     try {
       const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 web-hq-dev' }, signal: AbortSignal.timeout(10000) })
       if (!r.ok) throw new Error(String(r.status))

@@ -66,6 +66,14 @@ export function scoreRelevance(...texts: (string | null | undefined)[]): Relevan
 //   ① 유사도 0.3 이상 — 날짜 무관
 //   ② 유사도 0.15 이상 + 보도일 3일 이내 — 같은 날 쏟아진 보도(예: '교육청, 폐암 급식종사자 선제 배상' 여러 버전)
 //  묶음 안 어느 기사와든 기준을 넘으면 같은 묶음(단일 연결). 대표 = 가장 최근 기사, 나머지는 others 로 보관(펼쳐 보기용).
+// [143] 뉴스 보관 원칙 — 기사를 DB에 쌓지 않는다. 매번 최근 기사를 가져와 보여주기만 하고(서버는 30분 캐시만),
+//       보도일이 3개월(90일) 지난 기사는 목록에서 자동으로 빠진다. (원문은 언론사 링크로만 연결)
+export const NEWS_RETENTION_DAYS = 90
+export const withinRetention = (date?: string, now = Date.now()) => {
+  const t = Date.parse(date ?? '')
+  return Number.isFinite(t) && now - t <= NEWS_RETENTION_DAYS * 864e5
+}
+
 export type StoryRef = { title: string; url?: string; publisher?: string; date?: string }
 const bigrams = (t: string) => {
   const s = t.replace(/[^가-힣A-Za-z0-9]/g, '')
