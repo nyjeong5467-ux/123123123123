@@ -532,10 +532,6 @@ export function Accidents() {
       })
     return () => { alive = false }
   }, [tab, news])
-  function exportNews() {
-    downloadCsv('산재관련뉴스', ['날짜', '제목', '언론사', '관련 기사 수', '태그', '링크'],
-      (news ?? []).map((n) => [n.date.slice(0, 10), n.title, n.publisher || '', String((n.related ?? 0) + 1), (n.tags ?? []).map((t) => t.label).join(' '), n.url]))
-  }
 
   // KOSHA 탭 최초 진입 시 첫 조회 트리거 (serviceKey는 서버 기본값 공용 — 사용자 설정 불필요)
   useEffect(() => {
@@ -771,11 +767,8 @@ export function Accidents() {
                   언론에 보도된 산재 기사 중 학교 업무(급식실·조리·시설관리·미화·통학 등)와 관련 있는 것만 모았습니다.
                   전남 기사를 먼저 보여 주고 다른 지역 기사는 제외합니다. 같은 주제(예: 급식실 폐암 산재·배상)의 기사는 1행으로 묶고 '관련 N건'을 누르면 전체 기사를 펼쳐 볼 수 있습니다. 전남 소식은 따로 묶습니다. 최신 보도 순입니다. 기사는 저장하지 않고 최근 3개월치만 보여 주며, 3개월이 지난 기사는 자동으로 사라집니다. 제목을 누르면 기사 원문이 새 창으로 열립니다.
                 </InfoTip></h2>
-              <div className="sp" />
-              <button className="btn btn-ghost" onClick={exportNews} disabled={!news?.length} title="뉴스 목록을 CSV로 내보내기">
-                <Download size={15} /> 다운로드(CSV)
-              </button>
             </div>
+            {/* [144] 뉴스는 저장하지 않는 자료라 다운로드(CSV) 버튼 없음 */}
             {/* [141] 약 10건 높이로 고정 + 스크롤(머리글 고정) */}
             <div className="twrap acc-newsscroll">
               <table className="tbl">
