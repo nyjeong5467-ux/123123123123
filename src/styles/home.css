@@ -1515,3 +1515,4 @@
 
 /* [142] 이슈(주제) 라벨 */
 .hm-issue { display: inline-block; margin-right: 6px; font-size: 10.5px; font-weight: 800; color: var(--violet); background: var(--violet-soft); border-radius: 5px; padding: 0 6px; }
+.hm-acc-sum { color: var(--ink); font-weight: 600; } /* [146] 산재 알림 — 학교명 뒤 개요 */

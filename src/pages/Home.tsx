@@ -63,6 +63,8 @@ type Accident = {
   school_masked?: string
   date?: string
   description?: string
+  summary?: string // [146] 산재내역 '개요' (예: 실습실 절단 사고(경미))
+  kind?: 'accident' | 'disease'
   created_at?: string
 }
 // KOSHA 국내재해사례(공개 사례집) — 홈 산재 알림 기본 노출용.
@@ -991,12 +993,18 @@ export function Home() {
                   >
                     <span className="hm-pin" style={{ background: '#e5484d', color: '#fff' }}>산재</span>
                     <div className="hm-nbody">
-                      <div className="b" style={{ color: '#c0341d' }}>{it.a.school_masked || '학교 비공개'}</div>
+                      {/* [146] 학교명 + 산재내역 '개요' 함께 표시 */}
+                      <div className="b" style={{ color: '#c0341d' }} title={it.a.summary || it.a.description || ''}>
+                        {it.a.school_masked || '학교 비공개'}
+                        {(it.a.summary || it.a.description) && (
+                          <span className="hm-acc-sum"> · {it.a.summary || it.a.description}</span>
+                        )}
+                      </div>
                       <div className="m">
                         {(it.a.date || it.a.created_at) && (
                           <span className="dt">{(it.a.date ?? it.a.created_at ?? '').slice(0, 10)}</span>
                         )}
-                        {it.a.description && <span>{it.a.description}</span>}
+                        {it.a.kind && <span>{it.a.kind === 'disease' ? '질병성' : '사고성'}</span>}
                       </div>
                     </div>
                   </div>
