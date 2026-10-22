@@ -178,22 +178,31 @@ export function SchoolsHub() {
       try {
         const schools = await api<School[]>('/schools')
         const list = Array.isArray(schools) ? schools : []
-        // [060] 대장 요약 조회를 담당 학교로 한정 — 전체 783교 학교별 조회 과부하 방지
-        // (배지 집계 [038]과 동일 규칙: 담당 배정이 없는 계정은 전체 조회하되 [perf-0828] 배치 제한)
-        const mine = list.filter((s) => s.assigned_inspector_id === login)
-        const targets = new Set((mine.length > 0 ? mine : list).map((s) => s.id))
-        // [perf-0828] 대장 요약도 동시 8건 배치로 제한 — 담당 미배정 계정(본사)이 전체 학교
-        // 대장을 한꺼번에 발사하던 폭주 방지. 결과(종사자수·인원대조)는 동일, 배치로 순차 수집.
         const details: Row[] = list.map((s) => ({ school: s, total: null, mismatch: false }))
-        await mapLimit(
-          details.filter((d) => targets.has(d.school.id)),
-          8,
-          async (d) => {
-            const led = await api<Ledger>(`/schools/${d.school.id}/ledger`).catch(() => null)
-            if (led) { d.total = led.worker_total; d.mismatch = !!led.headcount_mismatch }
-          },
-          () => alive,
-        )
+        // 종사자수·인원대조는 집계 1콜(GET /schools/workers-summary)로 전 학교 채움(2026-10-22).
+        // 종전엔 담당 학교(옛 assigned_inspector_id 기준)만 학교별 /ledger 를 호출해 관리자 전체
+        // 보기에서 0명으로 보였다. 집계 실패 시에만 종전 방식(담당 학교 한정 배치)으로 폴백.
+        const summary = await api<Record<string, { total: number; headcount_mismatch?: boolean }>>('/schools/workers-summary')
+          .catch(() => null)
+        if (summary) {
+          for (const d of details) {
+            const s = summary[d.school.id]
+            d.total = s ? s.total : 0
+            d.mismatch = !!s?.headcount_mismatch
+          }
+        } else {
+          const mine = list.filter((s) => s.assigned_inspector_id === login)
+          const targets = new Set((mine.length > 0 ? mine : list).map((s) => s.id))
+          await mapLimit(
+            details.filter((d) => targets.has(d.school.id)),
+            8,
+            async (d) => {
+              const led = await api<Ledger>(`/schools/${d.school.id}/ledger`).catch(() => null)
+              if (led) { d.total = led.worker_total; d.mismatch = !!led.headcount_mismatch }
+            },
+            () => alive,
+          )
+        }
         // 기본 정렬: 학교명 가나다순
         details.sort((a, b) => a.school.name.localeCompare(b.school.name, 'ko'))
         if (alive) {
