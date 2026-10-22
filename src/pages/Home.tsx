@@ -976,7 +976,7 @@ export function Home() {
               )}
               {accidentFeed.map((it, i) =>
                 it.kind === 'company' ? (
-                  // 회사 자체 산재 — 빨간색 강조(좌측 빨간 막대 + 빨간 핀).
+                  // 산재내역(학교·기관 실제 발생) — 빨간색 강조(좌측 빨간 막대 + 빨간 핀).
                   <div
                     className="hm-n hm-clickable"
                     key={`c-${it.a.id}`}
@@ -988,7 +988,7 @@ export function Home() {
                       if (e.key === 'Enter') nav('/accidents')
                     }}
                   >
-                    <span className="hm-pin" style={{ background: '#e5484d', color: '#fff' }}>회사 산재</span>
+                    <span className="hm-pin" style={{ background: '#e5484d', color: '#fff' }}>산재</span>
                     <div className="hm-nbody">
                       <div className="b" style={{ color: '#c0341d' }}>{it.a.school_masked || '학교 비공개'}</div>
                       <div className="m">

@@ -21,6 +21,7 @@ import {
   Search,
   Upload,
   X,
+  Newspaper,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
@@ -28,6 +29,7 @@ import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { downloadCsv } from '../lib/csv'
+import { dedupeStories, scoreRelevance, type RelevanceTag } from '../lib/accidentRelevance'
 import '../styles/accidents.css'
 
 type Kind = 'accident' | 'disease'
@@ -70,6 +72,9 @@ function isLinked(a: Accident): boolean {
 const KOSHA_ROWS = 10
 type KoshaCase = { title: string; contents: string; business: string; boardno: string | number }
 type KoshaCasesResp = { items: KoshaCase[]; total: number; page: number; size: number }
+// [140] 국내재해사례 탭 — 산재 관련 뉴스(GET /accidents/news, 학교 업무·전남 관련만)
+type NewsItem = { title: string; summary?: string; url: string; date: string; publisher?: string; tags?: RelevanceTag[]; related?: number; region?: string }
+type CaseSource = 'all' | 'news' | 'kosha'
 
 // useTableQuery 접근자 — 렌더 간 안정적이어야 하므로 모듈 상수
 const ACC_SEARCH = [
@@ -501,6 +506,34 @@ export function Accidents() {
   const [kLoading, setKLoading] = useState(false)
   const [kError, setKError] = useState('')
   const [kExpanded, setKExpanded] = useState<KoshaCase | null>(null)
+  // [140] 뉴스 기사 — 국내재해사례 탭 진입 시 조회(학교 업무·전남 관련만, 같은 사건 묶음)
+  const [src, setSrc] = useState<CaseSource>('all')
+  const [news, setNews] = useState<NewsItem[] | null>(null)
+  const [newsErr, setNewsErr] = useState('')
+  useEffect(() => {
+    if (tab !== 'kosha' || news !== null) return
+    let alive = true
+    api<{ items: NewsItem[] }>('/accidents/news?limit=30')
+      .then((r) => {
+        if (!alive) return
+        const list = (Array.isArray(r?.items) ? r.items : [])
+          .map((n) => ({ ...n, rel: scoreRelevance(n.title, n.summary) }))
+          .filter((n) => n.rel.ok)
+          .sort((a, b) => Number(b.rel.region === 'local') - Number(a.rel.region === 'local') || b.date.localeCompare(a.date))
+          .map(({ rel, ...n }) => ({ ...n, tags: rel.tags }))
+        setNews(dedupeStories(list))
+      })
+      .catch((e) => {
+        if (!alive) return
+        setNews([])
+        setNewsErr(e instanceof Error ? e.message : '불러오기 실패')
+      })
+    return () => { alive = false }
+  }, [tab, news])
+  function exportNews() {
+    downloadCsv('산재관련뉴스', ['날짜', '제목', '언론사', '관련 기사 수', '태그', '링크'],
+      (news ?? []).map((n) => [n.date.slice(0, 10), n.title, n.publisher || '', String((n.related ?? 0) + 1), (n.tags ?? []).map((t) => t.label).join(' '), n.url]))
+  }
 
   // KOSHA 탭 최초 진입 시 첫 조회 트리거 (serviceKey는 서버 기본값 공용 — 사용자 설정 불필요)
   useEffect(() => {
@@ -569,19 +602,19 @@ export function Accidents() {
         )}
       </div>
 
-      {/* 서브탭: 회사 산재 내역 ↔ 국내재해사례(KOSHA) */}
+      {/* 서브탭: 산재내역(실제 학교·기관 발생 산재) ↔ 국내재해사례(뉴스 기사 + KOSHA) [140] */}
       <div style={{ display: 'flex', gap: 8, margin: '4px 0 16px' }}>
         <button
           className={'btn ' + (tab === 'records' ? 'btn-primary' : 'btn-ghost')}
           onClick={() => setTab('records')}
         >
-          <AlertTriangle size={14} /> 회사 산재 내역
+          <AlertTriangle size={14} /> 산재내역
         </button>
         <button
           className={'btn ' + (tab === 'kosha' ? 'btn-primary' : 'btn-ghost')}
           onClick={() => setTab('kosha')}
         >
-          <BookOpen size={14} /> 국내재해사례 (KOSHA)
+          <BookOpen size={14} /> 국내재해사례
         </button>
       </div>
 
@@ -721,11 +754,67 @@ export function Accidents() {
       {/* ── 국내재해사례(KOSHA) 조회 패널 ── */}
       {tab === 'kosha' && (
         <>
+          {/* [140] 출처 선택 — 뉴스 기사 / KOSHA 사례 */}
+          <div style={{ display: 'flex', gap: 6, margin: '0 0 12px' }}>
+            {([['all', '전체'], ['news', `뉴스 기사${news ? ` ${news.length}` : ''}`], ['kosha', 'KOSHA 재해사례']] as [CaseSource, string][]).map(([k, label]) => (
+              <button key={k} className={'btn ' + (src === k ? 'btn-primary' : 'btn-ghost')} style={{ height: 32 }} onClick={() => setSrc(k)}>{label}</button>
+            ))}
+          </div>
+
+          {src !== 'kosha' && (
+          <div className="ledger" style={{ marginBottom: 16 }}>
+            <div className="lh">
+              <h2><Newspaper size={19} /> 산재 관련 뉴스
+                <InfoTip>
+                  언론에 보도된 산재 기사 중 학교 업무(급식실·조리·시설관리·미화·통학 등)와 관련 있는 것만 모았습니다.
+                  전남 기사를 먼저 보여 주고 다른 지역 기사는 제외합니다. 같은 사건을 여러 언론사가 쓴 경우 1건으로 묶습니다. 제목을 누르면 기사 원문이 새 창으로 열립니다.
+                </InfoTip></h2>
+              <div className="sp" />
+              <button className="btn btn-ghost" onClick={exportNews} disabled={!news?.length} title="뉴스 목록을 CSV로 내보내기">
+                <Download size={15} /> 다운로드(CSV)
+              </button>
+            </div>
+            <div className="twrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th style={{ width: 110 }}>날짜</th>
+                    <th>제목</th>
+                    <th style={{ width: 170 }}>언론사</th>
+                    <th style={{ width: 260 }}>관련</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(news ?? []).map((n) => (
+                    <tr key={n.url} onClick={() => window.open(n.url, '_blank', 'noopener')} style={{ cursor: 'pointer' }} title="기사 원문 보기">
+                      <td><span className="muted" style={{ fontSize: 12.5 }}>{n.date.slice(0, 10)}</span></td>
+                      <td><span className="acc-sum">{n.title}</span> <ExternalLink size={12} style={{ verticalAlign: -1, opacity: 0.5 }} /></td>
+                      <td><span className="muted" style={{ fontSize: 12.5 }}>{n.publisher || '—'}{n.related ? ` 외 ${n.related}건` : ''}</span></td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {(n.tags ?? []).map((t) => <span key={t.label} className={'pillx ' + (t.kind === 'type' ? 'warn' : 'doing')}>{t.label}</span>)}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {news === null && <tr><td colSpan={4}><div className="tstate">불러오는 중…</div></td></tr>}
+                  {news !== null && news.length === 0 && (
+                    <tr><td colSpan={4}><div className="tstate">
+                      {newsErr ? '뉴스를 불러오지 못했습니다. (서버에 뉴스 수집 경로가 아직 없을 수 있습니다)' : '최근 학교 업무 관련 산재 기사가 없습니다.'}
+                    </div></td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          )}
+
+          {src !== 'news' && (
           <div className="ledger">
             <div className="lh">
-              <h2><BookOpen size={19} /> 국내재해사례 (안전보건공단)
+              <h2><BookOpen size={19} /> KOSHA 재해사례 (안전보건공단)
                 <InfoTip>
-                  안전보건공단(KOSHA)의 국내 재해사례 게시판을 조회합니다. 회사 산재 내역과는 별개의 공개 사례 라이브러리입니다.
+                  안전보건공단(KOSHA)의 국내 재해사례 게시판을 조회합니다. 산재내역(학교·기관에서 실제 발생한 산재)과는 별개의 공개 사례 라이브러리입니다.
                   사례 행의 바로가기 아이콘을 누르면 산업안전포털의 원문 게시판을 새 탭에서 볼 수 있습니다.
                 </InfoTip></h2>
               <div className="sp" />
@@ -849,6 +938,7 @@ export function Accidents() {
               </div>
             )}
           </div>
+          )}
         </>
       )}
 
