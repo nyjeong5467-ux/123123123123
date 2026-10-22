@@ -12,7 +12,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
-  Download,
   ExternalLink,
   FileText,
   Link2,
@@ -28,7 +27,6 @@ import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
-import { downloadCsv } from '../lib/csv'
 import { dedupeStories, groupByIssue, scoreRelevance, withinRetention, type RelevanceTag, type StoryRef } from '../lib/accidentRelevance'
 import '../styles/accidents.css'
 
@@ -575,13 +573,6 @@ export function Accidents() {
     setKSearch((s) => (s ? { ...s, pageNo: Math.min(kPageCount, Math.max(1, s.pageNo + delta)) } : s))
   }
 
-  // 현재 조회된 사례를 CSV로 내보내기 (컬럼: 업종,제목,내용,글번호)
-  function exportKosha() {
-    const headers = ['업종', '제목', '내용', '글번호']
-    const rows = kCases.map((c) => [c.business || '', c.title || '', c.contents || '', String(c.boardno ?? '')])
-    downloadCsv('국내재해사례', headers, rows)
-  }
-
   return (
     <div className="page">
       <div className="breadcrumb"><Link to="/">홈</Link> / <b>산업재해</b></div>
@@ -768,7 +759,7 @@ export function Accidents() {
                   전남 기사를 먼저 보여 주고 다른 지역 기사는 제외합니다. 같은 주제(예: 급식실 폐암 산재·배상)의 기사는 1행으로 묶고 '관련 N건'을 누르면 전체 기사를 펼쳐 볼 수 있습니다. 전남 소식은 따로 묶습니다. 최신 보도 순입니다. 기사는 저장하지 않고 최근 3개월치만 보여 주며, 3개월이 지난 기사는 자동으로 사라집니다. 제목을 누르면 기사 원문이 새 창으로 열립니다.
                 </InfoTip></h2>
             </div>
-            {/* [144] 뉴스는 저장하지 않는 자료라 다운로드(CSV) 버튼 없음 */}
+            {/* [144] 다운로드(CSV) 버튼 없음 — 뉴스·KOSHA 재해사례 모두 [145] */}
             {/* [141] 약 10건 높이로 고정 + 스크롤(머리글 고정) */}
             <div className="twrap acc-newsscroll">
               <table className="tbl">
@@ -837,15 +828,6 @@ export function Accidents() {
                   안전보건공단(KOSHA)의 국내 재해사례 게시판을 조회합니다. 산재내역(학교·기관에서 실제 발생한 산재)과는 별개의 공개 사례 라이브러리입니다.
                   사례 행의 바로가기 아이콘을 누르면 산업안전포털의 원문 게시판을 새 탭에서 볼 수 있습니다.
                 </InfoTip></h2>
-              <div className="sp" />
-              <button
-                className="btn btn-ghost"
-                onClick={exportKosha}
-                disabled={kCases.length === 0}
-                title="현재 조회 결과를 CSV로 내보내기"
-              >
-                <Download size={15} /> 다운로드(CSV)
-              </button>
             </div>
 
             {/* 검색바: 업종 + 키워드 + 조회 */}
