@@ -329,10 +329,15 @@ const REL_TYPE = [
   ['산재', /산재|산업재해|업무상\s*재해|노동부|고용노동부|산업안전/, 2],
   ['사고', /사고|부상|다쳐|다친|중상|재해|폭발|화재|감전/, 1],
 ]
+// [138] 지역(전남) — src/lib/accidentRelevance.ts 와 동일
+const REL_LOCAL = /전남|김대중\s*교육감|전라남도|목포|여수|순천|나주|광양|담양|곡성|구례|고흥|보성(군|교육)|화순|장흥|강진|해남|영암|무안|함평|영광(군|교육)|장성(군|교육)|완도|진도(군|교육)|신안/
+const REL_OTHER = /서울|부산|대구|인천|광주|대전|울산|세종(시|교육)|경기|강원|충북|충남|충청|전북|전라북도|경북|경남|경상|제주|수원|성남|용인|고양|창원|청주|천안|전주|포항|김해|평택|화성|안산|안양|부천|의정부|남양주|김포|파주|춘천|원주|강릉|군산|익산|구미|경주|진주|거제|통영/
 const REL_EXCLUDE = /학교폭력|학폭|성범죄|성추행|성폭력|수능|입시|대입|졸업식|입학식|축제|체험학습\s*버스|수학여행|학생\s*안전사고|아동학대|급식\s*메뉴|급식비|무상급식\s*예산|맛집|주가|증시|선거/
 function scoreRelevance(...texts) {
   const t = texts.filter(Boolean).join(' ').replace(/\s+/g, ' ')
-  if (!t || REL_EXCLUDE.test(t)) return { ok: false, score: 0, tags: [] }
+  if (!t || REL_EXCLUDE.test(t)) return { ok: false, score: 0, tags: [], region: 'none' }
+  const region = REL_LOCAL.test(t) ? 'local' : REL_OTHER.test(t) ? 'other' : 'none'
+  if (region === 'other') return { ok: false, score: 0, tags: [], region }
   let s = 0; let ty = 0; const tags = []
   for (const [label, re, w] of REL_SECTOR) if (re.test(t)) { s += w; tags.push({ label, kind: 'sector' }) }
   for (const [label, re, w] of REL_TYPE) if (re.test(t)) { ty += w; tags.push({ label, kind: 'type' }) }
@@ -340,7 +345,7 @@ function scoreRelevance(...texts) {
   const ok = s > 0 && ty > 0 && (!onlyGeneric || ty >= 4)
   const types = tags.filter((x) => x.kind === 'type')
   const shown = [...tags.filter((x) => x.kind === 'sector' && x.label !== '학교'), ...types.filter((x) => !(x.label === '사고' && types.length > 1))].slice(0, 3)
-  return { ok, score: s + ty, tags: shown }
+  return { ok, score: s + ty + (region === 'local' ? 10 : 0), tags: region === 'local' ? [{ label: '전남', kind: 'sector' }, ...shown].slice(0, 3) : shown, region }
 }
 
 // 같은 사건 기사 묶기 — src/lib/accidentRelevance.ts dedupeStories 와 동일(제목 2-gram 자카드 0.3, 단일 연결)
@@ -357,6 +362,8 @@ function dedupeStories(items, th = 0.3) {
 }
 
 const NEWS_QUERIES = [
+  // [138] 전남 우선 검색어
+  '전남 학교 급식실 산재', '전남 급식 노동자 사고', '전남교육청 중대재해', '전남 학교 산업재해', '전남 학교 시설 사고',
   '학교 급식실 산재', '급식 조리실무사 사고', '급식실 폐암 산재', '학교 급식 노동자 화상',
   '학교 시설관리 사고', '학교 미화원 사고', '교육청 중대재해', '학교 종사자 산업재해',
 ]
@@ -394,11 +401,11 @@ async function fetchNews() {
         const rel = scoreRelevance(title, summary)
         if (!rel.ok) continue
         seen.add(key)
-        items.push({ source: 'news', title, summary, url: tagOf(it, 'link'), date: date.toISOString(), publisher, tags: rel.tags, score: rel.score })
+        items.push({ source: 'news', title: title.replace(/\s*>\s*[^>]{1,10}$/, ''), summary, url: tagOf(it, 'link'), date: date.toISOString(), publisher, tags: rel.tags, score: rel.score, region: rel.region })
       }
     } catch (e) { errors.push(`${q}: ${e.message}`) }
   }))
-  items.sort((a, b) => b.date.localeCompare(a.date) || b.score - a.score)
+  items.sort((a, b) => (b.region === 'local') - (a.region === 'local') || b.date.localeCompare(a.date) || b.score - a.score)
   newsCache = { at: Date.now(), items: dedupeStories(items), errors }
   if (errors.length) console.log(`  [dev] 뉴스 수집 일부 실패 ${errors.length}건 — ${errors[0]}`)
   return newsCache

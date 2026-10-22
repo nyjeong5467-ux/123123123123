@@ -5,7 +5,7 @@
 // 점수 = 학교 업무 단어 가중치 합 + 사고 유형 가중치 합 → 높은 순으로 노출.
 
 export type RelevanceTag = { label: string; kind: 'sector' | 'type' }
-export type Relevance = { ok: boolean; score: number; tags: RelevanceTag[] }
+export type Relevance = { ok: boolean; score: number; tags: RelevanceTag[]; region: 'local' | 'other' | 'none' }
 
 // 학교 업무 관련어 — [표시 라벨, 정규식, 가중치]
 const SECTOR: [string, RegExp, number][] = [
@@ -30,11 +30,18 @@ const TYPE: [string, RegExp, number][] = [
   ['사고', /사고|부상|다쳐|다친|중상|재해|폭발|화재|감전/, 1],
 ]
 // 학교 업무와 무관한 '학교' 기사 제외어
+// [138] 지역 — 플랫폼 대상은 전남. 전남 기사 우선, 다른 지역 기사는 제외, 지역 언급이 없는 전국 기사는 포함.
+//  (일반 단어와 겹치는 군 이름은 '군·교육' 등과 붙은 경우만: 영광·진도·장성·보성)
+const LOCAL = /전남|김대중\s*교육감|전라남도|목포|여수|순천|나주|광양|담양|곡성|구례|고흥|보성(군|교육)|화순|장흥|강진|해남|영암|무안|함평|영광(군|교육)|장성(군|교육)|완도|진도(군|교육)|신안/
+const OTHER_REGION = /서울|부산|대구|인천|광주|대전|울산|세종(시|교육)|경기|강원|충북|충남|충청|전북|전라북도|경북|경남|경상|제주|수원|성남|용인|고양|창원|청주|천안|전주|포항|김해|평택|화성|안산|안양|부천|의정부|남양주|김포|파주|춘천|원주|강릉|군산|익산|구미|경주|진주|거제|통영/
+export const LOCAL_LABEL = '전남'
 const EXCLUDE = /학교폭력|학폭|성범죄|성추행|성폭력|수능|입시|대입|졸업식|입학식|축제|체험학습\s*버스|수학여행|학생\s*안전사고|아동학대|급식\s*메뉴|급식비|무상급식\s*예산|맛집|주가|증시|선거/
 
 export function scoreRelevance(...texts: (string | null | undefined)[]): Relevance {
   const t = texts.filter(Boolean).join(' ').replace(/\s+/g, ' ')
-  if (!t || EXCLUDE.test(t)) return { ok: false, score: 0, tags: [] }
+  if (!t || EXCLUDE.test(t)) return { ok: false, score: 0, tags: [], region: 'none' }
+  const region: Relevance['region'] = LOCAL.test(t) ? 'local' : OTHER_REGION.test(t) ? 'other' : 'none'
+  if (region === 'other') return { ok: false, score: 0, tags: [], region } // 다른 지역 기사 제외
   let s = 0; let ty = 0
   const tags: RelevanceTag[] = []
   for (const [label, re, w] of SECTOR) if (re.test(t)) { s += w; tags.push({ label, kind: 'sector' }) }
@@ -50,7 +57,8 @@ export function scoreRelevance(...texts: (string | null | undefined)[]): Relevan
     ...tags.filter((x) => x.kind === 'sector' && x.label !== '학교'),
     ...types.filter((x) => !(x.label === '사고' && types.length > 1)),
   ].slice(0, 3)
-  return { ok: okFinal, score: s + ty, tags: shown }
+  // 전남 기사는 우선 노출(+10) · 태그 맨 앞에 '전남'
+  return { ok: okFinal, score: s + ty + (region === 'local' ? 10 : 0), tags: region === 'local' ? [{ label: LOCAL_LABEL, kind: 'sector' as const }, ...shown].slice(0, 3) : shown, region }
 }
 
 // [137] 같은 사건을 여러 언론사가 쓴 기사 묶기 — 제목 글자 2-gram 유사도(자카드) 0.3 이상이면 같은 기사로 보고

@@ -240,8 +240,9 @@ export function Home() {
           if (!alive) return
           const list = (Array.isArray(r?.items) ? r.items : [])
             .map((n) => ({ ...n, rel: scoreRelevance(n.title, n.summary) }))
-            .filter((n) => n.rel.ok)
-            .map(({ rel, ...n }) => ({ ...n, tags: n.tags?.length ? n.tags : rel.tags }))
+            .filter((n) => n.rel.ok) // [138] 다른 지역(대전 등) 기사는 여기서 제외 — 전남 + 지역 언급 없는 전국 기사만
+            .sort((a, b) => Number(b.rel.region === 'local') - Number(a.rel.region === 'local') || b.date.localeCompare(a.date))
+            .map(({ rel, ...n }) => ({ ...n, tags: rel.tags }))
           setNews(dedupeStories(list)) // 같은 사건을 여러 언론사가 쓴 기사는 1건으로(외 N건)
         })
         .catch(() => { if (alive) setNews([]) })
