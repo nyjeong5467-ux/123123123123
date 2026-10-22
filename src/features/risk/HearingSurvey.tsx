@@ -38,7 +38,7 @@ function todayYmd(): string {
 }
 
 /* ===================== 대장 연동 ===================== */
-type Worker = { part: string; count: number }
+type Worker = { part: string; count: number; names?: string[] }
 type Ledger = { workers: Worker[] }
 
 /* ===================== 스타일 ===================== */
@@ -82,13 +82,16 @@ export function HearingSurvey(p: {
     if (value || !ledger) return
     const init: HearingDoc = {}
     for (const [part, , job] of PARTS) {
-      const count = ledger.workers.find((w) => w.part === part)?.count ?? 0
+      const w = ledger.workers.find((x) => x.part === part)
+      const count = w?.count ?? 0
+      // [097] 학교 대장에 개인 명단이 있으면 실명으로 생성(없으면 '조리원1' 자리표시자)
+      const names = w?.names ?? []
       for (let i = 1; i <= count; i++) {
         const key = `${part}-${i}`
         const pv = prev?.[key]
         init[key] = pv
           ? { ...pv, exps: pv.exps.map((e) => ({ ...e })), date: todayYmd(), surveyor: defaultSurveyor || pv.surveyor, done: false }
-          : { part, worker_name: `${job}${i}`, surveyor: defaultSurveyor, date: todayYmd(), exps: emptyExps(), worker_opinion: '', improve_cond: '', done: false }
+          : { part, worker_name: names[i - 1] || `${job}${i}`, surveyor: defaultSurveyor, date: todayYmd(), exps: emptyExps(), worker_opinion: '', improve_cond: '', done: false }
       }
     }
     // 작년 문서에만 있는 인원(퇴사자 등)은 프리필하지 않음 — 필요 시 수동 추가

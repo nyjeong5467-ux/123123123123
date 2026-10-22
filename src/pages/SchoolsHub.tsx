@@ -11,6 +11,7 @@ import { useAffiliationScope } from '../lib/affiliationScope'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { SchoolFormModal } from '../components/SchoolFormModal'
+import { StaffRosterModal } from '../components/StaffRosterModal'
 import { BulkUploadModal } from '../components/BulkUploadModal'
 import { CycleBanner, type WorkStats } from '../components/CycleBanner'
 import '../styles/schoolhub.css'
@@ -142,7 +143,7 @@ export function SchoolsHub() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
-  const [modal, setModal] = useState<'create' | 'bulk' | null>(null)
+  const [modal, setModal] = useState<'create' | 'bulk' | 'staff' | null>(null)
   const [scope, setScope] = useState<'mine' | 'all'>('all') // 담당 학교 / 전체 학교
   const [scopeInit, setScopeInit] = useState(false)
   const [myName, setMyName] = useState('')   // 담당 매칭용 이름(학교 manager 는 이름 기준)
@@ -340,6 +341,7 @@ export function SchoolsHub() {
         <h2><Building2 size={20} /> 학교</h2>
         <div className="sp" />
         <button className="btn btn-ghost" onClick={() => setModal('bulk')}>엑셀 일괄 업로드</button>
+        <button className="btn btn-ghost" onClick={() => setModal('staff')}>현업종사자 명단 업로드</button>
         <button className="btn btn-primary" onClick={() => setModal('create')}>＋ 학교 등록</button>
       </div>
 
@@ -506,6 +508,9 @@ export function SchoolsHub() {
       )}
       {modal === 'bulk' && (
         <BulkUploadModal onClose={() => setModal(null)} onSaved={() => setReload((r) => r + 1)} />
+      )}
+      {modal === 'staff' && (
+        <StaffRosterModal onClose={() => setModal(null)} onSaved={() => setReload((r) => r + 1)} />
       )}
     </div>
   )

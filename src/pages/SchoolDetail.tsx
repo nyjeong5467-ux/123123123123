@@ -8,6 +8,7 @@ import { InfoTip } from '../components/InfoTip'
 import { MsdsFormModal } from '../components/MsdsFormModal'
 import { AccidentFormModal } from '../components/AccidentFormModal'
 import { HistoryFormModal } from '../components/HistoryFormModal'
+import { StaffRosterModal } from '../components/StaffRosterModal'
 import '../styles/schoolhub.css'
 
 const PART_LABEL: Record<string, string> = {
@@ -36,7 +37,12 @@ type SchoolContact = { email: string; name?: string; phone?: string }
 
 // [118] 결재선 타입·기본값은 lib/approval로 이동 (구 PRESET_DEFAULT 담당자·행정실장·교장 / PRESET_ORG 부서장·팀장·과장 폐지)
 
-type Worker = { id: string; part: string; count: number; contact: string; is_nutrition_teacher: boolean }
+type Worker = { id: string; part: string; count: number; contact: string; is_nutrition_teacher: boolean; names?: string[] }
+// 현업종사자 개인 명단(2026-10-22) — 엑셀 업로드분. 연락처·생년월일은 기본 마스킹(***).
+type Staff = {
+  id: string; part: string; name: string; job: string; contact: string; birth: string
+  senior: boolean; is_nutrition_teacher: boolean; note: string; active: boolean; seq: number
+}
 type Msds = { id: string; area: string; substances: string[] }
 type Accident = { id: string; date: string; description: string; part: string | null }
 type History = { id: string; month: string; content: string; memo: string }
@@ -130,6 +136,8 @@ export function SchoolDetail() {
   const loc = useLocation()
   const [data, setData] = useState<Ledger | null>(null)
   const [reveal, setReveal] = useState(false)
+  const [staff, setStaff] = useState<Staff[]>([])
+  const [staffModal, setStaffModal] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
@@ -184,6 +192,15 @@ export function SchoolDetail() {
     api<Ledger>(`/schools/${id}/ledger${reveal ? '?reveal_nutrition=true' : ''}`)
       .then((d) => { if (alive) { setData(d); setLoading(false) } })
       .catch((e) => { if (alive) { setError(e instanceof Error ? e.message : '오류'); setLoading(false) } })
+    return () => { alive = false }
+  }, [id, reveal, reload])
+
+  // 현업종사자 개인 명단 — reveal 이면 연락처·생년월일 원문 요청(로그인 계정만 허용)
+  useEffect(() => {
+    let alive = true
+    api<Staff[]>(`/schools/${id}/staff${reveal ? '?reveal=true' : ''}`)
+      .then((d) => { if (alive) setStaff(Array.isArray(d) ? d : []) })
+      .catch(() => { if (alive) setStaff([]) })
     return () => { alive = false }
   }, [id, reveal, reload])
 
@@ -758,12 +775,49 @@ export function SchoolDetail() {
       <div className="ledger" id="sd-workers" style={{ marginBottom: 24 }}>
         <div className="lh">
           <h2>현업종사자</h2>
+          <span className="pillx doing">총 {data.worker_total}명</span>
+          {staff.length > 0
+            ? <span className="pillx ok">명단 {staff.length}명</span>
+            : <span className="pillx na">명단 없음</span>}
+          <InfoTip>
+            학교에서 받은 <b>엑셀 명단</b>을 올리면 사람 단위로 보관하고 파트별 인원수가 자동 계산됩니다.
+            명단이 있으면 근골 증상조사표·위험성평가 청취조사 명단도 자리표시자 대신 <b>실명</b>으로 생성됩니다.
+            연락처·생년월일은 기본 마스킹(***)이며 [개인정보 표시]를 켠 로그인 계정만 원문을 봅니다.
+          </InfoTip>
           <div className="sp" />
           <label className="row" style={{ gap: 8, fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={reveal} onChange={(e) => setReveal(e.target.checked)} /> 영양교사 정보 표시
+            <input type="checkbox" checked={reveal} onChange={(e) => setReveal(e.target.checked)} /> 개인정보 표시
           </label>
+          <button className="btn btn-ghost" onClick={() => setStaffModal(true)}>명단 업로드</button>
         </div>
         <div className="twrap">
+          {staff.length > 0 && !pageEdit ? (
+            <table className="tbl">
+              <thead><tr>
+                <th className="c" style={{ width: 44 }}>No</th>
+                <th>성명</th><th>파트</th><th>현업업무</th><th>연락처</th>
+                <th>생년월일</th><th className="c">60세 이상</th><th>특이사항</th>
+              </tr></thead>
+              <tbody>
+                {staff.map((w, i) => (
+                  <tr key={w.id} style={w.active ? undefined : { opacity: 0.55 }}>
+                    <td className="c muted">{w.seq || i + 1}</td>
+                    <td>
+                      <b>{w.name}</b>
+                      {w.is_nutrition_teacher && <span className="pillx warn" style={{ marginLeft: 6 }}>영양교사</span>}
+                      {!w.active && <span className="pillx na" style={{ marginLeft: 6 }}>퇴사</span>}
+                    </td>
+                    <td><span className="pillx doing">{PART_LABEL[w.part] || w.part}</span></td>
+                    <td>{w.job || <span className="muted">—</span>}</td>
+                    <td className="muted">{w.contact || '—'}</td>
+                    <td className="muted">{w.birth || '—'}</td>
+                    <td className="c">{w.senior ? <span className="pillx warn">60세 이상</span> : <span className="muted">—</span>}</td>
+                    <td className="muted">{w.note || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
           <table className="tbl">
             <thead><tr><th>파트</th><th className="c">인원</th><th>연락처</th><th className="c">{pageEdit ? '영양교사' : '구분'}</th></tr></thead>
             <tbody>
@@ -800,7 +854,13 @@ export function SchoolDetail() {
                 )}
             </tbody>
           </table>
+          )}
         </div>
+        {staff.length > 0 && pageEdit && (
+          <div className="tstate" style={{ textAlign: 'left', padding: '10px 22px' }}>
+            인원수는 <b>명단 기준 자동 집계</b>입니다 — 인원을 바꾸려면 [명단 업로드]로 명단을 다시 올리세요.
+          </div>
+        )}
       </div>
 
       <div className="grid2" style={{ marginBottom: 24 }}>
@@ -1039,6 +1099,14 @@ export function SchoolDetail() {
         </div>
       </div>
 
+      {staffModal && (
+        <StaffRosterModal
+          schoolId={id || ''}
+          schoolName={data?.school.name}
+          onClose={() => setStaffModal(false)}
+          onSaved={() => setReload((r) => r + 1)}
+        />
+      )}
       {msdsModal && (
         <MsdsFormModal
           schoolId={id || ''}
