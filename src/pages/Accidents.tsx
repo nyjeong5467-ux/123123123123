@@ -2,7 +2,7 @@
 // 사고성/질병성 구분 등록 → 버튼 한 번으로 수시 위험성평가(/risk) 또는
 // 수시 근골격계 유해요인조사(/musculo) 연동 생성. 산재조사표는 업로드(파일명 메타)+직접입력 병행.
 // 이 페이지는 본사 관리자용 → 학교 실명 기본 표시, 익명 표시명(school_masked)은 보조 표기.
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Activity,
@@ -29,7 +29,7 @@ import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { downloadCsv } from '../lib/csv'
-import { dedupeStories, scoreRelevance, type RelevanceTag } from '../lib/accidentRelevance'
+import { dedupeStories, scoreRelevance, type RelevanceTag, type StoryRef } from '../lib/accidentRelevance'
 import '../styles/accidents.css'
 
 type Kind = 'accident' | 'disease'
@@ -73,7 +73,7 @@ const KOSHA_ROWS = 10
 type KoshaCase = { title: string; contents: string; business: string; boardno: string | number }
 type KoshaCasesResp = { items: KoshaCase[]; total: number; page: number; size: number }
 // [140] 국내재해사례 탭 — 산재 관련 뉴스(GET /accidents/news, 학교 업무·전남 관련만)
-type NewsItem = { title: string; summary?: string; url: string; date: string; publisher?: string; tags?: RelevanceTag[]; related?: number; region?: string }
+type NewsItem = { title: string; summary?: string; url: string; date: string; publisher?: string; tags?: RelevanceTag[]; related?: number; region?: string; others?: StoryRef[] }
 type CaseSource = 'all' | 'news' | 'kosha'
 
 // useTableQuery 접근자 — 렌더 간 안정적이어야 하므로 모듈 상수
@@ -510,18 +510,19 @@ export function Accidents() {
   const [src, setSrc] = useState<CaseSource>('all')
   const [news, setNews] = useState<NewsItem[] | null>(null)
   const [newsErr, setNewsErr] = useState('')
+  const [openNews, setOpenNews] = useState<string | null>(null) // [141] 펼친 묶음(같은 사건 다른 언론사 기사)
   useEffect(() => {
     if (tab !== 'kosha' || news !== null) return
     let alive = true
-    api<{ items: NewsItem[] }>('/accidents/news?limit=30')
+    api<{ items: NewsItem[] }>('/accidents/news?limit=50')
       .then((r) => {
         if (!alive) return
         const list = (Array.isArray(r?.items) ? r.items : [])
           .map((n) => ({ ...n, rel: scoreRelevance(n.title, n.summary) }))
           .filter((n) => n.rel.ok)
-          .sort((a, b) => Number(b.rel.region === 'local') - Number(a.rel.region === 'local') || b.date.localeCompare(a.date))
           .map(({ rel, ...n }) => ({ ...n, tags: rel.tags }))
-        setNews(dedupeStories(list))
+        // [141] 같은 사건은 1행으로 묶고(펼치면 다른 언론사 기사), 최신 보도 순으로
+        setNews(dedupeStories(list).sort((a, b) => b.date.localeCompare(a.date)))
       })
       .catch((e) => {
         if (!alive) return
@@ -767,14 +768,15 @@ export function Accidents() {
               <h2><Newspaper size={19} /> 산재 관련 뉴스
                 <InfoTip>
                   언론에 보도된 산재 기사 중 학교 업무(급식실·조리·시설관리·미화·통학 등)와 관련 있는 것만 모았습니다.
-                  전남 기사를 먼저 보여 주고 다른 지역 기사는 제외합니다. 같은 사건을 여러 언론사가 쓴 경우 1건으로 묶습니다. 제목을 누르면 기사 원문이 새 창으로 열립니다.
+                  전남 기사를 먼저 보여 주고 다른 지역 기사는 제외합니다. 같은 사건을 여러 언론사가 쓴 경우 1건으로 묶고 '외 N건'을 누르면 펼쳐 볼 수 있습니다. 최신 보도 순입니다. 제목을 누르면 기사 원문이 새 창으로 열립니다.
                 </InfoTip></h2>
               <div className="sp" />
               <button className="btn btn-ghost" onClick={exportNews} disabled={!news?.length} title="뉴스 목록을 CSV로 내보내기">
                 <Download size={15} /> 다운로드(CSV)
               </button>
             </div>
-            <div className="twrap">
+            {/* [141] 약 10건 높이로 고정 + 스크롤(머리글 고정) */}
+            <div className="twrap acc-newsscroll">
               <table className="tbl">
                 <thead>
                   <tr>
@@ -785,18 +787,39 @@ export function Accidents() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(news ?? []).map((n) => (
-                    <tr key={n.url} onClick={() => window.open(n.url, '_blank', 'noopener')} style={{ cursor: 'pointer' }} title="기사 원문 보기">
-                      <td><span className="muted" style={{ fontSize: 12.5 }}>{n.date.slice(0, 10)}</span></td>
-                      <td><span className="acc-sum">{n.title}</span> <ExternalLink size={12} style={{ verticalAlign: -1, opacity: 0.5 }} /></td>
-                      <td><span className="muted" style={{ fontSize: 12.5 }}>{n.publisher || '—'}{n.related ? ` 외 ${n.related}건` : ''}</span></td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                          {(n.tags ?? []).map((t) => <span key={t.label} className={'pillx ' + (t.kind === 'type' ? 'warn' : 'doing')}>{t.label}</span>)}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {(news ?? []).map((n) => {
+                    const open = openNews === n.url
+                    return (
+                      <Fragment key={n.url}>
+                        <tr onClick={() => window.open(n.url, '_blank', 'noopener')} style={{ cursor: 'pointer' }} title="기사 원문 보기">
+                          <td><span className="muted" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{n.date.slice(0, 10)}</span></td>
+                          <td><span className="acc-sum">{n.title}</span> <ExternalLink size={12} style={{ verticalAlign: -1, opacity: 0.5 }} /></td>
+                          <td>
+                            <span className="muted" style={{ fontSize: 12.5 }}>{n.publisher || '—'}</span>
+                            {!!n.related && (
+                              <button className="acc-more" onClick={(e) => { e.stopPropagation(); setOpenNews(open ? null : n.url) }}
+                                title="같은 사건을 다룬 다른 언론사 기사">
+                                외 {n.related}건 {open ? '▴' : '▾'}
+                              </button>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                              {(n.tags ?? []).map((t) => <span key={t.label} className={'pillx ' + (t.kind === 'type' ? 'warn' : 'doing')}>{t.label}</span>)}
+                            </div>
+                          </td>
+                        </tr>
+                        {open && (n.others ?? []).map((o, k) => (
+                          <tr key={n.url + '#' + k} className="acc-subrow" onClick={() => o.url && window.open(o.url, '_blank', 'noopener')} style={{ cursor: o.url ? 'pointer' : 'default' }}>
+                            <td><span className="muted" style={{ fontSize: 12 }}>{(o.date || '').slice(0, 10)}</span></td>
+                            <td><span className="muted" style={{ fontSize: 12.5 }}>└ {o.title}</span></td>
+                            <td><span className="muted" style={{ fontSize: 12 }}>{o.publisher || '—'}</span></td>
+                            <td />
+                          </tr>
+                        ))}
+                      </Fragment>
+                    )
+                  })}
                   {news === null && <tr><td colSpan={4}><div className="tstate">불러오는 중…</div></td></tr>}
                   {news !== null && news.length === 0 && (
                     <tr><td colSpan={4}><div className="tstate">

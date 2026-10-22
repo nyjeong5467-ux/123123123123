@@ -61,8 +61,12 @@ export function scoreRelevance(...texts: (string | null | undefined)[]): Relevan
   return { ok: okFinal, score: s + ty + (region === 'local' ? 10 : 0), tags: region === 'local' ? [{ label: LOCAL_LABEL, kind: 'sector' as const }, ...shown].slice(0, 3) : shown, region }
 }
 
-// [137] 같은 사건을 여러 언론사가 쓴 기사 묶기 — 제목 글자 2-gram 유사도(자카드) 0.3 이상이면 같은 기사로 보고
-//       첫 기사(최신순 정렬 기준)만 남기고 묶인 수를 related 로 센다.
+// [137→141] 같은 사건 기사 묶기 — 언론사마다 제목을 바꿔 써도 하나로.
+//  같은 사건으로 보는 기준(제목 글자 2-gram 유사도 = 자카드):
+//   ① 유사도 0.3 이상 — 날짜 무관
+//   ② 유사도 0.15 이상 + 보도일 3일 이내 — 같은 날 쏟아진 보도(예: '교육청, 폐암 급식종사자 선제 배상' 여러 버전)
+//  묶음 안 어느 기사와든 기준을 넘으면 같은 묶음(단일 연결). 대표 = 가장 최근 기사, 나머지는 others 로 보관(펼쳐 보기용).
+export type StoryRef = { title: string; url?: string; publisher?: string; date?: string }
 const bigrams = (t: string) => {
   const s = t.replace(/[^가-힣A-Za-z0-9]/g, '')
   const g = new Set<string>()
@@ -74,14 +78,28 @@ const jaccard = (a: Set<string>, b: Set<string>) => {
   for (const x of a) if (b.has(x)) inter++
   return inter / Math.max(1, a.size + b.size - inter)
 }
-export function dedupeStories<T extends { title: string; related?: number }>(items: T[], threshold = 0.3): T[] {
-  // 묶음 안의 어느 제목과든 비슷하면 같은 사건(단일 연결) — 언론사마다 제목을 조금씩 바꿔 쓰는 경우까지 묶음
-  const out: { it: T; gs: Set<string>[] }[] = []
-  for (const it of items) {
+const dayDiff = (a?: string, b?: string) => (a && b ? Math.abs(Date.parse(a) - Date.parse(b)) / 864e5 : 99)
+/** 언론사 표기 정리 — 'https://www.abc.com/' 처럼 주소로 온 경우 도메인만 */
+export function cleanPublisher(p?: string) {
+  const v = (p ?? '').trim()
+  if (!/^https?:\/\//i.test(v)) return v
+  try { return new URL(v).hostname.replace(/^www\./, '') } catch { return v }
+}
+export function dedupeStories<T extends StoryRef & { related?: number; others?: StoryRef[] }>(items: T[]): T[] {
+  const sorted = [...items].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+  const out: { it: T; mem: { g: Set<string>; date?: string }[] }[] = []
+  for (const it of sorted) {
     const g = bigrams(it.title)
-    const hit = out.find((o) => o.gs.some((x) => jaccard(x, g) >= threshold))
-    if (hit) { hit.it = { ...hit.it, related: (hit.it.related ?? 0) + 1 }; hit.gs.push(g) }
-    else out.push({ it: { ...it }, gs: [g] })
+    const hit = out.find((o) => o.mem.some((m) => { const j = jaccard(m.g, g); return j >= 0.3 || (j >= 0.15 && dayDiff(m.date, it.date) <= 3) }))
+    if (hit) {
+      const add: StoryRef[] = [{ title: it.title, url: it.url, publisher: cleanPublisher(it.publisher), date: it.date }, ...(it.others ?? [])]
+      const others = [...(hit.it.others ?? []), ...add]
+      hit.it = { ...hit.it, others, related: others.length }
+      hit.mem.push({ g, date: it.date })
+    } else {
+      const others = it.others ?? []
+      out.push({ it: { ...it, publisher: cleanPublisher(it.publisher), others, related: others.length }, mem: [{ g, date: it.date }] })
+    }
   }
   return out.map((o) => o.it)
 }

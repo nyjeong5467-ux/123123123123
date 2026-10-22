@@ -348,15 +348,20 @@ function scoreRelevance(...texts) {
   return { ok, score: s + ty + (region === 'local' ? 10 : 0), tags: region === 'local' ? [{ label: '전남', kind: 'sector' }, ...shown].slice(0, 3) : shown, region }
 }
 
-// 같은 사건 기사 묶기 — src/lib/accidentRelevance.ts dedupeStories 와 동일(제목 2-gram 자카드 0.3, 단일 연결)
+// 같은 사건 기사 묶기 — src/lib/accidentRelevance.ts dedupeStories 와 동일 [141]
+//  ① 제목 2-gram 자카드 0.3 이상  또는  ② 0.15 이상 + 보도일 3일 이내 → 같은 사건. 대표=최신, 나머지는 others
 const bigramsOf = (t) => { const x = String(t).replace(/[^가-힣A-Za-z0-9]/g, ''); const g = new Set(); for (let i = 0; i < x.length - 1; i++) g.add(x.slice(i, i + 2)); return g }
 const jac = (a, b) => { let n = 0; for (const v of a) if (b.has(v)) n++; return n / Math.max(1, a.size + b.size - n) }
-function dedupeStories(items, th = 0.3) {
+const cleanPublisher = (p) => { const v = String(p || '').trim(); if (!/^https?:\/\//i.test(v)) return v; try { return new URL(v).hostname.replace(/^www\./, '') } catch { return v } }
+function dedupeStories(items) {
+  const sorted = [...items].sort((a, b) => String(b.date).localeCompare(String(a.date)))
   const out = []
-  for (const it of items) {
+  for (const it of sorted) {
     const g = bigramsOf(it.title)
-    const hit = out.find((o) => o.gs.some((x) => jac(x, g) >= th))
-    if (hit) { hit.it.related = (hit.it.related || 0) + 1; hit.gs.push(g) } else out.push({ it: { ...it }, gs: [g] })
+    const hit = out.find((o) => o.mem.some((m) => { const j = jac(m.g, g); return j >= 0.3 || (j >= 0.15 && Math.abs(Date.parse(m.date) - Date.parse(it.date)) / 864e5 <= 3) }))
+    const ref = { title: it.title, url: it.url, publisher: cleanPublisher(it.publisher), date: it.date }
+    if (hit) { hit.it.others.push(ref); hit.it.related = hit.it.others.length; hit.mem.push({ g, date: it.date }) }
+    else out.push({ it: { ...it, publisher: cleanPublisher(it.publisher), others: [], related: 0 }, mem: [{ g, date: it.date }] })
   }
   return out.map((o) => o.it)
 }
@@ -529,7 +534,7 @@ const server = http.createServer(async (req, res) => {
 
     // [137] 산재 알림 실시간 피드 — 뉴스(관련 기사만)
     if (req.method === 'GET' && p === '/accidents/news') {
-      const limit = Math.max(1, Math.min(30, Number(url.searchParams.get('limit')) || 10))
+      const limit = Math.max(1, Math.min(50, Number(url.searchParams.get('limit')) || 10))
       const n = await fetchNews()
       console.log(`  [dev] GET ${p} → 관련 기사 ${n.items.length}건`)
       return sendJson(res, 200, { items: n.items.slice(0, limit), updated_at: new Date(n.at).toISOString(), errors: n.errors.length })
