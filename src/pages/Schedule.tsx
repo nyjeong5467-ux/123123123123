@@ -113,8 +113,8 @@ export function Schedule() {
   }, [])
 
   const isHq = me ? HQ_ROLES.includes(me.role) : false
-  // 슈퍼('admin' 계정)만 '모든 학교'(타 소속 포함) 노출 — 그 외는 담당/전체(소속)만.
-  const isSuper = me?.login_id === 'admin'
+  // 'admin' 계정과 관리자 권한(본사 관리자·경영진)은 '모든 학교'(타 소속 포함) 노출 — 조사원은 담당/전체(소속)만.
+  const isSuper = me?.login_id === 'admin' || isHq
   // 기본 탭: 관리자/경영진 → 종합관리표(전체 현황 우선), 조사원 → 내 근무표.
   const tab: TabKey = tabSel ?? (isHq ? 'master' : 'my')
 

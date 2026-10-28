@@ -506,7 +506,8 @@ export function Inspection() {
       .catch(() => { /* 이름을 모르면 로그인 ID 배정만으로 판정 */ })
     return () => { alive = false }
   }, [])
-  const isSuperUser = scope.isSuper || (user?.login ?? '') === 'admin'
+  // 삭제 슈퍼는 'admin' 계정만(서버 _can_delete_inspection 과 동일) — 관리자 권한(hq_admin)은 열람만 전체.
+  const isSuperUser = (user?.login ?? '') === 'admin'
   const canDelete = (sc?: School | null) =>
     !!sc && (isSuperUser
       || (!!myName && (sc.manager ?? '').trim() === myName)

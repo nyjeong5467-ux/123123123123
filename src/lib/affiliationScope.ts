@@ -1,13 +1,15 @@
 // 소속(기관) 기반 화면 격리 — 로그인 사용자의 소속 학교만 보이게(프론트 필터).
 // 규칙(사용자 확정 2026-09-30):
-//  - 'admin'(관리자) 계정만 슈퍼: 전 소속·전 직원 데이터 열람(격리 없음).
-//  - 그 외 전원(박정우 이사=hq_admin 포함)은 자기 소속 학교만.
+//  - 슈퍼(전 소속 열람) = 'admin' 계정 + 관리자 권한(hq_admin 본사 관리자·executive 경영진).
+//    (2026-10-28 변경: 관리자 권한을 준 박정우 이사 등도 전체 열람.)
+//  - 현장 조사원(field_inspector)은 자기 소속 학교만.
 //  - 소속 판정: 로그인 사용자의 담당 학교(schools.manager==내이름)들의 최빈 inspection_agency.
 //    (staff-registry 태그는 누락·오타가 있어 담당학교 기반이 더 정확.)
 import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
 
 const SUPER_LOGIN = 'admin'
+const SUPER_ROLES = ['hq_admin', 'executive']
 
 // 소속명 정규화 — 과거 '한국산업협회' 오타를 표준명으로.
 function normAffil(a?: string | null): string {
@@ -36,7 +38,7 @@ export function useAffiliationScope(): AffiliationScope {
   useEffect(() => {
     let alive = true
     Promise.all([
-      api<{ login?: string; name?: string; role?: string }>('/auth/me').catch(() => null),
+      api<{ login_id?: string; login?: string; name?: string; role?: string }>('/auth/me').catch(() => null),
       api<{ id: string; name: string; manager?: string; inspection_agency?: string }[]>('/schools')
         .catch(() => [] as { id: string; name: string; manager?: string; inspection_agency?: string }[]),
     ]).then(([me, schools]) => {
@@ -55,7 +57,8 @@ export function useAffiliationScope(): AffiliationScope {
       for (const [k, v] of Object.entries(cnt)) if (v > bc) { myAffil = k; bc = v }
       setState({
         ready: true,
-        isSuper: (me?.login || '') === SUPER_LOGIN,
+        isSuper: (me?.login_id || me?.login || '') === SUPER_LOGIN
+          || SUPER_ROLES.includes(me?.role || ''),
         myAffil, affilById, affilByName,
       })
     })
