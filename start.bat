@@ -97,7 +97,7 @@ if exist "dev-backend.mjs" set "BACKEND=dev-backend.mjs"
 echo   백엔드: %BACKEND%
 start "web-hq backend (mock:3001)" cmd /k "node --watch %BACKEND%"
 start "web-hq frontend (vite:5173)" cmd /k "npm run dev -- --strictPort --force"
-rem  [135] 자동 올리기 - Claude가 수정 후 push-request.txt 를 남기면 이 PC의 git 로그인으로 커밋+푸시 (최소화 창)
+rem  [135] 자동 올리기 - 수정 후 push-request.txt 를 남기면 이 PC의 git 로그인으로 커밋+푸시 (최소화 창)
 if exist "tools\auto-push.mjs" start "web-hq auto-push" /min cmd /k "node tools\auto-push.mjs"
 
 set "READY="

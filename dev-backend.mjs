@@ -20,6 +20,8 @@
 //   GET  /files/inspection/download?path=    보관한 서명 이미지 내려주기
 //   GET  /inspections(?school_id=)           목업 응답에 보관한 서명 image_ref를 채워서 전달
 //   PUT  /mail/school-contacts               학교 담당자 연락처 1건 저장(화면 형식 → 목업 형식 변환)
+//   GET  /accidents/news                     [137] 산재 관련 뉴스(구글 뉴스 RSS, 학교 업무 관련만 · 30분 캐시)
+//   GET  /accidents/kosha/cases              [137] KOSHA 국내재해사례(serviceKey 있을 때)
 //
 // 데이터는 전부 메모리 — 서버를 재시작하면 목업과 함께 초기화된다.
 // PDF용 브라우저 경로를 직접 지정하려면 환경변수 PDF_BROWSER=경로
@@ -302,6 +304,140 @@ function htmlToPdf(html) {
   })
 }
 
+// ---- [137] 산재 알림 실시간 피드 — 뉴스(구글 뉴스 RSS) + KOSHA 국내재해사례, 학교 업무 관련만 ----
+// 운영 백엔드에 같은 엔드포인트를 만들 때 참고 구현. 관련성 규칙은 src/lib/accidentRelevance.ts 와 동일하게 유지.
+//   GET /accidents/news?limit=10   → { items:[{source,title,summary,url,date,publisher,tags,score}], updated_at, errors }
+//   GET /accidents/kosha/cases     → 목업에 없던 경로. KOSHA serviceKey(환경변수 KOSHA_SERVICE_KEY 또는 tools/kosha-key.txt)가
+//                                    있으면 공공데이터포털 국내재해사례 API로 조회, 없으면 빈 목록.
+const REL_SECTOR = [
+  ['급식실', /급식실|급식소|단체급식|학교\s*급식|급식\s*(종사자|노동자)/, 5],
+  ['조리', /조리실무사|조리원|조리사|조리\s*종사자|조리실|조리흄|폐암/, 5],
+  ['학교', /학교|초등|중학교|고등학교|유치원|특수학교/, 3],
+  ['교육청', /교육청|교육지원청|교육공무직|교육부/, 3],
+  ['시설관리', /시설관리|시설\s*주무관|당직|경비원|시설물\s*점검/, 3],
+  ['미화', /미화원|환경미화|청소\s*노동자|청소원/, 3],
+  ['통학', /통학\s*차량|통학버스|통학\s*보조/, 3],
+]
+const REL_TYPE = [
+  ['중대재해', /중대재해|중대산업재해|사망사고|숨져|숨진|사망/, 4],
+  ['화상', /화상|뜨거운\s*물|국솥|튀김|기름/, 3],
+  ['끼임', /끼임|끼여|협착|절단기|분쇄기|파쇄기/, 3],
+  ['넘어짐', /넘어짐|미끄러|전도/, 3],
+  ['추락', /추락|떨어져|사다리/, 3],
+  ['근골격계', /근골격계|허리|어깨|중량물/, 2],
+  ['폐질환', /폐암|조리흄|호흡기/, 3],
+  ['산재', /산재|산업재해|업무상\s*재해|노동부|고용노동부|산업안전/, 2],
+  ['사고', /사고|부상|다쳐|다친|중상|재해|폭발|화재|감전/, 1],
+]
+// [138] 지역(전남) — src/lib/accidentRelevance.ts 와 동일
+const REL_LOCAL = /전남|김대중\s*교육감|전라남도|목포|여수|순천|나주|광양|담양|곡성|구례|고흥|보성(군|교육)|화순|장흥|강진|해남|영암|무안|함평|영광(군|교육)|장성(군|교육)|완도|진도(군|교육)|신안/
+const REL_OTHER = /서울|부산|대구|인천|광주|대전|울산|세종(시|교육)|경기|강원|충북|충남|충청|전북|전라북도|경북|경남|경상|제주|수원|성남|용인|고양|창원|청주|천안|전주|포항|김해|평택|화성|안산|안양|부천|의정부|남양주|김포|파주|춘천|원주|강릉|군산|익산|구미|경주|진주|거제|통영/
+const REL_EXCLUDE = /학교폭력|학폭|성범죄|성추행|성폭력|수능|입시|대입|졸업식|입학식|축제|체험학습\s*버스|수학여행|학생\s*안전사고|아동학대|급식\s*메뉴|급식비|무상급식\s*예산|맛집|주가|증시|선거/
+function scoreRelevance(...texts) {
+  const t = texts.filter(Boolean).join(' ').replace(/\s+/g, ' ')
+  if (!t || REL_EXCLUDE.test(t)) return { ok: false, score: 0, tags: [], region: 'none' }
+  const region = REL_LOCAL.test(t) ? 'local' : REL_OTHER.test(t) ? 'other' : 'none'
+  if (region === 'other') return { ok: false, score: 0, tags: [], region }
+  let s = 0; let ty = 0; const tags = []
+  for (const [label, re, w] of REL_SECTOR) if (re.test(t)) { s += w; tags.push({ label, kind: 'sector' }) }
+  for (const [label, re, w] of REL_TYPE) if (re.test(t)) { ty += w; tags.push({ label, kind: 'type' }) }
+  const onlyGeneric = tags.filter((x) => x.kind === 'sector').every((x) => x.label === '학교' || x.label === '교육청')
+  const ok = s > 0 && ty > 0 && (!onlyGeneric || ty >= 4)
+  const types = tags.filter((x) => x.kind === 'type')
+  const shown = [...tags.filter((x) => x.kind === 'sector' && x.label !== '학교'), ...types.filter((x) => !(x.label === '사고' && types.length > 1))].slice(0, 3)
+  return { ok, score: s + ty + (region === 'local' ? 10 : 0), tags: region === 'local' ? [{ label: '전남', kind: 'sector' }, ...shown].slice(0, 3) : shown, region }
+}
+
+// 같은 사건 기사 묶기 — src/lib/accidentRelevance.ts dedupeStories 와 동일 [141]
+//  ① 제목 2-gram 자카드 0.3 이상  또는  ② 0.15 이상 + 보도일 3일 이내 → 같은 사건. 대표=최신, 나머지는 others
+const bigramsOf = (t) => { const x = String(t).replace(/[^가-힣A-Za-z0-9]/g, ''); const g = new Set(); for (let i = 0; i < x.length - 1; i++) g.add(x.slice(i, i + 2)); return g }
+const jac = (a, b) => { let n = 0; for (const v of a) if (b.has(v)) n++; return n / Math.max(1, a.size + b.size - n) }
+const cleanPublisher = (p) => { const v = String(p || '').trim(); if (!/^https?:\/\//i.test(v)) return v; try { return new URL(v).hostname.replace(/^www\./, '') } catch { return v } }
+function dedupeStories(items) {
+  const sorted = [...items].sort((a, b) => String(b.date).localeCompare(String(a.date)))
+  const out = []
+  for (const it of sorted) {
+    const g = bigramsOf(it.title)
+    const hit = out.find((o) => o.mem.some((m) => { const j = jac(m.g, g); return j >= 0.3 || (j >= 0.15 && Math.abs(Date.parse(m.date) - Date.parse(it.date)) / 864e5 <= 3) }))
+    const ref = { title: it.title, url: it.url, publisher: cleanPublisher(it.publisher), date: it.date }
+    if (hit) { hit.it.others.push(ref); hit.it.related = hit.it.others.length; hit.mem.push({ g, date: it.date }) }
+    else out.push({ it: { ...it, publisher: cleanPublisher(it.publisher), others: [], related: 0 }, mem: [{ g, date: it.date }] })
+  }
+  return out.map((o) => o.it)
+}
+
+const NEWS_QUERIES = [
+  // [138] 전남 우선 검색어
+  '전남 학교 급식실 산재', '전남 급식 노동자 사고', '전남교육청 중대재해', '전남 학교 산업재해', '전남 학교 시설 사고',
+  '학교 급식실 산재', '급식 조리실무사 사고', '급식실 폐암 산재', '학교 급식 노동자 화상',
+  '학교 시설관리 사고', '학교 미화원 사고', '교육청 중대재해', '학교 종사자 산업재해',
+]
+const decodeXml = (v) => String(v ?? '')
+  .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+  .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&amp;/g, '&')
+const tagOf = (xml, tag) => { const m = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`).exec(xml); return m ? decodeXml(m[1]).trim() : '' }
+const stripHtml = (h) => decodeXml(h).replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/\s+/g, ' ').trim()
+
+let newsCache = { at: 0, items: [], errors: [] }
+const NEWS_TTL = 30 * 60 * 1000 // 30분 캐시 — 외부 서비스 과호출 방지
+async function fetchNews() {
+  if (Date.now() - newsCache.at < NEWS_TTL && newsCache.items.length) return newsCache
+  const errors = []
+  const seen = new Set()
+  const items = []
+  const since = Date.now() - 90 * 864e5 // [143] 최근 3개월(90일) — 저장·누적 없이 매번 조회, 지난 기사는 자연히 빠짐
+  await Promise.all(NEWS_QUERIES.map(async (q) => {
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:90d')}&hl=ko&gl=KR&ceid=KR:ko`
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 web-hq-dev' }, signal: AbortSignal.timeout(10000) })
+      if (!r.ok) throw new Error(String(r.status))
+      const xml = await r.text()
+      for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+        const it = m[1]
+        const rawTitle = tagOf(it, 'title')
+        const publisher = tagOf(it, 'source') || (rawTitle.match(/ - ([^-]+)$/) || [])[1] || ''
+        const title = publisher && rawTitle.endsWith(' - ' + publisher) ? rawTitle.slice(0, -(publisher.length + 3)) : rawTitle
+        const key = title.replace(/[^가-힣A-Za-z0-9]/g, '').slice(0, 40)
+        if (!title || seen.has(key)) continue
+        const date = new Date(tagOf(it, 'pubDate'))
+        if (isNaN(date) || date.getTime() < since) continue
+        const summary = stripHtml(tagOf(it, 'description')).replace(title, '').replace(publisher, '').trim().slice(0, 140)
+        const rel = scoreRelevance(title, summary)
+        if (!rel.ok) continue
+        seen.add(key)
+        items.push({ source: 'news', title: title.replace(/\s*>\s*[^>]{1,10}$/, ''), summary, url: tagOf(it, 'link'), date: date.toISOString(), publisher, tags: rel.tags, score: rel.score, region: rel.region })
+      }
+    } catch (e) { errors.push(`${q}: ${e.message}`) }
+  }))
+  items.sort((a, b) => (b.region === 'local') - (a.region === 'local') || b.date.localeCompare(a.date) || b.score - a.score)
+  newsCache = { at: Date.now(), items: dedupeStories(items), errors }
+  if (errors.length) console.log(`  [dev] 뉴스 수집 일부 실패 ${errors.length}건 — ${errors[0]}`)
+  return newsCache
+}
+
+function koshaKey() {
+  if (process.env.KOSHA_SERVICE_KEY) return process.env.KOSHA_SERVICE_KEY.trim()
+  try { return fs.readFileSync(path.join(ROOT, 'tools', 'kosha-key.txt'), 'utf8').trim() } catch { return '' }
+}
+async function fetchKoshaCases(pageNo, numOfRows, keyword) {
+  const key = koshaKey()
+  if (!key) return { items: [], total: 0, page: pageNo, size: numOfRows, note: 'KOSHA serviceKey 없음(tools/kosha-key.txt)' }
+  const qs = new URLSearchParams({ pageNo: String(pageNo), numOfRows: String(numOfRows), ...(keyword ? { keyword } : {}) })
+  const url = `https://apis.data.go.kr/B552468/disaster_api02/getdisaster_api02?serviceKey=${encodeURIComponent(key)}&${qs}&_type=json`
+  const r = await fetch(url, { signal: AbortSignal.timeout(10000) })
+  const text = await r.text()
+  let j = null
+  try { j = JSON.parse(text) } catch { /* XML 오류 응답 */ }
+  const body = j?.response?.body
+  const raw = body?.items?.item
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : []
+  return {
+    items: list.map((x) => ({ title: x.title || x.keyword || '', contents: stripHtml(x.contents || ''), business: x.business || '', boardno: x.boardno || '' })),
+    total: Number(body?.totalCount || list.length), page: pageNo, size: numOfRows,
+  }
+}
+
 // ---- 2) 보강 서버 :3001 ----
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost')
@@ -394,6 +530,21 @@ const server = http.createServer(async (req, res) => {
       const users = await mock('GET', '/users').catch(() => [])
       const u = (users || []).find((x) => x.login_id === lastLogin)
       return sendJson(res, 200, { ...me, login: me.login || lastLogin, name: me.name || u?.name || lastLogin })
+    }
+
+    // [137] 산재 알림 실시간 피드 — 뉴스(관련 기사만)
+    if (req.method === 'GET' && p === '/accidents/news') {
+      const limit = Math.max(1, Math.min(50, Number(url.searchParams.get('limit')) || 10))
+      const n = await fetchNews()
+      console.log(`  [dev] GET ${p} → 관련 기사 ${n.items.length}건`)
+      return sendJson(res, 200, { items: n.items.slice(0, limit), updated_at: new Date(n.at).toISOString(), errors: n.errors.length })
+    }
+    // [137] KOSHA 국내재해사례 — 목업에 없던 경로(운영 백엔드에는 있음)
+    if (req.method === 'GET' && p === '/accidents/kosha/cases') {
+      const pageNo = Number(url.searchParams.get('pageNo')) || 1
+      const numOfRows = Math.min(100, Number(url.searchParams.get('numOfRows')) || 10)
+      try { return sendJson(res, 200, await fetchKoshaCases(pageNo, numOfRows, url.searchParams.get('keyword') || '')) }
+      catch (e) { return sendJson(res, 502, { error: { message: 'KOSHA 조회 실패: ' + e.message } }) }
     }
 
     // 보관한 서명 이미지

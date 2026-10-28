@@ -32,6 +32,7 @@ import { FilePicker } from '../components/FilePicker'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { SchoolScopePicker, type PickSchool } from '../components/SchoolScopePicker'
 import { useAffiliationScope } from '../lib/affiliationScope'
+import { dedupeStories, groupByIssue, scoreRelevance, withinRetention, type RelevanceTag } from '../lib/accidentRelevance'
 import { AY_MONTH_NO, CycleHero, CYCLE_DOC_DEFAULT, migrateCycleDoc, type CycleDoc } from '../components/CycleHero'
 import { TodayHero } from '../components/TodayHero'
 import './../styles/home.css'
@@ -62,6 +63,8 @@ type Accident = {
   school_masked?: string
   date?: string
   description?: string
+  summary?: string // [146] 산재내역 '개요' (예: 실습실 절단 사고(경미))
+  kind?: 'accident' | 'disease'
   created_at?: string
 }
 // KOSHA 국내재해사례(공개 사례집) — 홈 산재 알림 기본 노출용.
@@ -71,6 +74,9 @@ type KoshaCase = {
   business: string
   boardno: string
 }
+// [137] 산재 관련 뉴스 — 백엔드 GET /accidents/news (학교 업무 관련 기사만, 최신순)
+type NewsItem = { source: 'news'; title: string; summary?: string; url: string; date: string; publisher?: string; tags?: RelevanceTag[]; score?: number; related?: number; issue?: string }
+const FEED_REFRESH_MS = 10 * 60 * 1000 // 10분마다 갱신
 // tasks: 그 학교에서 그날 할 업무(비면 전체). 현장앱 자동세션이 이 문서(visit-plans-{login})를 읽어
 // 오늘 방문 학교와 학교별 업무를 구성한다 — 업무는 학교마다 고른다(누락 확인용).
 type Plan = { id: string; name: string; school_id?: string; tasks?: string[] }
@@ -187,6 +193,8 @@ export function Home() {
   const [notices, setNotices] = useState<Notice[]>([])
   const [accidents, setAccidents] = useState<Accident[]>([])
   const [koshaCases, setKoshaCases] = useState<KoshaCase[]>([])
+  const [news, setNews] = useState<NewsItem[]>([])
+  const [feedAt, setFeedAt] = useState('') // [137] 마지막 갱신 시각(HH:MM)
   const [loading, setLoading] = useState(true)
   const [noticeReload, setNoticeReload] = useState(0)
   const [dataReload, setDataReload] = useState(0)
@@ -223,18 +231,46 @@ export function Home() {
     }
   }, [noticeReload])
 
-  // 산재 알림 기본값 = KOSHA 국내재해사례(공개 사례집). 외부 API라 별도·비차단 로드.
+  // [137] 산재 알림 실시간 피드 — ① 산재 관련 뉴스(/accidents/news) ② KOSHA 국내재해사례(/accidents/kosha/cases).
+  //       둘 다 '학교 업무(급식·조리·시설·미화·통학 등) + 사고 유형'이 함께 있는 것만 노출(lib/accidentRelevance).
+  //       외부 연동이라 별도·비차단 로드, 10분마다 갱신. 백엔드에 경로가 없거나 실패하면 해당 출처만 조용히 생략.
   useEffect(() => {
     let alive = true
-    api<{ items: KoshaCase[] }>('/accidents/kosha/cases?pageNo=1&numOfRows=6')
-      .then((r) => {
-        if (alive) setKoshaCases(Array.isArray(r?.items) ? r.items : [])
-      })
-      .catch(() => {
-        if (alive) setKoshaCases([])
-      })
+    const load = () => {
+      api<{ items: NewsItem[] }>('/accidents/news?limit=10')
+        .then((r) => {
+          if (!alive) return
+          const list = (Array.isArray(r?.items) ? r.items : [])
+            .filter((n) => withinRetention(n.date)) // [143] 보도 3개월 지난 기사는 자동 제외(저장·누적 안 함)
+            .map((n) => ({ ...n, rel: scoreRelevance(n.title, n.summary) }))
+            .filter((n) => n.rel.ok) // [138] 다른 지역(대전 등) 기사는 여기서 제외 — 전남 + 지역 언급 없는 전국 기사만
+            .sort((a, b) => Number(b.rel.region === 'local') - Number(a.rel.region === 'local') || b.date.localeCompare(a.date))
+            .map(({ rel, ...n }) => ({ ...n, tags: rel.tags }))
+          setNews(groupByIssue(dedupeStories(list)).sort((a, b) => Number((b.issue ?? '').startsWith('전남')) - Number((a.issue ?? '').startsWith('전남')) || b.date.localeCompare(a.date))) // [142] 같은 주제 기사는 1건으로(관련 N건) · 전남 우선 정렬 유지
+        })
+        .catch(() => { if (alive) setNews([]) })
+      api<{ items: KoshaCase[] }>('/accidents/kosha/cases?pageNo=1&numOfRows=50')
+        .then((r) => {
+          if (!alive) return
+          const list = (Array.isArray(r?.items) ? r.items : [])
+            .map((k) => ({ k, rel: scoreRelevance(k.title, k.contents, k.business) }))
+            .filter((x) => x.rel.ok)
+            .sort((a, b) => b.rel.score - a.rel.score)
+            .map((x) => x.k)
+          setKoshaCases(list)
+        })
+        .catch(() => { if (alive) setKoshaCases([]) })
+        .finally(() => {
+          if (!alive) return
+          const d = new Date()
+          setFeedAt(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
+        })
+    }
+    load()
+    const t = window.setInterval(load, FEED_REFRESH_MS)
     return () => {
       alive = false
+      window.clearInterval(t)
     }
   }, [])
 
@@ -724,15 +760,23 @@ export function Home() {
     [notices],
   )
 
-  // 산재 알림 피드 — 회사 자체 산재(빨강, 위)를 먼저, 그 아래 KOSHA 사례(일반). 최대 6건.
+  // 산재 알림 피드 — 회사 자체 산재(빨강) → 관련 뉴스 → KOSHA 사례. 최대 6건.
+  // [137] 출처별 기본 몫(회사 2·뉴스 3·KOSHA 1)을 먼저 채우고, 남는 칸은 회사 → 뉴스 → KOSHA 순으로 보충.
+  type FeedItem = { kind: 'company'; a: Accident } | { kind: 'news'; n: NewsItem } | { kind: 'kosha'; k: KoshaCase }
   const accidentFeed = useMemo(() => {
-    const company = [...accidents]
+    const company: FeedItem[] = [...accidents]
       .sort((a, b) => (b.date ?? b.created_at ?? '').localeCompare(a.date ?? a.created_at ?? ''))
-      .slice(0, 5)
       .map((a) => ({ kind: 'company' as const, a }))
-    const kosha = koshaCases.map((k) => ({ kind: 'kosha' as const, k }))
-    return [...company, ...kosha].slice(0, 6)
-  }, [accidents, koshaCases])
+    const newsItems: FeedItem[] = news.map((n) => ({ kind: 'news' as const, n }))
+    const kosha: FeedItem[] = koshaCases.map((k) => ({ kind: 'kosha' as const, k }))
+    const MAX = 6
+    const out: FeedItem[] = [...company.slice(0, 2), ...newsItems.slice(0, 3), ...kosha.slice(0, 1)]
+    for (const rest of [company.slice(2), newsItems.slice(3), kosha.slice(1)]) {
+      for (const it of rest) { if (out.length >= MAX) break; out.push(it) }
+    }
+    const rank = { company: 0, news: 1, kosha: 2 }
+    return out.slice(0, MAX).sort((a, b) => rank[a.kind] - rank[b.kind])
+  }, [accidents, news, koshaCases])
 
   /* ---- 담당 학교 표 (소속 격리 적용) ---- */
   const q = useTableQuery(scopedSchools, {
@@ -925,6 +969,7 @@ export function Home() {
               <span className="hm-ic r"><Siren size={16} /></span>
               <h3>산재 알림</h3>
               <div className="hm-r">
+                {feedAt && <span className="hm-live" title="산재 관련 뉴스·KOSHA 사례를 10분마다 갱신합니다 (학교 업무 관련만)"><i />실시간 · {feedAt}</span>}
                 <button className="hm-link" onClick={() => nav('/accidents')}>전체 보기</button>
               </div>
             </div>
@@ -934,7 +979,7 @@ export function Home() {
               )}
               {accidentFeed.map((it, i) =>
                 it.kind === 'company' ? (
-                  // 회사 자체 산재 — 빨간색 강조(좌측 빨간 막대 + 빨간 핀).
+                  // 산재내역(학교·기관 실제 발생) — 빨간색 강조(좌측 빨간 막대 + 빨간 핀).
                   <div
                     className="hm-n hm-clickable"
                     key={`c-${it.a.id}`}
@@ -946,19 +991,45 @@ export function Home() {
                       if (e.key === 'Enter') nav('/accidents')
                     }}
                   >
-                    <span className="hm-pin" style={{ background: '#e5484d', color: '#fff' }}>회사 산재</span>
+                    <span className="hm-pin" style={{ background: '#e5484d', color: '#fff' }}>산재</span>
                     <div className="hm-nbody">
-                      <div className="b" style={{ color: '#c0341d' }}>{it.a.school_masked || '학교 비공개'}</div>
+                      {/* [146] 학교명 + 산재내역 '개요' 함께 표시 */}
+                      <div className="b" style={{ color: '#c0341d' }} title={it.a.summary || it.a.description || ''}>
+                        {it.a.school_masked || '학교 비공개'}
+                        {(it.a.summary || it.a.description) && (
+                          <span className="hm-acc-sum"> · {it.a.summary || it.a.description}</span>
+                        )}
+                      </div>
                       <div className="m">
                         {(it.a.date || it.a.created_at) && (
                           <span className="dt">{(it.a.date ?? it.a.created_at ?? '').slice(0, 10)}</span>
                         )}
-                        {it.a.description && <span>{it.a.description}</span>}
+                        {it.a.kind && <span>{it.a.kind === 'disease' ? '질병성' : '사고성'}</span>}
                       </div>
                     </div>
                   </div>
+                ) : it.kind === 'news' ? (
+                  // [137] 산재 관련 뉴스 — 클릭 시 기사 원문(새 창)
+                  <a
+                    className="hm-n hm-clickable hm-news"
+                    key={`n-${it.n.url || i}`}
+                    href={it.n.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={it.n.summary || it.n.title}
+                  >
+                    <span className="hm-pin hm-pin-news">뉴스</span>
+                    <div className="hm-nbody">
+                      <div className="b">{it.n.issue && <span className="hm-issue">{it.n.issue}</span>}{it.n.title}</div>
+                      <div className="m">
+                        {it.n.date && <span className="dt">{it.n.date.slice(0, 10)}</span>}
+                        {it.n.publisher && <span>{it.n.publisher}{it.n.related ? ` · 관련 ${it.n.related}건` : ''}</span>}
+                        {(it.n.tags ?? []).map((t) => <span key={t.label} className={'hm-tag' + (t.kind === 'type' ? ' ty' : '')}>{t.label}</span>)}
+                      </div>
+                    </div>
+                  </a>
                 ) : (
-                  // KOSHA 국내재해사례 — 일반(참고용).
+                  // KOSHA 국내재해사례 — 학교 업무 관련 사례만(참고용).
                   <div
                     className="hm-n hm-clickable"
                     key={`k-${it.k.boardno || i}`}
@@ -969,12 +1040,12 @@ export function Home() {
                       if (e.key === 'Enter') nav('/accidents')
                     }}
                   >
-                    <span className="hm-pin">KOSHA</span>
+                    <span className="hm-pin g">KOSHA</span>
                     <div className="hm-nbody">
                       <div className="b">{it.k.title || '제목 없음'}</div>
                       <div className="m">
                         {it.k.business && <span className="dt">{it.k.business}</span>}
-                        {it.k.contents && <span>{it.k.contents.slice(0, 60)}</span>}
+                        {scoreRelevance(it.k.title, it.k.contents, it.k.business).tags.map((t) => <span key={t.label} className={'hm-tag' + (t.kind === 'type' ? ' ty' : '')}>{t.label}</span>)}
                       </div>
                     </div>
                   </div>

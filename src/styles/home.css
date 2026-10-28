@@ -789,6 +789,13 @@
   color: var(--violet);
   background: var(--violet-soft);
 }
+/* [137] 산재 알림 — 뉴스 행·태그·실시간 표시 */
+.hm-nlist a.hm-n { color: inherit; text-decoration: none; }
+.hm-pin.hm-pin-news { color: #fff; background: var(--violet); }
+.hm-tag { font-size: 10px; font-weight: 700; color: var(--violet); background: var(--violet-soft); border-radius: 5px; padding: 1px 6px; }
+.hm-tag.ty { color: var(--amber-ink); background: var(--amber-soft); }
+.hm-live { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--muted); margin-right: 10px; }
+.hm-live i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
 
 /* ===================== 학교 방문률 ===================== */
 .hm-visit {
@@ -1505,3 +1512,7 @@
 .hm-bottom-memos .hm-todo:first-of-type { margin-top: 10px; }
 .hm-bottom-app .muted:first-of-type { margin-top: 12px; }
 .hm-bottom-app a.btn { text-decoration: none; }
+
+/* [142] 이슈(주제) 라벨 */
+.hm-issue { display: inline-block; margin-right: 6px; font-size: 10.5px; font-weight: 800; color: var(--violet); background: var(--violet-soft); border-radius: 5px; padding: 0 6px; }
+.hm-acc-sum { color: var(--ink); font-weight: 600; } /* [146] 산재 알림 — 학교명 뒤 개요 */

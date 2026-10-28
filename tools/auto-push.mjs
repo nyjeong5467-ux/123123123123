@@ -1,13 +1,14 @@
 // ============================================================================
 // 자동 올리기(auto-push) — [135]
 //
-// 목적: Claude가 이 폴더의 파일을 고친 뒤, 사람이 commit-push.bat을 누르지 않아도 GitHub에 올라가게 한다.
-//       (Claude 쪽에는 GitHub에 올릴 권한이 없어서, 이 PC의 git 로그인으로 대신 올린다)
+// 목적: 이 폴더의 파일을 고친 뒤, 사람이 commit-push.bat을 누르지 않아도 GitHub에 올라가게 한다.
+//       (수정 작업 쪽에는 GitHub 권한이 없어서, 이 PC의 git 로그인으로 대신 올린다)
 // 동작: 폴더에 push-request.txt (첫 줄부터 = 커밋 메시지) 가 생기면
 //         git add -A → commit → fetch → (동료의 새 커밋이 있으면) rebase → push
 //       를 실행하고 결과를 push-result.txt 에 남긴다. 요청 파일은 처리 후 삭제.
 //       - 강제 푸시(force) 없음. rebase 충돌이면 중단(abort)하고 내 커밋은 그대로 보존.
 //       - .gitignore 에 있는 파일(이메일 데이터·백업·임시물)은 올라가지 않는다.
+//       - [147] 커밋할 때 docs/수정이력/<날짜>/README.md 에 그날 작업이 자동 정리된다 (tools/changelog-by-date.mjs)
 // 실행: start.bat 이 'web-hq auto-push' 창으로 자동 실행 (끄기: off.bat 또는 창 닫기)
 //       단독 실행: node tools/auto-push.mjs
 // ============================================================================
@@ -15,6 +16,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { buildChangelog, pendingFiles } from './changelog-by-date.mjs' // [147] 날짜별 수정이력
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const REQ = path.join(ROOT, 'push-request.txt')
@@ -69,6 +71,14 @@ function handle() {
     }
     const dirty = git(['status', '--porcelain'])
     if (dirty) {
+      // [147] 커밋 직전, 이번 업로드 내용을 docs/수정이력/<오늘 날짜>/ 에 함께 기록 (실패해도 업로드는 계속)
+      try {
+        const gitBig = (args) => git(args, { maxBuffer: 64 * 1024 * 1024 })
+        let author = ''
+        try { author = git(['config', 'user.name']) } catch { /* 무시 */ }
+        const w = buildChangelog({ root: ROOT, git: gitBig, pending: { subject: msg.split(/\r?\n/)[0], author, files: pendingFiles(git) } })
+        if (w.length) lines.push(`수정이력: docs/수정이력 ${w.length}개 파일 갱신`)
+      } catch (e) { lines.push('수정이력 갱신 건너뜀: ' + String(e.message).slice(0, 120)) }
       git(['add', '-A'])
       const tmp = path.join(ROOT, '.git', 'AUTO_PUSH_MSG')
       fs.writeFileSync(tmp, msg + '\n', 'utf8')
