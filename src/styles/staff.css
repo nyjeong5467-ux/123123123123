@@ -198,3 +198,14 @@ tr.sf-changed td { background: var(--violet-soft); }
 /* [153] 머리의 '담당 학교 N개' → 담당 학교 탭 */
 .sf-link.sf-schools-btn { font-size: 12.5px; font-weight: 800; color: var(--violet); }
 .sf-rec-tools .pillx { margin-left: 2px; }
+/* [155] 금일 업무 · 업무 기록 한 화면 */
+.sf-today-head { flex-wrap: wrap; align-items: center !important; }
+.sf-date { width: 150px; height: 32px; padding: 4px 10px; }
+.sf-recs { display: flex; flex-direction: column; gap: 3px; }
+.sf-rec { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.sf-rec b { font-weight: 700; }
+.sf-res.extra { color: var(--ink-2); font-weight: 700; }
+tr.sf-extra-row td { background: var(--card-2); }
+.sf-subhead { display: flex; align-items: center; gap: 6px; margin: 22px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13.5px; font-weight: 800; }
+.sf-subhead .muted { font-weight: 600; font-size: 12px; }
+tr.sf-hl td { background: var(--violet-soft); }

@@ -140,7 +140,7 @@ export function leaveUsedInYear(person: AttPerson | undefined, year: string): nu
 
 /* ---------- 오늘 업무 수행 ---------- */
 type Plan = { id: string; name: string; school_id?: string; tasks?: string[] }
-export type TodayItem = { school: string; school_id?: string; task?: string; done: boolean; status?: string }
+export type TodayItem = { school: string; school_id?: string; task?: string; done: boolean; status?: string; records: HistRow[] }
 export type TodayResult = { source: 'plan' | 'schedule' | 'none'; items: TodayItem[]; extra: HistRow[]; done: number; total: number; pct: number | null }
 
 export async function loadToday(login: string, name: string, sched: SchedDoc, today = todayStr()): Promise<TodayResult> {
@@ -161,7 +161,7 @@ export async function loadToday(login: string, name: string, sched: SchedDoc, to
     const tasks = p.tasks && p.tasks.length ? p.tasks : [undefined]
     for (const task of tasks) {
       const hit = rows.filter((r) => match(r, p) && (!task || r.module === task))
-      items.push({ school: p.name, school_id: p.school_id, task, done: hit.length > 0, status: hit[0]?.status })
+      items.push({ school: p.name, school_id: p.school_id, task, done: hit.length > 0, status: hit[0]?.status, records: hit })
     }
   }
   const extra = rows.filter((r) => !plans.some((p) => match(r, p) && (!(p.tasks && p.tasks.length) || p.tasks.includes(r.module))))
