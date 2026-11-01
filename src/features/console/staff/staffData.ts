@@ -169,3 +169,26 @@ export async function loadToday(login: string, name: string, sched: SchedDoc, to
   return { source, items, extra, done, total: items.length, pct: items.length ? Math.round((done / items.length) * 100) : null }
 }
 export const pctCls = (p: number | null) => (p === null ? 'todo' : p >= 100 ? 'ok' : p >= 50 ? 'warn' : 'late')
+
+/* ---------- [151] 경력 합산 ---------- */
+/** '2014.03~2021.12', '2014-03 ~ 2021-12', '2019.05~현재' 같은 기간 → 개월 수(해석 불가면 0) */
+export function periodMonths(period: string): number {
+  const m = (period || '').match(/(\d{4})[.\-/년\s]*(\d{1,2})?[^~\d]*~\s*(?:(\d{4})[.\-/년\s]*(\d{1,2})?|(현재|재직))/)
+  if (!m) return 0
+  const a = Number(m[1]) * 12 + (Number(m[2] || 1) - 1)
+  const now = new Date()
+  const b = m[5] ? now.getFullYear() * 12 + now.getMonth() : Number(m[3]) * 12 + (Number(m[4] || 12) - 1)
+  return b >= a ? b - a + 1 : 0
+}
+export function monthsOfTenure(hire?: string): number {
+  if (!hire || !/^\d{4}-\d{2}-\d{2}/.test(hire)) return 0
+  const a = new Date(hire + 'T00:00:00'); const b = new Date()
+  let mo = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth())
+  if (b.getDate() < a.getDate()) mo--
+  return Math.max(0, mo)
+}
+export const fmtMonths = (mo: number) => {
+  if (mo <= 0) return ''
+  const y = Math.floor(mo / 12); const r = mo % 12
+  return y ? `${y}년${r ? ` ${r}개월` : ''}` : `${r}개월`
+}

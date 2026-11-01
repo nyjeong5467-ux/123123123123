@@ -171,3 +171,11 @@ tr.sf-changed td { background: var(--violet-soft); }
 .sf-assign-table .select { height: 32px; }
 .sf-assign-table td { padding-top: 6px; padding-bottom: 6px; }
 .sf-mini-search .input { width: 100%; }
+/* [151] 프로필 요약(입사·경력·연락처·학력·이전 근무) */
+.sf-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 18px; margin-top: 10px; background: var(--card-2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; }
+.sf-facts > div { display: flex; flex-direction: column; min-width: 0; }
+.sf-facts span { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.sf-facts b { font-size: 13.5px; font-weight: 700; display: flex; flex-direction: column; }
+.sf-facts b.muted { color: var(--muted); font-weight: 600; }
+.sf-facts small { font-size: 11.5px; color: var(--ink-2); font-weight: 600; }
+.sf-prev { display: block; }

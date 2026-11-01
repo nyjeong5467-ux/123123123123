@@ -4,7 +4,7 @@
 //   · 수행 여부 = 오늘 날짜의 실제 기록(GET /history) 이 그 학교·업무에 있는지
 //   · '조사원 담당학교 변경' 버튼 → 기존 조사원 선택 → 그 조사원의 학교마다 새 조사원 지정
 // ?author= 쿼리로 딥링크(계정·권한 탭 "이력" 버튼과 연동). 데이터 규칙은 staff/staffData.ts.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeftRight, CalendarCheck, CheckCircle2, CircleSlash, FileUser, ListChecks, ScrollText, Search, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -13,7 +13,7 @@ import type { SchedDoc } from '../schedule/MasterCalendar'
 import {
   type AttDoc, type Author, type HistRow, type ResumeDoc, type SchoolLite, type StaffReg, type TodayResult, type UserAcc,
   MODULE_LABEL, MODULE_PILL, STATUS_LABEL, TASKS, UNKNOWN,
-  getDoc, loadToday, pctCls, tenure, todayStr,
+  fmtMonths, getDoc, loadToday, monthsOfTenure, pctCls, periodMonths, tenure, todayStr,
 } from './staff/staffData'
 import StaffAssignModal from './staff/StaffAssignModal'
 import StaffAttendance from './staff/StaffAttendance'
@@ -194,11 +194,20 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sub, set
   person: Person; reg?: StaffReg; resume?: ResumeDoc[string]; attPerson?: AttDoc[string]; schools: SchoolLite[]
   today?: TodayResult; sub: SubTab; setSub: (s: SubTab) => void; onEditResume: () => void; onAttChange: (p: AttDoc[string]) => void
 }) {
-  const info = [
-    reg?.affiliation && `소속 ${reg.affiliation}`, reg?.department && reg.department, resume?.position,
-    reg?.phone && `☎ ${reg.phone}`, resume?.email,
-    resume?.hire_date && `입사 ${resume.hire_date}${tenure(resume.hire_date) ? ` (근속 ${tenure(resume.hire_date)})` : ''}`,
-  ].filter(Boolean)
+  const info = [reg?.affiliation && `소속 ${reg.affiliation}`, reg?.department, resume?.position].filter(Boolean)
+  // [151] 프로필 요약 — 입사·경력·연락처·학력·이전 근무
+  const nowMo = monthsOfTenure(resume?.hire_date)
+  const prevMo = (resume?.career ?? []).reduce((s, c) => s + periodMonths(c.period), 0)
+  const edu = (resume?.education ?? []).slice(-1)[0] // 마지막 행 = 최종 학력
+  const prev = resume?.career ?? []
+  const facts: { k: string; v: ReactNode }[] = [
+    { k: '입사일', v: resume?.hire_date ? <>{resume.hire_date}{tenure(resume.hire_date) && <small> 근속 {tenure(resume.hire_date)}</small>}</> : null },
+    { k: '총 경력', v: nowMo + prevMo > 0 ? <>{fmtMonths(nowMo + prevMo)}{prevMo > 0 && <small> 이전 {fmtMonths(prevMo)} + 현 {fmtMonths(nowMo) || '0개월'}</small>}</> : null },
+    { k: '전화번호', v: reg?.phone || null },
+    { k: '이메일', v: resume?.email || null },
+    { k: '대학·전공', v: edu ? <>{edu.title}{edu.detail && <small> {edu.detail}</small>}</> : null },
+    { k: '이전 근무', v: prev.length ? <>{prev.slice(0, 2).map((c, i) => <span key={i} className="sf-prev">{c.title}{c.detail && ` · ${c.detail}`}{c.period && <small> ({c.period})</small>}</span>)}{prev.length > 2 && <small>외 {prev.length - 2}곳</small>}</> : null },
+  ]
   return (
     <div>
       <div className="sf-head">
@@ -206,7 +215,12 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sub, set
         <div className="sf-head-main">
           <h3>{person.name} {person.role && <span className="pillx doing">{ROLE_LABEL[person.role] || person.role}</span>}
             <span className="muted sf-login">{person.login}</span></h3>
-          <div className="sf-info">{info.length ? info.map((x, i) => <span key={i}>{x}</span>) : <span className="muted">등록된 소속·연락처가 없습니다 (계정·권한 탭에서 등록)</span>}</div>
+          {info.length > 0 && <div className="sf-info">{info.map((x, i) => <span key={i}>{x}</span>)}</div>}
+          <div className="sf-facts">
+            {facts.map((f) => (
+              <div key={f.k}><span>{f.k}</span><b className={f.v ? '' : 'muted'}>{f.v ?? '미등록'}</b></div>
+            ))}
+          </div>
           <div className="sf-schools">
             <b>담당 학교 {schools.length}개</b>
             {schools.slice(0, 8).map((s) => <span key={s.id} className="sf-chip">{s.name}</span>)}
