@@ -40,7 +40,7 @@ export default function ConsoleStaffHistory() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
-  const [sub, setSub] = useState<SubTab>('today')
+  const [sub, setSub] = useState<SubTab>('att')
   const [assignOpen, setAssignOpen] = useState(false)
   const [resumeEdit, setResumeEdit] = useState(false)
   const [msg, setMsg] = useState('')
@@ -99,7 +99,7 @@ export default function ConsoleStaffHistory() {
   }, [loading, people, sched, today])
 
   const schoolsOf = (name: string) => schools.filter((s) => (s.manager || '').trim() === name)
-  const pick = (login: string) => { setSp({ tab: 'history', author: login }); setSub('today') }
+  const pick = (login: string) => { setSp({ tab: 'history', author: login }); setSub('att') }
 
   const shown = people.filter((p) => !q.trim() || (p.name + p.login + p.affiliation).includes(q.trim()))
   const cur = people.find((p) => p.login === selected)
@@ -233,9 +233,9 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sched, s
       </div>
 
       <div className="tabs sf-tabs">
-        <button className={'tab' + (sub === 'today' ? ' active' : '')} onClick={() => setSub('today')}><ListChecks size={13} /> 금일 업무·업무 기록{today && today.pct !== null && <span className="n">{today.pct}%</span>}</button>
-        <button className={'tab' + (sub === 'schools' ? ' active' : '')} onClick={() => setSub('schools')}><School size={13} /> 담당 학교<span className="n">{schools.length}</span></button>
         <button className={'tab' + (sub === 'att' ? ' active' : '')} onClick={() => setSub('att')}><CalendarCheck size={13} /> 근태 관리</button>
+        <button className={'tab' + (sub === 'schools' ? ' active' : '')} onClick={() => setSub('schools')}><School size={13} /> 담당 학교<span className="n">{schools.length}</span></button>
+        <button className={'tab' + (sub === 'today' ? ' active' : '')} onClick={() => setSub('today')}><ListChecks size={13} /> 금일 업무·업무 기록{today && today.pct !== null && <span className="n">{today.pct}%</span>}</button>
       </div>
 
       <div className="sf-pane">
