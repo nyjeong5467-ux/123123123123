@@ -198,12 +198,14 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sub, set
   // [151] 프로필 요약 — 입사·경력·연락처·학력·이전 근무
   const nowMo = monthsOfTenure(resume?.hire_date)
   const prevMo = (resume?.career ?? []).reduce((s, c) => s + periodMonths(c.period), 0)
-  const edu = (resume?.education ?? []).slice(-1)[0] // 마지막 행 = 최종 학력
+  // 최종 학력: 대학원 > 대학(교) > 그 외, 같으면 기간이 늦은 것
+  const eduRank = (t: string) => (/대학원|박사|석사/.test(t) ? 3 : /대학/.test(t) ? 2 : 1)
+  const edu = [...(resume?.education ?? [])].sort((a, b) => eduRank(b.title + ' ' + (b.detail || '')) - eduRank(a.title + ' ' + (a.detail || '')) || b.period.localeCompare(a.period))[0]
   const prev = resume?.career ?? []
   const facts: { k: string; v: ReactNode }[] = [
     { k: '입사일', v: resume?.hire_date ? <>{resume.hire_date}{tenure(resume.hire_date) && <small> 근속 {tenure(resume.hire_date)}</small>}</> : null },
-    { k: '총 경력', v: nowMo + prevMo > 0 ? <>{fmtMonths(nowMo + prevMo)}{prevMo > 0 && <small> 이전 {fmtMonths(prevMo)} + 현 {fmtMonths(nowMo) || '0개월'}</small>}</> : null },
-    { k: '전화번호', v: reg?.phone || null },
+    { k: '총 경력', v: nowMo + prevMo > 0 ? <>{fmtMonths(nowMo + prevMo)}{prevMo > 0 && nowMo > 0 && <small> 이전 {fmtMonths(prevMo)} + 현 {fmtMonths(nowMo)}</small>}{prevMo > 0 && nowMo === 0 && <small> 이전 경력 합계 (입사일 미등록)</small>}</> : null },
+    { k: '전화번호', v: reg?.phone || resume?.phone || null },
     { k: '이메일', v: resume?.email || null },
     { k: '대학·전공', v: edu ? <>{edu.title}{edu.detail && <small> {edu.detail}</small>}</> : null },
     { k: '이전 근무', v: prev.length ? <>{prev.slice(0, 2).map((c, i) => <span key={i} className="sf-prev">{c.title}{c.detail && ` · ${c.detail}`}{c.period && <small> ({c.period})</small>}</span>)}{prev.length > 2 && <small>외 {prev.length - 2}곳</small>}</> : null },

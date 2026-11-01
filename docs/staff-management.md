@@ -22,6 +22,15 @@
 - **출석률** = 출석일 ÷ 근무일(평일 − 공휴일, 이번 달은 오늘까지).
 - **연차 잔여** = 부여일수(기본 15일, 조사원별 수정 가능) − 올해 사용(연차 1 + 반차 0.5).
 
+## 이력서 파일 자동 인식 [152]
+
+이력서 편집 › **이력서 파일 불러오기** — 한글(HWP·HWPX)·워드(DOCX)·TXT 파일을 브라우저에서 바로 읽어(서버 전송 없음) 항목을 찾는다.
+
+- 읽기: `src/lib/docText.ts` — HWP 5.0(OLE 복합문서 → 본문 압축 해제 → 문단·표 셀), HWPX·DOCX(ZIP → XML), TXT. 외부 라이브러리 없음(브라우저 내장 압축 해제).
+- 인식: `src/features/console/staff/resumeParse.ts` — 구역 제목(학력·경력·자격·교육), 표 머리글(기간·학교명·전공·회사명·직위·담당업무·자격증명·발급기관 등), 날짜 모양으로 행을 항목으로 바꿈. 이메일·휴대폰 번호·성명도 찾는다.
+- 인식 결과는 미리보기로 보여 주고, 고른 항목만 '선택 항목 적용' → 확인 후 '저장'. 구역은 기존 행을 교체한다.
+- 미지원: PDF·스캔 이미지(OCR), 암호·배포용 한글 문서(배포용은 미리보기 텍스트만).
+
 ## 조사원 담당학교 변경
 
 직원 이력 상단 **조사원 담당학교 변경** 버튼 → ① 기존 담당 조사원 선택 → ② 그 조사원의 담당 학교 목록에서 학교마다 새 조사원 지정(체크 후 일괄 지정 가능) → 변경일 지정 → 저장.
@@ -58,6 +67,8 @@
 - `src/features/console/staff/staffData.ts` — 데이터·계산 규칙(단일 소스)
 - `src/features/console/staff/StaffAssignModal.tsx` — 담당학교 변경
 - `src/features/console/staff/StaffAttendance.tsx` — 근태 달력
-- `src/features/console/staff/StaffResume.tsx` — 이력서 보기·편집
+- `src/features/console/staff/StaffResume.tsx` — 이력서 보기·편집·파일 불러오기
+- `src/features/console/staff/resumeParse.ts` — 이력서 자동 인식 규칙
+- `src/lib/docText.ts` — HWP·HWPX·DOCX·TXT 텍스트·표 추출
 - `src/styles/staff.css` — 화면 스타일(접두사 `sf-`)
 - `src/components/Modal.tsx` — `width` 옵션 추가(넓은 모달)

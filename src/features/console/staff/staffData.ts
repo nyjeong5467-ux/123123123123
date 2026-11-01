@@ -75,7 +75,7 @@ export async function patchDoc<T extends Record<string, unknown>>(key: string, l
 /* ---------- 이력서 ---------- */
 export type ResumeRow = { period: string; title: string; detail?: string }
 export type Resume = {
-  position?: string; hire_date?: string; email?: string
+  position?: string; hire_date?: string; email?: string; phone?: string
   education?: ResumeRow[]; career?: ResumeRow[]; certs?: ResumeRow[]; trainings?: ResumeRow[]
   memo?: string; updated_at?: string
 }
