@@ -101,12 +101,6 @@ export default function ConsoleStaffHistory() {
   const schoolsOf = (name: string) => schools.filter((s) => (s.manager || '').trim() === name)
   const pick = (login: string) => { setSp({ tab: 'history', author: login }); setSub(login === UNKNOWN ? 'records' : 'today') }
 
-  const summary = useMemo(() => {
-    const rs = Object.values(todayMap).filter((r) => r.total > 0)
-    const done = rs.reduce((s, r) => s + r.done, 0); const total = rs.reduce((s, r) => s + r.total, 0)
-    return { planned: rs.length, full: rs.filter((r) => r.done === r.total).length, pct: total ? Math.round((done / total) * 100) : null, missing: total - done }
-  }, [todayMap])
-
   const shown = people.filter((p) => !q.trim() || (p.name + p.login + p.affiliation).includes(q.trim()))
   const cur = people.find((p) => p.login === selected)
 
@@ -130,13 +124,6 @@ export default function ConsoleStaffHistory() {
 
         {!loading && !error && (
           <div className="sf-body">
-            <div className="sf-sum">
-              <div><span>오늘 계획 있는 조사원</span><b>{summary.planned}<small>/ {people.length}명</small></b></div>
-              <div><span>오늘 전체 수행률</span><b className={pctCls(summary.pct)}>{summary.pct ?? '—'}<small>{summary.pct === null ? '' : '%'}</small></b></div>
-              <div><span>업무 모두 완료</span><b>{summary.full}<small>명</small></b></div>
-              <div><span>미수행 업무</span><b className={summary.missing ? 'late' : ''}>{summary.missing}<small>건</small></b></div>
-            </div>
-
             <div className="sf-wrap">
               {/* 좌: 조사원 목록 */}
               <div className="sf-list">
