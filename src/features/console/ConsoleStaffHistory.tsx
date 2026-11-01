@@ -17,11 +17,11 @@ import {
 } from './staff/staffData'
 import StaffAssignModal from './staff/StaffAssignModal'
 import StaffAttendance from './staff/StaffAttendance'
-import { ResumeEditModal, ResumeView } from './staff/StaffResume'
+import { ResumeEditModal } from './staff/StaffResume'
 import '../../styles/staff.css'
 
 type Person = { login: string; name: string; role: string; affiliation: string }
-type SubTab = 'today' | 'schools' | 'resume' | 'att' | 'records'
+type SubTab = 'today' | 'schools' | 'att' | 'records'
 const ROLE_LABEL: Record<string, string> = { hq_admin: '본사 관리자', executive: '경영진', field_inspector: '현장 조사원', school_confirmer: '학교 확인자' }
 
 export default function ConsoleStaffHistory() {
@@ -235,7 +235,6 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sub, set
       <div className="tabs sf-tabs">
         <button className={'tab' + (sub === 'today' ? ' active' : '')} onClick={() => setSub('today')}><ListChecks size={13} /> 금일 업무{today && today.pct !== null && <span className="n">{today.pct}%</span>}</button>
         <button className={'tab' + (sub === 'schools' ? ' active' : '')} onClick={() => setSub('schools')}><School size={13} /> 담당 학교<span className="n">{schools.length}</span></button>
-        <button className={'tab' + (sub === 'resume' ? ' active' : '')} onClick={() => setSub('resume')}><FileUser size={13} /> 이력서</button>
         <button className={'tab' + (sub === 'att' ? ' active' : '')} onClick={() => setSub('att')}><CalendarCheck size={13} /> 근태 관리</button>
         <button className={'tab' + (sub === 'records' ? ' active' : '')} onClick={() => setSub('records')}><ScrollText size={13} /> 업무 기록</button>
       </div>
@@ -243,7 +242,6 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sub, set
       <div className="sf-pane">
         {sub === 'today' && <TodayPane r={today} />}
         {sub === 'schools' && <SchoolsPane login={person.login} schools={schools} />}
-        {sub === 'resume' && <ResumeView r={resume} />}
         {sub === 'att' && <StaffAttendance login={person.login} name={person.name} person={attPerson} onChange={onAttChange} />}
         {sub === 'records' && <Records login={person.login} />}
       </div>
