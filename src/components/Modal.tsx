@@ -3,13 +3,14 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 export function Modal({
-  title, onClose, children, footer, wide,
+  title, onClose, children, footer, wide, width,
 }: {
   title: ReactNode   // 문자열 또는 <>제목 <InfoTip>…</InfoTip></> 형태 허용
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
   wide?: boolean
+  width?: number   // [148] 넓은 모달(px) — 지정 시 wide보다 우선
 }) {
   // document.body 로 포털 렌더 — 조상 요소의 transform/overflow 에 갇혀 모달이
   // 화면 밖(문서 중앙)에 뜨던 버그 방지(항상 뷰포트 정중앙 고정).
@@ -17,7 +18,7 @@ export function Modal({
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal"
-        style={wide ? { maxWidth: 640 } : undefined}
+        style={width ? { maxWidth: width } : wide ? { maxWidth: 640 } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">

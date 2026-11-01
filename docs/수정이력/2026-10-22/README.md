@@ -1,15 +1,24 @@
 # 2026-10-22 수정이력
 
-총 11건 · 최신순 · 한국 시간 기준
+총 15건 · 최신순 · 한국 시간 기준
 
 [← 날짜 목차](../README.md)
 
-## 21:20 — [147] 날짜별 수정이력 폴더(docs/수정이력/&lt;날짜&gt;/) — 업로드할 때마다 그날 작업 자동 정리 · 지난 기록 전체 정리
+## 21:21 — [147] 날짜별 수정이력 폴더(docs/수정이력/&lt;날짜&gt;/) — 업로드할 때마다 그날 작업 자동 정리 · 지난 기록 전체 정리
 
-- 커밋: `(이번 업로드)` · 작성: nabong
+- 커밋: `a065b10` · 작성: nabong
 - 바뀐 파일 2개:
   - (수정) `tools/auto-push.mjs`
   - (추가) `tools/changelog-by-date.mjs`
+
+## 20:58 — feat(staff): 현업종사자 명단 화면 — 사람 단위 표 + 엑셀 업로드 모달
+
+- 커밋: `4cf097e` · 작성: Jong-Myeong Kim
+- 바뀐 파일 4개:
+  - (추가) `src/components/StaffRosterModal.tsx`
+  - (수정) `src/features/risk/HearingSurvey.tsx`
+  - (수정) `src/pages/SchoolDetail.tsx`
+  - (수정) `src/pages/SchoolsHub.tsx`
 
 ## 20:46 — [146] 홈 산재 알림 — 산재내역 항목에 학교명과 함께 개요(예: 실습실 절단 사고) 표시, 구분(사고성/질병성) 추가
 
@@ -49,6 +58,12 @@
   - (수정) `src/pages/Home.tsx`
   - (수정) `src/styles/accidents.css`
   - (수정) `src/styles/home.css`
+
+## 20:26 — fix(schools): 종사자수 열을 GET /schools/workers-summary 1콜로 전 학교 채움(관리자 전체 보기 0명 문제)
+
+- 커밋: `ab8e2b4` · 작성: Jong-Myeong Kim
+- 바뀐 파일 1개:
+  - (수정) `src/pages/SchoolsHub.tsx`
 
 ## 20:25 — [141] 산재 관련 뉴스 — 약 10건 높이 스크롤(머리글 고정)·최신 보도 순 · 같은 사건 기사 묶기 강화(제목 유사+3일 이내)·'외 N건' 펼쳐 보기 · 언론사 주소 표기 정리
 
@@ -91,3 +106,17 @@
   - (추가) `src/lib/accidentRelevance.ts`
   - (수정) `src/pages/Home.tsx`
   - (수정) `src/styles/home.css`
+
+## 09:57 — fix(education): 표 행 클래스 row/sel 이 components.css 범용 규칙(display:flex)과 충돌해 셀 정렬이 깨지던 문제 — edw-r/edw-on 으로 격리
+
+- 커밋: `bd8e443` · 작성: Jong-Myeong Kim
+- 바뀐 파일 2개:
+  - (수정) `src/pages/Education.tsx`
+  - (수정) `src/styles/eduws.css`
+
+## 09:37 — feat(education): 교육 이수 현황 워크스페이스 — 좌측 카테고리·학교별 누적 탭·검색·조사원 범위
+
+- 커밋: `a459b77` · 작성: Jong-Myeong Kim
+- 바뀐 파일 2개:
+  - (수정) `src/pages/Education.tsx`
+  - (추가) `src/styles/eduws.css`
