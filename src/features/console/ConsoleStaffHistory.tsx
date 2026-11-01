@@ -12,8 +12,8 @@ import { InfoTip } from '../../components/InfoTip'
 import type { SchedDoc } from '../schedule/MasterCalendar'
 import {
   type AttDoc, type Author, type HistRow, type ResumeDoc, type SchoolLite, type StaffReg, type TodayResult, type UserAcc,
-  DEFAULT_ANNUAL_LEAVE, MODULE_LABEL, MODULE_PILL, STATUS_LABEL, TASKS, UNKNOWN,
-  getDoc, leaveUsedInYear, loadToday, pctCls, tenure, todayStr,
+  MODULE_LABEL, MODULE_PILL, STATUS_LABEL, TASKS, UNKNOWN,
+  getDoc, loadToday, pctCls, tenure, todayStr,
 } from './staff/staffData'
 import StaffAssignModal from './staff/StaffAssignModal'
 import StaffAttendance from './staff/StaffAttendance'
@@ -194,9 +194,6 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sub, set
   person: Person; reg?: StaffReg; resume?: ResumeDoc[string]; attPerson?: AttDoc[string]; schools: SchoolLite[]
   today?: TodayResult; sub: SubTab; setSub: (s: SubTab) => void; onEditResume: () => void; onAttChange: (p: AttDoc[string]) => void
 }) {
-  const year = todayStr().slice(0, 4)
-  const granted = attPerson?.annual_leave ?? DEFAULT_ANNUAL_LEAVE
-  const used = leaveUsedInYear(attPerson, year)
   const info = [
     reg?.affiliation && `소속 ${reg.affiliation}`, reg?.department && reg.department, resume?.position,
     reg?.phone && `☎ ${reg.phone}`, resume?.email,
@@ -219,27 +216,8 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sub, set
         <button className="btn btn-ghost" onClick={onEditResume}><FileUser size={15} /> 이력서 편집</button>
       </div>
 
-      <div className="sf-cards">
-        <button className={'sf-card' + (sub === 'today' ? ' on' : '')} onClick={() => setSub('today')}>
-          <span>금일 업무 수행률</span>
-          <b className={pctCls(today ? today.pct : null)}>{!today ? '…' : today.pct === null ? '계획 없음' : `${today.pct}%`}</b>
-          <div className="sf-bar"><i style={{ width: `${today?.pct ?? 0}%` }} className={pctCls(today ? today.pct : null)} /></div>
-          <em>{today && today.total ? `${today.total}건 중 ${today.done}건 수행` : '오늘 등록된 방문 계획 없음'}</em>
-        </button>
-        <button className={'sf-card' + (sub === 'att' ? ' on' : '')} onClick={() => setSub('att')}>
-          <span>{year}년 연차</span>
-          <b>{granted - used}<small>일 남음</small></b>
-          <em>부여 {granted}일 · 사용 {used}일</em>
-        </button>
-        <button className={'sf-card' + (sub === 'resume' ? ' on' : '')} onClick={() => setSub('resume')}>
-          <span>이력서</span>
-          <b>{resume?.career?.length ?? 0}<small>경력</small> {resume?.certs?.length ?? 0}<small>자격</small></b>
-          <em>{resume?.updated_at ? `최종 수정 ${resume.updated_at}` : '미등록'}</em>
-        </button>
-      </div>
-
       <div className="tabs sf-tabs">
-        <button className={'tab' + (sub === 'today' ? ' active' : '')} onClick={() => setSub('today')}><ListChecks size={13} /> 금일 업무</button>
+        <button className={'tab' + (sub === 'today' ? ' active' : '')} onClick={() => setSub('today')}><ListChecks size={13} /> 금일 업무{today && today.pct !== null && <span className="n">{today.pct}%</span>}</button>
         <button className={'tab' + (sub === 'resume' ? ' active' : '')} onClick={() => setSub('resume')}><FileUser size={13} /> 이력서</button>
         <button className={'tab' + (sub === 'att' ? ' active' : '')} onClick={() => setSub('att')}><CalendarCheck size={13} /> 근태 관리</button>
         <button className={'tab' + (sub === 'records' ? ' active' : '')} onClick={() => setSub('records')}><ScrollText size={13} /> 업무 기록</button>
@@ -263,6 +241,7 @@ function TodayPane({ r }: { r?: TodayResult }) {
     <div>
       <div className="sf-today-head">
         <b>{todayStr()} 오늘 할 업무</b>
+        {r.total > 0 && <span className={'pillx ' + pctCls(r.pct)}>수행률 {r.pct}% · {r.total}건 중 {r.done}건</span>}
         <span className="muted">
           {r.source === 'plan' ? '기준: 홈 캘린더 방문계획(학교별 업무)' : r.source === 'schedule' ? '기준: 근무표 일정(업무 미지정 — 그 학교 기록이 있으면 수행)' : ''}
         </span>
