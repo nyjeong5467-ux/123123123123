@@ -325,8 +325,8 @@ function WorkPane({ login, name, sched, todayR }: { login: string; name: string;
         </>
       )}
 
-      <div className="sf-subhead"><ScrollText size={14} /> 업무 기록 전체 <span className="muted">— 날짜를 누르면 위 표가 그날로 바뀝니다</span></div>
-      <Records login={login} highlight={date} onPickDate={setDate} />
+      <div className="sf-subhead"><ScrollText size={14} /> {isToday ? '금일' : date} 업무 기록(문서) <span className="muted">— 위에서 고른 날짜에 작성한 문서만 표시</span></div>
+      <Records login={login} day={date} />
     </div>
   )
 }
@@ -394,7 +394,7 @@ function SchoolsPane({ login, schools }: { login: string; schools: SchoolLite[] 
 }
 
 /* ---------------- 업무 기록(기존 이력) ---------------- */
-function Records({ login, highlight, onPickDate }: { login: string; highlight?: string; onPickDate?: (d: string) => void }) {
+function Records({ login, day }: { login: string; day?: string }) {
   const nav = useNavigate()
   const [rows, setRows] = useState<HistRow[]>([])
   const [moduleFilter, setModuleFilter] = useState('')
@@ -405,13 +405,14 @@ function Records({ login, highlight, onPickDate }: { login: string; highlight?: 
   useEffect(() => {
     const q = new URLSearchParams({ author_id: login })
     if (moduleFilter) q.set('module', moduleFilter)
-    if (from) q.set('date_from', from)
-    if (to) q.set('date_to', to)
+    // [156] day 가 있으면 그날 작성한 문서만(금일 업무와 같은 날짜)
+    if (day) { q.set('date_from', day); q.set('date_to', addDays(day, 1)) }
+    else { if (from) q.set('date_from', from); if (to) q.set('date_to', to) }
     setLoading(true); setErr('')
     api<HistRow[]>(`/history?${q}`)
-      .then((r) => { setRows(Array.isArray(r) ? r : []); setLoading(false) })
+      .then((r) => { const list = Array.isArray(r) ? r : []; setRows(day ? list.filter((x) => (x.date || '').slice(0, 10) === day) : list); setLoading(false) })
       .catch((e) => { setErr(e instanceof Error ? e.message : '조회 실패'); setLoading(false) })
-  }, [login, moduleFilter, from, to])
+  }, [login, moduleFilter, from, to, day])
   return (
     <div>
       <div className="sf-rec-tools">
@@ -421,8 +422,10 @@ function Records({ login, highlight, onPickDate }: { login: string; highlight?: 
           <option value="">전체 업무</option>
           {TASKS.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
         </select>
-        <input className="input" type="date" style={{ width: 140 }} value={from} onChange={(e) => setFrom(e.target.value)} title="시작일" />
-        <input className="input" type="date" style={{ width: 140 }} value={to} onChange={(e) => setTo(e.target.value)} title="종료일" />
+        {!day && <>
+          <input className="input" type="date" style={{ width: 140 }} value={from} onChange={(e) => setFrom(e.target.value)} title="시작일" />
+          <input className="input" type="date" style={{ width: 140 }} value={to} onChange={(e) => setTo(e.target.value)} title="종료일" />
+        </>}
       </div>
       <div className="twrap" style={{ maxHeight: 460, overflowY: 'auto' }}>
         <table className="tbl">
@@ -431,19 +434,14 @@ function Records({ login, highlight, onPickDate }: { login: string; highlight?: 
             {loading && <tr><td colSpan={4}><div className="tstate">불러오는 중…</div></td></tr>}
             {!loading && err && <tr><td colSpan={4}><div className="tstate">오류: {err}</div></td></tr>}
             {!loading && !err && rows.map((r) => (
-              <tr key={`${r.module}-${r.record_id}`} onClick={() => nav(`/schools/${r.school_id}`)} style={{ cursor: 'pointer' }} title="학교 상세로 이동"
-                className={highlight && (r.date || '').slice(0, 10) === highlight ? 'sf-hl' : ''}>
-                <td style={{ whiteSpace: 'nowrap' }}>{r.date
-                  ? (onPickDate
-                    ? <button className="sf-link" title="이 날짜의 할 업무와 비교" onClick={(e) => { e.stopPropagation(); onPickDate(r.date.slice(0, 10)) }}>{r.date.slice(0, 10)}</button>
-                    : r.date.slice(0, 10))
-                  : '—'}</td>
+              <tr key={`${r.module}-${r.record_id}`} onClick={() => nav(`/schools/${r.school_id}`)} style={{ cursor: 'pointer' }} title="학교 상세로 이동">
+                <td style={{ whiteSpace: 'nowrap' }}>{r.date ? r.date.slice(0, 10) : '—'}</td>
                 <td><span className={'pillx ' + (MODULE_PILL[r.module] || 'na')}>{r.title || MODULE_LABEL[r.module] || r.module}</span></td>
                 <td><b>{r.school_name}</b>{(r.count ?? 1) > 1 && <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>제출 {r.count}회 통합</span>}</td>
                 <td>{r.status ? (STATUS_LABEL[r.status] || r.status) : '—'}</td>
               </tr>
             ))}
-            {!loading && !err && rows.length === 0 && <tr><td colSpan={4}><div className="tstate">조건에 맞는 기록이 없습니다.</div></td></tr>}
+            {!loading && !err && rows.length === 0 && <tr><td colSpan={4}><div className="tstate">{day ? '이날 작성한 업무 기록(문서)이 없습니다.' : '조건에 맞는 기록이 없습니다.'}</div></td></tr>}
           </tbody>
         </table>
       </div>
