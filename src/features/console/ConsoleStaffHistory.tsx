@@ -6,7 +6,7 @@
 // ?author= 쿼리로 딥링크(계정·권한 탭 "이력" 버튼과 연동). 데이터 규칙은 staff/staffData.ts.
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeftRight, CalendarCheck, CheckCircle2, CircleSlash, FileUser, ListChecks, ScrollText, Search, XCircle } from 'lucide-react'
+import { ArrowLeftRight, CalendarCheck, CheckCircle2, CircleSlash, FileUser, ListChecks, School, ScrollText, Search, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
 import { InfoTip } from '../../components/InfoTip'
 import type { SchedDoc } from '../schedule/MasterCalendar'
@@ -21,7 +21,7 @@ import { ResumeEditModal, ResumeView } from './staff/StaffResume'
 import '../../styles/staff.css'
 
 type Person = { login: string; name: string; role: string; affiliation: string }
-type SubTab = 'today' | 'resume' | 'att' | 'records'
+type SubTab = 'today' | 'schools' | 'resume' | 'att' | 'records'
 const ROLE_LABEL: Record<string, string> = { hq_admin: '본사 관리자', executive: '경영진', field_inspector: '현장 조사원', school_confirmer: '학교 확인자' }
 
 export default function ConsoleStaffHistory() {
@@ -224,7 +224,7 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sub, set
             ))}
           </div>
           <div className="sf-schools">
-            <b>담당 학교 {schools.length}개</b>
+            <button className="sf-link sf-schools-btn" onClick={() => setSub('schools')} title="담당 학교 목록 보기">담당 학교 {schools.length}개</button>
             {schools.slice(0, 8).map((s) => <span key={s.id} className="sf-chip">{s.name}</span>)}
             {schools.length > 8 && <span className="muted">외 {schools.length - 8}개</span>}
           </div>
@@ -234,6 +234,7 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sub, set
 
       <div className="tabs sf-tabs">
         <button className={'tab' + (sub === 'today' ? ' active' : '')} onClick={() => setSub('today')}><ListChecks size={13} /> 금일 업무{today && today.pct !== null && <span className="n">{today.pct}%</span>}</button>
+        <button className={'tab' + (sub === 'schools' ? ' active' : '')} onClick={() => setSub('schools')}><School size={13} /> 담당 학교<span className="n">{schools.length}</span></button>
         <button className={'tab' + (sub === 'resume' ? ' active' : '')} onClick={() => setSub('resume')}><FileUser size={13} /> 이력서</button>
         <button className={'tab' + (sub === 'att' ? ' active' : '')} onClick={() => setSub('att')}><CalendarCheck size={13} /> 근태 관리</button>
         <button className={'tab' + (sub === 'records' ? ' active' : '')} onClick={() => setSub('records')}><ScrollText size={13} /> 업무 기록</button>
@@ -241,6 +242,7 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sub, set
 
       <div className="sf-pane">
         {sub === 'today' && <TodayPane r={today} />}
+        {sub === 'schools' && <SchoolsPane login={person.login} schools={schools} />}
         {sub === 'resume' && <ResumeView r={resume} />}
         {sub === 'att' && <StaffAttendance login={person.login} name={person.name} person={attPerson} onChange={onAttChange} />}
         {sub === 'records' && <Records login={person.login} />}
@@ -291,6 +293,68 @@ function TodayPane({ r }: { r?: TodayResult }) {
         </div>
       )}
       <div className="sf-today-legend muted">업무 종류: {TASKS.map((t) => t.label).join(' · ')}</div>
+    </div>
+  )
+}
+
+/* ---------------- [153] 담당 학교 ---------------- */
+function SchoolsPane({ login, schools }: { login: string; schools: SchoolLite[] }) {
+  const nav = useNavigate()
+  const [q, setQ] = useState('')
+  const [last, setLast] = useState<Record<string, HistRow>>({}) // 학교별 이 조사원의 최근 기록
+  const [cnt, setCnt] = useState<Record<string, number>>({})
+  useEffect(() => {
+    let alive = true
+    api<HistRow[]>(`/history?${new URLSearchParams({ author_id: login })}`)
+      .then((rows) => {
+        if (!alive) return
+        const l: Record<string, HistRow> = {}; const c: Record<string, number> = {}
+        for (const r of Array.isArray(rows) ? rows : []) {
+          c[r.school_id] = (c[r.school_id] || 0) + 1
+          if (!l[r.school_id] || (r.date || '') > (l[r.school_id].date || '')) l[r.school_id] = r
+        }
+        setLast(l); setCnt(c)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [login])
+  const shown = schools
+    .filter((s) => !q.trim() || (s.name + ' ' + (s.region || '') + ' ' + (s.office || '')).includes(q.trim()))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  const levels = schools.reduce<Record<string, number>>((m, s) => { const k = s.school_level || '기타'; m[k] = (m[k] || 0) + 1; return m }, {})
+  if (!schools.length) return <div className="tstate">담당 학교가 없습니다. 위의 &lsquo;조사원 담당학교 변경&rsquo;으로 학교를 배정하세요.</div>
+  return (
+    <div>
+      <div className="sf-rec-tools">
+        <b>담당 학교 {schools.length}개</b>
+        {['유', '초', '중', '고', '기타'].filter((k) => levels[k]).map((k) => <span key={k} className="pillx todo">{k} {levels[k]}</span>)}
+        {schools.some((s) => s.contracted === false) && <span className="pillx warn">미계약 {schools.filter((s) => s.contracted === false).length}</span>}
+        <div className="sp" />
+        <div className="lsearch sf-mini-search" style={{ width: 240 }}><Search size={14} />
+          <input className="input" placeholder="학교·지역 검색" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+      </div>
+      <div className="twrap" style={{ maxHeight: 520, overflowY: 'auto' }}>
+        <table className="tbl">
+          <thead><tr><th>학교(기관)</th><th style={{ width: 70 }}>구분</th><th style={{ width: 130 }}>지역</th><th style={{ width: 90 }}>계약</th><th style={{ width: 300 }}>최근 업무 (이 조사원)</th><th style={{ width: 80 }}>기록</th></tr></thead>
+          <tbody>
+            {shown.map((s) => {
+              const r = last[s.id]
+              return (
+                <tr key={s.id} onClick={() => nav(`/schools/${s.id}`)} style={{ cursor: 'pointer' }} title="학교 상세로 이동">
+                  <td><b>{s.name}</b></td>
+                  <td>{s.school_level || '—'}</td>
+                  <td className="muted">{s.region || '—'}</td>
+                  <td>{s.contracted === false ? <span className="pillx warn">미계약</span> : <span className="pillx ok">계약</span>}</td>
+                  <td>{r ? <><span className="muted" style={{ marginRight: 6 }}>{(r.date || '').slice(0, 10)}</span><span className={'pillx ' + (MODULE_PILL[r.module] || 'na')}>{MODULE_LABEL[r.module] || r.module}</span></> : <span className="muted">기록 없음</span>}</td>
+                  <td>{cnt[s.id] ? `${cnt[s.id]}건` : '—'}</td>
+                </tr>
+              )
+            })}
+            {shown.length === 0 && <tr><td colSpan={6}><div className="tstate">검색 결과가 없습니다.</div></td></tr>}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

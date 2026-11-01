@@ -1,20 +1,27 @@
 # 2026-11-01 수정이력
 
-총 5건 · 최신순 · 한국 시간 기준
+총 6건 · 최신순 · 한국 시간 기준
 
 [← 날짜 목차](../README.md)
 
-## 20:36 — [152] 이력서 편집 — 한글(HWP·HWPX)·워드(DOCX)·TXT 이력서 파일 자동 인식(학력·경력·자격·교육·연락처·이메일) 후 미리보기·선택 적용 · 최종 학력 표시 기준 개선
+## 20:41 — [153] 직원 이력 — 조사원 상세에 '담당 학교' 탭 추가(학교·구분·지역·계약·이 조사원의 최근 업무·기록 수, 검색), 머리의 '담당 학교 N개' 누르면 이동
 
 - 커밋: `(이번 업로드)` · 작성: nabong
+- 바뀐 파일 2개:
+  - (수정) `src/features/console/ConsoleStaffHistory.tsx`
+  - (수정) `src/styles/staff.css`
+
+## 20:36 — [152] 이력서 편집 — 한글(HWP·HWPX)·워드(DOCX)·TXT 이력서 파일 자동 인식(학력·경력·자격·교육·연락처·이메일) 후 미리보기·선택 적용 · 최종 학력 표시 기준 개선
+
+- 커밋: `58fd214` · 작성: nabong
 - 바뀐 파일 7개:
   - (수정) `docs/staff-management.md`
   - (수정) `src/features/console/ConsoleStaffHistory.tsx`
   - (수정) `src/features/console/staff/StaffResume.tsx`
-  - (수정) `src/features/console/staff/staffData.ts`
-  - (수정) `src/styles/staff.css`
   - (추가) `src/features/console/staff/resumeParse.ts`
+  - (수정) `src/features/console/staff/staffData.ts`
   - (추가) `src/lib/docText.ts`
+  - (수정) `src/styles/staff.css`
 
 ## 20:24 — [151] 직원 이력 — 조사원 머리 정보에 입사일(근속)·총 경력(이전+현)·전화번호·이메일·대학·전공·이전 근무 표시
 
