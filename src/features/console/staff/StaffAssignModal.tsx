@@ -1,7 +1,7 @@
-// [148] 조사원 담당학교 변경 — 기존 조사원을 고르면 그 조사원의 담당 학교가 뜨고,
-//       학교마다 새 조사원을 지정해 한 번에 저장한다(학교 일부만 옮기기·여러 명에게 나눠 주기 가능).
-// 저장: PUT /schools/:id (학교 정보 수정과 같은 필드 + manager=새 조사원 이름)
-//       + 학교의 '조사원 이력'(GET/PUT /schools/:id/manager-history)에 변경일 기준으로 자동 기록(실패해도 변경은 유지).
+// [148] 점검자 담당학교 변경 — 기존 점검자를 고르면 그 점검자의 담당 학교가 뜨고,
+//       학교마다 새 점검자를 지정해 한 번에 저장한다(학교 일부만 옮기기·여러 명에게 나눠 주기 가능).
+// 저장: PUT /schools/:id (학교 정보 수정과 같은 필드 + manager=새 점검자 이름)
+//       + 학교의 '점검자 이력'(GET/PUT /schools/:id/manager-history)에 변경일 기준으로 자동 기록(실패해도 변경은 유지).
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowRight, Check, Search, X } from 'lucide-react'
@@ -10,12 +10,12 @@ import { type SchoolLite, todayStr, addDays } from './staffData'
 
 type Props = {
   schools: SchoolLite[]
-  inspectors: string[] // 조사원 이름(계정 기준)
+  inspectors: string[] // 점검자 이름(계정 기준)
   initialFrom?: string
   onClose: () => void
   onSaved: (msg: string) => void
 }
-const NONE = '__none__' // 조사원 미배정
+const NONE = '__none__' // 점검자 미배정
 
 // 학교 정보 수정(SchoolFormModal)과 같은 필드만 보낸다 — 목록 값 그대로 + manager 만 교체
 const PUT_FIELDS = ['name', 'email', 'address', 'is_private', 'education_count', 'school_level', 'principal', 'supervisor',
@@ -24,7 +24,7 @@ const PUT_FIELDS = ['name', 'email', 'address', 'is_private', 'education_count',
 type MgrRow = { start: string; end: string; name: string; note?: string }
 
 export default function StaffAssignModal({ schools, inspectors, initialFrom, onClose, onSaved }: Props) {
-  // 조사원별 담당 학교
+  // 점검자별 담당 학교
   const byMgr = useMemo(() => {
     const m = new Map<string, SchoolLite[]>()
     for (const s of schools) {
@@ -44,7 +44,7 @@ export default function StaffAssignModal({ schools, inspectors, initialFrom, onC
   const [from, setFrom] = useState<string>(initialFrom && names.includes(initialFrom) ? initialFrom : '')
   const [q, setQ] = useState('')
   const [schoolQ, setSchoolQ] = useState('')
-  const [to, setTo] = useState<Record<string, string>>({}) // school_id → 새 조사원 이름
+  const [to, setTo] = useState<Record<string, string>>({}) // school_id → 새 점검자 이름
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [bulk, setBulk] = useState('')
   const [eff, setEff] = useState(todayStr())
@@ -62,7 +62,7 @@ export default function StaffAssignModal({ schools, inspectors, initialFrom, onC
   }
 
   async function save() {
-    if (!changes.length) { setErr('변경할 학교의 새 조사원을 지정하세요.'); return }
+    if (!changes.length) { setErr('변경할 학교의 새 점검자를 지정하세요.'); return }
     setBusy(true); setErr('')
     let ok = 0; const fails: string[] = []
     for (const [sid, newName] of changes) {
@@ -74,7 +74,7 @@ export default function StaffAssignModal({ schools, inspectors, initialFrom, onC
       try {
         await api(`/schools/${sid}`, { method: 'PUT', body: JSON.stringify(body) })
         ok++
-        // 조사원 이력 자동 기록(보조) — 진행 중 행 종료(변경일 전날) + 새 행 추가
+        // 점검자 이력 자동 기록(보조) — 진행 중 행 종료(변경일 전날) + 새 행 추가
         try {
           const h = await api<unknown>(`/schools/${sid}/manager-history`)
           const rows: MgrRow[] = Array.isArray(h) ? h as MgrRow[] : Array.isArray((h as { items?: unknown })?.items) ? (h as { items: MgrRow[] }).items : []
@@ -98,13 +98,13 @@ export default function StaffAssignModal({ schools, inspectors, initialFrom, onC
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal sf-assign" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h3>조사원 담당학교 변경</h3>
+          <h3>점검자 담당학교 변경</h3>
           <button className="modal-x" onClick={onClose} aria-label="닫기"><X size={18} /></button>
         </div>
         <div className="modal-body sf-assign-body">
-          {/* 좌: 기존 담당 조사원 */}
+          {/* 좌: 기존 담당 점검자 */}
           <div className="sf-assign-left">
-            <div className="sf-assign-cap">① 기존 담당 조사원</div>
+            <div className="sf-assign-cap">① 기존 담당 점검자</div>
             <div className="lsearch sf-mini-search"><Search size={14} />
               <input className="input" placeholder="이름 검색" value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
@@ -116,19 +116,19 @@ export default function StaffAssignModal({ schools, inspectors, initialFrom, onC
               ))}
               {byMgr.has(NONE) && (
                 <button className={'sf-name' + (from === NONE ? ' on' : '')} onClick={() => pickFrom(NONE)}>
-                  <span className="muted">조사원 미배정</span><span className="pillx todo">{byMgr.get(NONE)!.length}개</span>
+                  <span className="muted">점검자 미배정</span><span className="pillx todo">{byMgr.get(NONE)!.length}개</span>
                 </button>
               )}
             </div>
           </div>
 
-          {/* 우: 학교별 새 조사원 */}
+          {/* 우: 학교별 새 점검자 */}
           <div className="sf-assign-right">
-            {!from && <div className="tstate">왼쪽에서 기존 담당 조사원을 선택하면 담당 학교 목록이 표시됩니다.</div>}
+            {!from && <div className="tstate">왼쪽에서 기존 담당 점검자를 선택하면 담당 학교 목록이 표시됩니다.</div>}
             {from && (
               <>
                 <div className="sf-assign-tools">
-                  <div className="sf-assign-cap">② {from === NONE ? '미배정' : from} 담당 학교 {list.length}개 — 학교마다 새 조사원 지정</div>
+                  <div className="sf-assign-cap">② {from === NONE ? '미배정' : from} 담당 학교 {list.length}개 — 학교마다 새 점검자 지정</div>
                   <div className="sp" />
                   <div className="lsearch sf-mini-search"><Search size={14} />
                     <input className="input" placeholder="학교·지역 검색" value={schoolQ} onChange={(e) => setSchoolQ(e.target.value)} />
@@ -137,7 +137,7 @@ export default function StaffAssignModal({ schools, inspectors, initialFrom, onC
                 <div className="sf-assign-bulk">
                   <span className="muted">선택한 {checked.size}개 학교를</span>
                   <select className="select" value={bulk} onChange={(e) => setBulk(e.target.value)}>
-                    <option value="">조사원 선택</option>
+                    <option value="">점검자 선택</option>
                     {names.filter((n) => n !== from).map((n) => <option key={n} value={n}>{n}</option>)}
                   </select>
                   <button className="btn btn-ghost" disabled={!bulk || !checked.size} onClick={applyBulk}>에게 일괄 지정</button>
@@ -154,7 +154,7 @@ export default function StaffAssignModal({ schools, inspectors, initialFrom, onC
                             onChange={(e) => setChecked(e.target.checked ? new Set(shown.map((s) => s.id)) : new Set())} />
                         </th>
                         <th>학교(기관)</th><th style={{ width: 120 }}>지역</th>
-                        <th style={{ width: 70 }}>현재</th><th style={{ width: 28 }} /><th style={{ width: 170 }}>새 조사원</th>
+                        <th style={{ width: 70 }}>현재</th><th style={{ width: 28 }} /><th style={{ width: 170 }}>새 점검자</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -187,7 +187,7 @@ export default function StaffAssignModal({ schools, inspectors, initialFrom, onC
         </div>
         <div className="modal-foot sf-assign-foot">
           <label className="sf-eff">변경일 <input className="input" type="date" value={eff} onChange={(e) => setEff(e.target.value)} /></label>
-          <span className="muted" style={{ fontSize: 12 }}>학교의 &lsquo;조사원 이력&rsquo;에 변경일 기준으로 자동 기록됩니다.</span>
+          <span className="muted" style={{ fontSize: 12 }}>학교의 &lsquo;점검자 이력&rsquo;에 변경일 기준으로 자동 기록됩니다.</span>
           <div className="sp" />
           {err && <span className="pillx late" style={{ whiteSpace: 'normal' }}>{err}</span>}
           <button className="btn btn-ghost" onClick={onClose}>취소</button>

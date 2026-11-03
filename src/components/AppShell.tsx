@@ -64,7 +64,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { Icon: FileCheck2, label: '이행점검', to: '/compliance', sub: true, module: 'compliance' },
       { Icon: Siren, label: '산업재해', to: '/accidents', module: 'accidents' },
       { Icon: ReceiptText, label: '세금계산서', to: '/billing', module: 'billing' },
-      // 세션코드 발급 nav 숨김(2026-09-18) — 조사원 앱 로그인 전환. 비상용은 /sessions 직접 접근.
+      // 세션코드 발급 nav 숨김(2026-09-18) — 점검자 앱 로그인 전환. 비상용은 /sessions 직접 접근.
       { Icon: FolderOpen, label: '자료실', to: '/resources', module: 'resources' },
     ],
   },
@@ -293,7 +293,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="search">
           <Search size={18} strokeWidth={2} />
           <input
-            placeholder="학교·조사원·업무 검색"
+            placeholder="학교·점검자·업무 검색"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => {

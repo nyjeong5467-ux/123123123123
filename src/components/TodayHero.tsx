@@ -11,7 +11,7 @@ import { hasMusDraft } from '../lib/musDraft'
 export type TodayItem = { key: string; name: string; school_id?: string; done: boolean }
 type SchoolLite = { id: string; name: string; school_level?: string; manager?: string }
 
-// [G-5] 현장 할 일 — 조사원 앱 메모(type=todo) 전 학교 집계 (/field/school-memos/todos)
+// [G-5] 현장 할 일 — 점검자 앱 메모(type=todo) 전 학교 집계 (/field/school-memos/todos)
 type FieldTodo = {
   school_id: string; school_name: string; id: string; ts: string
   by: string; text: string; due: 'today' | 'tomorrow' | null; done: boolean
@@ -97,7 +97,7 @@ export function TodayHero(p: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey])
 
-  // [G-5] 현장 할 일 로드 — 조사원 앱 메모 시트의 [할 일]과 실시간 공유
+  // [G-5] 현장 할 일 로드 — 점검자 앱 메모 시트의 [할 일]과 실시간 공유
   const [fieldTodos, setFieldTodos] = useState<FieldTodo[]>([])
   useEffect(() => {
     let alive = true
@@ -180,7 +180,7 @@ export function TodayHero(p: {
                   <div className="t">
                     {it.name}
                     {sc?.school_level && <i>{sc.school_level}</i>}
-                    {sc?.manager && <span className="mg">조사원 {sc.manager}</span>}
+                    {sc?.manager && <span className="mg">점검자 {sc.manager}</span>}
                   </div>
                   <div className="chips">
                     {it.done ? (
@@ -243,7 +243,7 @@ export function TodayHero(p: {
         )}
       </div>
 
-      {/* [G-5] 현장 할 일 — 조사원 앱 메모(할 일)와 실시간 공유, 기한별 그룹 */}
+      {/* [G-5] 현장 할 일 — 점검자 앱 메모(할 일)와 실시간 공유, 기한별 그룹 */}
       {fieldTodos.length > 0 && (
         <div className="hm-ft">
           <div className="hm-ft-head">
@@ -252,7 +252,7 @@ export function TodayHero(p: {
             <span className={'hm-td-chip' + (ftOpen > 0 ? ' warn' : ' muted')}>
               {ftOpen > 0 ? `미완료 ${ftOpen}건` : '모두 완료'}
             </span>
-            <span className="hm-ft-src">조사원 앱 [메모 → 할 일]과 실시간 공유</span>
+            <span className="hm-ft-src">점검자 앱 [메모 → 할 일]과 실시간 공유</span>
           </div>
           {FT_GROUPS.map((g) => {
             const rows = fieldTodos.filter((t) => (t.due ?? null) === g.due)

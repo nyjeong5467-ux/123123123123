@@ -386,7 +386,7 @@
   color: var(--amber-ink);
 }
 
-/* ---- [G-5] 현장 할 일 — 조사원 앱 메모(type=todo) 집계 블록 ---- */
+/* ---- [G-5] 현장 할 일 — 점검자 앱 메모(type=todo) 집계 블록 ---- */
 .hm-ft {
   border-top: 1px solid var(--line);
   padding: 12px 16px 16px;

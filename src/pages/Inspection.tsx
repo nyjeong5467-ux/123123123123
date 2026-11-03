@@ -103,7 +103,7 @@ type SchoolRow = School & {
 
 const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
   searchFields: [(r) => r.name, (r) => r.manager ?? ''],
-  searchPlaceholder: '학교명·조사원 검색',
+  searchPlaceholder: '학교명·점검자 검색',
   filters: [
     {
       key: 'level',
@@ -123,7 +123,7 @@ const SCHOOL_QUERY: TableQueryConfig<SchoolRow> = {
 const SCHOOL_EXPORT: ExportColumn<SchoolRow>[] = [
   { header: '구분', value: (r) => r.school_level || '' },
   { header: '학교', value: (r) => r.name },
-  { header: '조사원', value: (r) => r.manager || '' },
+  { header: '점검자', value: (r) => r.manager || '' },
   { header: '점검 건수', value: (r) => r.count },
   { header: '작성중', value: (r) => r.draft },
   { header: '서명완료', value: (r) => r.signed },
@@ -143,7 +143,7 @@ type InsReportRow = {
 }
 const REPORT_QUERY: TableQueryConfig<InsReportRow> = {
   searchFields: [(r) => r.school.name, (r) => r.school.manager ?? ''],
-  searchPlaceholder: '학교명·조사원 검색',
+  searchPlaceholder: '학교명·점검자 검색',
   filters: [
     {
       key: 'status',
@@ -172,7 +172,7 @@ const REPORT_QUERY: TableQueryConfig<InsReportRow> = {
 const REPORT_EXPORT: ExportColumn<InsReportRow>[] = [
   { header: '점검일', value: (r) => r.date },
   { header: '학교', value: (r) => r.school.name },
-  { header: '조사원', value: (r) => r.school.manager || '' },
+  { header: '점검자', value: (r) => r.school.manager || '' },
   { header: '포함 공정', value: (r) => r.parts.map((p) => PART_LABEL[p.part] || p.part).join(' · ') },
   { header: '작성현황', value: (r) => STATUS[r.status]?.label || r.status },
   { header: '교육청전송', value: (r) => EDUOFFICE[r.eduoffice]?.label || r.eduoffice },
@@ -406,10 +406,10 @@ export function Inspection() {
   // 점검표 1장(sheet)은 공정별 여러 레코드로 구성되므로 각 레코드를 순차 삭제하고 정리된 파일 수를 합산.
   async function deleteInspections(ids: string[], schoolId: string) {
     if (!ids.length || delBusy) return
-    // [136] 다른 조사원 담당 학교의 점검표는 삭제 불가 (버튼도 비활성 — 이중 방어)
+    // [136] 다른 점검자 담당 학교의 점검표는 삭제 불가 (버튼도 비활성 — 이중 방어)
     const target = schools.find((x) => x.id === schoolId)
     if (!canDelete(target)) {
-      setDelMsg(`삭제 불가: 담당 조사원(${target?.manager || '미지정'})만 삭제할 수 있습니다`)
+      setDelMsg(`삭제 불가: 담당 점검자(${target?.manager || '미지정'})만 삭제할 수 있습니다`)
       setTimeout(() => setDelMsg(''), 4000)
       return
     }
@@ -496,7 +496,7 @@ export function Inspection() {
   const scope = useAffiliationScope()
 
   // [136] 점검표 삭제 권한 — 내 담당 학교만. 담당 판정은 학교 목록과 같은 규칙:
-  //       학교의 조사원(manager) == 내 이름, 또는 예전 배정(assigned_inspector_id) == 내 로그인 ID.
+  //       학교의 점검자(manager) == 내 이름, 또는 예전 배정(assigned_inspector_id) == 내 로그인 ID.
   //       'admin'(슈퍼 관리자)은 전체 삭제 가능.
   const [myName, setMyName] = useState('')
   useEffect(() => {
@@ -512,7 +512,7 @@ export function Inspection() {
     !!sc && (isSuperUser
       || (!!myName && (sc.manager ?? '').trim() === myName)
       || (!!user?.login && sc.assigned_inspector_id === user.login))
-  const NO_DEL = (sc?: School | null) => `다른 조사원 담당 학교입니다 — 담당 조사원(${sc?.manager || '미지정'})만 삭제할 수 있습니다`
+  const NO_DEL = (sc?: School | null) => `다른 점검자 담당 학교입니다 — 담당 점검자(${sc?.manager || '미지정'})만 삭제할 수 있습니다`
   const scopedSchools = useMemo(
     () => schools.filter((s) => scope.visible({ id: s.id, name: s.name })),
     [schools, scope],
@@ -776,7 +776,7 @@ export function Inspection() {
                     <SortableTh q={rq} col="date">점검일</SortableTh>
                     <SortableTh q={rq} col="level" className="c">구분</SortableTh>
                     <SortableTh q={rq} col="name">학교</SortableTh>
-                    <th>조사원</th>
+                    <th>점검자</th>
                     <th className="c">작성현황</th>
                     <th className="c">교육청 전송</th>
                     <th className="c">작업</th>
@@ -847,7 +847,7 @@ export function Inspection() {
           <div className="inh-schoolhead">
             <button className="inh-back" onClick={() => setSel(null)}><ArrowLeft size={14} /> 학교 목록</button>
             <span className="inh-schoolname">{sel.name}</span>
-            <span className="inh-schoolmgr">조사원 {sel.manager || '—'}</span>
+            <span className="inh-schoolmgr">점검자 {sel.manager || '—'}</span>
           </div>
 
           <div className="ledger" style={{ background: 'transparent', border: 0, boxShadow: 'none' }}>
@@ -862,7 +862,7 @@ export function Inspection() {
                   <tr>
                     <th>점검일</th>
                     <th>학교</th>
-                    <th>조사원</th>
+                    <th>점검자</th>
                     <th className="c">작성현황</th>
                     <th className="c">교육청 전송</th>
                     <th className="c">작업</th>

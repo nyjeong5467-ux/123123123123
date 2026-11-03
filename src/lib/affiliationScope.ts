@@ -2,7 +2,7 @@
 // 규칙(사용자 확정 2026-09-30):
 //  - 슈퍼(전 소속 열람) = 'admin' 계정 + 관리자 권한(hq_admin 본사 관리자·executive 경영진).
 //    (2026-10-28 변경: 관리자 권한을 준 박정우 이사 등도 전체 열람.)
-//  - 현장 조사원(field_inspector)은 자기 소속 학교만.
+//  - 현장 점검자(field_inspector)은 자기 소속 학교만.
 //  - 소속 판정: 로그인 사용자의 담당 학교(schools.manager==내이름)들의 최빈 inspection_agency.
 //    (staff-registry 태그는 누락·오타가 있어 담당학교 기반이 더 정확.)
 import { useCallback, useEffect, useState } from 'react'

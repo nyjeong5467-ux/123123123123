@@ -1,6 +1,6 @@
 // 직원 근무표(/schedule) — 탭 허브: ① 내 근무표(편집) ② 종합관리표(HQ) ③ 통계(그래프).
 // 데이터: /ops/docs/schedules  ({ "YYYY-MM": { 담당자명: { "YYYY-MM-DD": {schools?,region?,note?} } } })
-// 조사원=본인 일정 보기·통계. 관리자/경영진=모든 조사원 선택 + 날짜 클릭 편집 + 전 직원 종합·통계.
+// 점검자=본인 일정 보기·통계. 관리자/경영진=모든 점검자 선택 + 날짜 클릭 편집 + 전 직원 종합·통계.
 // 종합관리표 캘린더는 features/schedule/MasterCalendar(관리자 콘솔 탭과 단일 소스)를 공유.
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -62,7 +62,7 @@ function isWorkDay(p: DayPlan | undefined): boolean {
 export function Schedule() {
   const [doc, setDoc] = useState<SchedDoc>({})
   const [me, setMe] = useState<Me | null>(null)
-  const [accNames, setAccNames] = useState<string[]>([])   // 관리자용: 전체 조사원 이름
+  const [accNames, setAccNames] = useState<string[]>([])   // 관리자용: 전체 점검자 이름
   const [month, setMonth] = useState(curYm())              // 탭 공유 월 상태
   const [who, setWho] = useState('')
   const [tabSel, setTabSel] = useState<TabKey | null>(null) // null=역할별 기본 탭
@@ -95,7 +95,7 @@ export function Schedule() {
           try {
             const users = await api<Account[]>('/users')
             if (alive) setAccNames(users.filter((u) => u.role === 'field_inspector' && u.name).map((u) => u.name))
-          } catch { /* 조사원 계정 없으면 무시 */ }
+          } catch { /* 점검자 계정 없으면 무시 */ }
           try {
             const sc = await api<{ id: string; name: string; manager?: string; inspection_agency?: string }[]>('/schools')
             if (alive) setSchoolList(Array.isArray(sc)
@@ -113,9 +113,9 @@ export function Schedule() {
   }, [])
 
   const isHq = me ? HQ_ROLES.includes(me.role) : false
-  // 'admin' 계정과 관리자 권한(본사 관리자·경영진)은 '모든 학교'(타 소속 포함) 노출 — 조사원은 담당/전체(소속)만.
+  // 'admin' 계정과 관리자 권한(본사 관리자·경영진)은 '모든 학교'(타 소속 포함) 노출 — 점검자는 담당/전체(소속)만.
   const isSuper = me?.login_id === 'admin' || isHq
-  // 기본 탭: 관리자/경영진 → 종합관리표(전체 현황 우선), 조사원 → 내 근무표.
+  // 기본 탭: 관리자/경영진 → 종합관리표(전체 현황 우선), 점검자 → 내 근무표.
   const tab: TabKey = tabSel ?? (isHq ? 'master' : 'my')
 
   const monthPlan: MonthPlan = doc[month] || {}
@@ -131,7 +131,7 @@ export function Schedule() {
   const [yy, mm] = month ? month.split('-').map(Number) : [0, 0]
   const rows = month ? monthWeekRows(yy, mm) : []
 
-  // ── 통계(월 기준) — HQ=전 직원, 조사원=본인만 ────────────────────
+  // ── 통계(월 기준) — HQ=전 직원, 점검자=본인만 ────────────────────
   const statNames = useMemo(() => {
     if (isHq) return inspectors
     return me?.name ? [me.name] : []
@@ -219,7 +219,7 @@ export function Schedule() {
     () => eSchools.split('\n').map((s) => s.trim()).filter(Boolean),
     [eSchools],
   )
-  // 편집 대상 조사원의 소속 — 그 사람 담당 학교들의 소속(최빈값)으로 판정(데이터 기반, 별도 소스 불필요).
+  // 편집 대상 점검자의 소속 — 그 사람 담당 학교들의 소속(최빈값)으로 판정(데이터 기반, 별도 소스 불필요).
   const targetAffil = useMemo(() => {
     const cnt: Record<string, number> = {}
     for (const s of schoolList) if (s.manager && s.manager === target && s.agency) cnt[s.agency] = (cnt[s.agency] || 0) + 1
@@ -228,7 +228,7 @@ export function Schedule() {
     return best
   }, [schoolList, target])
 
-  // 탭별 후보 풀 — 담당학교(그 조사원 담당) / 전체학교(그 조사원 소속) / 모든학교(admin, 소속 무관).
+  // 탭별 후보 풀 — 담당학교(그 점검자 담당) / 전체학교(그 점검자 소속) / 모든학교(admin, 소속 무관).
   const tabPool = useMemo(() => {
     if (pickTab === 'mine') return schoolList.filter((s) => s.manager && s.manager === target)
     if (pickTab === 'affil') return targetAffil ? schoolList.filter((s) => s.agency === targetAffil) : schoolList
@@ -296,10 +296,10 @@ export function Schedule() {
             <h2><CalendarRange size={18} /> {yy}년 {mm}월 근무 종합관리표
               <InfoTip>
                 일정 등록·수정은 <b style={{ color: 'var(--violet)', cursor: 'pointer' }} onClick={() => setTabSel('my')}>개별 근무표</b> 탭에서
-                조사원·날짜를 선택해 편집하세요.
+                점검자·날짜를 선택해 편집하세요.
               </InfoTip></h2>
             <div className="sp" />
-            <span className="pillx doing">조사원 {inspectors.length}명</span>
+            <span className="pillx doing">점검자 {inspectors.length}명</span>
             <span className="pillx na">일정 {totalEntriesOf(doc, month)}건</span>
           </div>
           <MasterBoard doc={doc} month={month} staffNames={accNames} />
@@ -312,7 +312,7 @@ export function Schedule() {
           <div className="lh">
             <h2>{yy}년 {mm}월 점검계획표</h2>
             <div className="sp" />
-            <span className="pillx doing">조사원 · {target || '—'}</span>
+            <span className="pillx doing">점검자 · {target || '—'}</span>
             {isHq && inspectors.length > 0 && (
               <select className="lselect" value={target} onChange={(e) => setWho(e.target.value)}>
                 {inspectors.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -360,7 +360,7 @@ export function Schedule() {
               </tbody>
             </table>
           </div>
-          {inspectors.length === 0 && <div className="tstate">등록된 조사원이 없습니다.</div>}
+          {inspectors.length === 0 && <div className="tstate">등록된 점검자가 없습니다.</div>}
         </div>
       )}
 
@@ -468,8 +468,8 @@ export function Schedule() {
           {schoolList.length > 0 && (
             <div className="field" style={{ marginBottom: 12 }}>
               <span>학교 검색·선택 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>
-                ({target || '조사원'}{targetAffil ? ` · ${targetAffil}` : ''} · 가나다순 · 클릭해서 담기 · 정식명으로 등록되어 자동세션과 매칭)</span></span>
-              {/* 범위 탭: 담당학교(그 조사원 담당) / 전체학교(그 조사원 소속) / 모든학교(admin·소속 무관) */}
+                ({target || '점검자'}{targetAffil ? ` · ${targetAffil}` : ''} · 가나다순 · 클릭해서 담기 · 정식명으로 등록되어 자동세션과 매칭)</span></span>
+              {/* 범위 탭: 담당학교(그 점검자 담당) / 전체학교(그 점검자 소속) / 모든학교(admin·소속 무관) */}
               <div role="tablist" aria-label="학교 범위" style={{ display: 'flex', gap: 6, margin: '4px 0 6px' }}>
                 {([
                   { key: 'mine' as const, label: '담당학교', n: poolCounts.mine },

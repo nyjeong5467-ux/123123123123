@@ -58,7 +58,7 @@ export function monthMatrix(year: number, month1: number): (number | null)[][] {
   return rows
 }
 
-// 담당자 후보: 조사원 계정 + 이 달 배정된 이름(계정 없이 배정된 경우까지) → 정렬.
+// 담당자 후보: 점검자 계정 + 이 달 배정된 이름(계정 없이 배정된 경우까지) → 정렬.
 export function monthInspectors(doc: SchedDoc, month: string, staffNames: string[]): string[] {
   const s = new Set<string>(staffNames)
   Object.keys(doc[month] || {}).forEach((n) => s.add(n))
@@ -116,7 +116,7 @@ export function MasterCalendar({ doc, month, staffNames }: { doc: SchedDoc; mont
   }
 
   if (inspectors.length === 0) {
-    return <div className="tstate">등록된 조사원이 없습니다. 조사원 계정 등록 또는 근무표 작성 후 표시됩니다.</div>
+    return <div className="tstate">등록된 점검자가 없습니다. 점검자 계정 등록 또는 근무표 작성 후 표시됩니다.</div>
   }
 
   return (

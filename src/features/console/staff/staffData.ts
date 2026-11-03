@@ -1,7 +1,7 @@
-// [148] 직원 이력(조사원 관리) — 데이터 타입·조회·계산 (화면과 분리한 단일 소스)
+// [148] 직원 이력(점검자 관리) — 데이터 타입·조회·계산 (화면과 분리한 단일 소스)
 //
 // 저장 위치 — 새 백엔드 경로 없이 기존 org 문서(/ops/docs/:key)를 사용한다.
-//   staff-resumes     { [login_id]: Resume }        조사원 이력서(직위·입사일·학력·경력·자격·교육)
+//   staff-resumes     { [login_id]: Resume }        점검자 이력서(직위·입사일·학력·경력·자격·교육)
 //   staff-attendance  { [login_id]: AttPerson }     근태(내근·출장·반차·연차·병가·결근 수기 기록 + 연차 부여일수)
 // 읽기 전용으로 함께 쓰는 문서·경로
 //   staff-registry    { [login_id]: {affiliation, department, phone} }   (계정·권한 탭에서 편집)

@@ -1,6 +1,6 @@
 // 근무 종합관리표 보드 — 인원×날짜 매트릭스(기본) + 월간 캘린더(보조) 전환.
 // 16명 규모에서는 날짜 캘린더에 칩을 쌓는 방식이 읽히지 않으므로,
-// 세로=조사원 · 가로=일자 매트릭스를 기본 뷰로 한다(엑셀 근무표와 동일한 독법).
+// 세로=점검자 · 가로=일자 매트릭스를 기본 뷰로 한다(엑셀 근무표와 동일한 독법).
 // 콘솔 "근무 종합관리표" 탭과 /schedule "종합관리표" 탭이 이 컴포넌트를 공유한다.
 import { useMemo, useState } from 'react'
 import { CalendarRange, Grid3X3 } from 'lucide-react'
@@ -50,7 +50,7 @@ function Matrix({ doc, month, staffNames }: { doc: SchedDoc; month: string; staf
     return { d, key, dow, weekend: dow === 0 || dow === 6, hol: HOLIDAYS[key], today: key === tKey }
   }), [days, month, yy, mm, tKey])
 
-  // 행별(조사원) 월간 합계 + 열별(일자) 투입 인원 합계
+  // 행별(점검자) 월간 합계 + 열별(일자) 투입 인원 합계
   const rowStats = useMemo(() => inspectors.map((name) => {
     const plan = monthPlan[name] || {}
     let workDays = 0, schools = 0
@@ -66,7 +66,7 @@ function Matrix({ doc, month, staffNames }: { doc: SchedDoc; month: string; staf
   const maxCol = Math.max(1, ...colTotals)
 
   if (inspectors.length === 0) {
-    return <div className="tstate">등록된 조사원이 없습니다. 조사원 계정 등록 또는 근무표 작성 후 표시됩니다.</div>
+    return <div className="tstate">등록된 점검자가 없습니다. 점검자 계정 등록 또는 근무표 작성 후 표시됩니다.</div>
   }
 
   return (
@@ -74,7 +74,7 @@ function Matrix({ doc, month, staffNames }: { doc: SchedDoc; month: string; staf
       <table className="mx-tbl">
         <thead>
           <tr>
-            <th className="mx-name mx-h">조사원</th>
+            <th className="mx-name mx-h">점검자</th>
             {dayMeta.map((m) => (
               <th key={m.d}
                 className={'mx-day mx-h' + (m.weekend || m.hol ? ' we' : '') + (m.today ? ' today' : '')}

@@ -243,7 +243,7 @@ export function Resources({ embedded = false }: { embedded?: boolean } = {}) {
           </table>
         </div>
         <div style={{ padding: '10px 16px', fontSize: 12, color: 'var(--muted)' }}>
-          조사원 태블릿·휴대폰에 설치하는 현장 점검 앱입니다. 설치 시 "출처를 알 수 없는 앱" 허용이
+          점검자 태블릿·휴대폰에 설치하는 현장 점검 앱입니다. 설치 시 "출처를 알 수 없는 앱" 허용이
           필요할 수 있고, 이미 설치돼 있으면 덮어쓰기 설치로 업데이트됩니다. 파일명 끝 숫자는 빌드일(버전)입니다.
         </div>
       </div>

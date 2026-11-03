@@ -67,7 +67,7 @@ const EXCL_RULES: { key: string; feat?: string; why: string; hit: Record<string,
   { key: '덤웨이터', feat: '덤웨이터', why: '덤웨이터 없음', hit: { 급식: [13] } },
   { key: '미화 종사원', why: '미화 종사원 없음', hit: { 미화: [3, 7] } },
   { key: 'LPG 사용', feat: 'LPG 사용', why: 'LPG 미사용', hit: { 급식: [22, 23] } },
-  // 08-28 조사원 피드백: 거울 미설치·고소작업 없는 학교 대응.
+  // 08-28 점검자 피드백: 거울 미설치·고소작업 없는 학교 대응.
   // 09-18 테스터 요청: 미화 고소작업 없음 = 미화-7(사다리)만 해당없음. 미화-8(세면대·변기 위 작업)은 양호로 답해야 하므로 제외.
   { key: '충돌방지용 거울', feat: '충돌방지용 거울', why: '충돌방지용 거울 없음', hit: { 미화: [3] } },
   { key: '미화 고소작업', feat: '미화 고소작업', why: '미화 고소작업 없음', hit: { 미화: [7] } },
@@ -993,7 +993,7 @@ export function InspectionForm() {
 
       {/* 기타 의견 */}
       <div className="insf-fset">
-        <div className="insf-ch"><i className="insf-sq" /><h3>기타 의견<InfoTip>조사원 의견 — 메일 문구에 함께 들어갑니다</InfoTip></h3></div>
+        <div className="insf-ch"><i className="insf-sq" /><h3>기타 의견<InfoTip>점검자 의견 — 메일 문구에 함께 들어갑니다</InfoTip></h3></div>
         <textarea
           className="insf-etc"
           placeholder={'점검자 :\n* 2026 정기 위험성평가 진행중\n- 미화담당 위험성평가 결과 공유 및 위험성감소대책 교육 실시'}

@@ -22,7 +22,7 @@ type StaffInfo = { affiliation?: string; department?: string; phone?: string }
 const ROLES: { value: string; label: string }[] = [
   { value: 'hq_admin', label: '본사 관리자' },
   { value: 'executive', label: '경영진' },
-  { value: 'field_inspector', label: '현장 조사원' },
+  { value: 'field_inspector', label: '현장 점검자' },
   { value: 'school_confirmer', label: '학교 확인자' },
 ]
 const ROLE_LABEL = Object.fromEntries(ROLES.map((r) => [r.value, r.label]))
@@ -335,8 +335,8 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
     setOffErr('')
     const from = accounts.find((a) => a.id === offFrom)
     const to = accounts.find((a) => a.id === offTo)
-    if (!from) { setOffErr('퇴사할 조사원을 선택하세요.'); return }
-    if (!to) { setOffErr('인수받을 조사원을 선택하세요.'); return }
+    if (!from) { setOffErr('퇴사할 점검자를 선택하세요.'); return }
+    if (!to) { setOffErr('인수받을 점검자를 선택하세요.'); return }
     if (from.id === to.id) { setOffErr('퇴사자와 인수자는 서로 달라야 합니다.'); return }
     if (!from.name.trim()) {
       setOffErr('퇴사자 계정에 이름이 없어 담당 학교를 특정할 수 없습니다. 먼저 「편집」에서 이름을 지정하세요.')
@@ -415,7 +415,7 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
       <div className="ledger">
         <div className="lh"><h2>계정 목록
           <InfoTip>
-            역할: <b>본사 관리자/경영진</b>은 시스템 전체(계정·설정·발행·연동 설정)를, <b>현장 조사원</b>은 업무 화면을 사용합니다.
+            역할: <b>본사 관리자/경영진</b>은 시스템 전체(계정·설정·발행·연동 설정)를, <b>현장 점검자</b>은 업무 화면을 사용합니다.
             모듈 권한을 지정하면 해당 계정 사이드바에는 허용된 모듈만 표시됩니다(비면 전체 허용).
             마지막 본사 관리자는 강등할 수 없습니다.
             <br />
@@ -730,7 +730,7 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
             {offErr && <div className="login-err">{offErr}</div>}
             <div className="formrow">
               <label className="field" style={{ flex: 1, minWidth: 180 }}>
-                <span>퇴사(이전) 조사원</span>
+                <span>퇴사(이전) 점검자</span>
                 <select className="select" value={offFrom} onChange={(e) => setOffFrom(e.target.value)}>
                   <option value="">선택하세요</option>
                   {inspectors.map((a) => (
@@ -741,7 +741,7 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
                 </select>
               </label>
               <label className="field" style={{ flex: 1, minWidth: 180 }}>
-                <span>인수받을 조사원</span>
+                <span>인수받을 점검자</span>
                 <select className="select" value={offTo} onChange={(e) => setOffTo(e.target.value)}>
                   <option value="">선택하세요</option>
                   {inspectors.filter((a) => a.id !== offFrom).map((a) => (
@@ -752,8 +752,8 @@ export function Accounts({ embedded = false }: { embedded?: boolean } = {}) {
             </div>
             {fromAcc && (
               <div className="muted" style={{ marginTop: 12, fontSize: 12.5, lineHeight: 1.7 }}>
-                <b>{fromAcc.name || fromAcc.login_id}</b> 담당 학교 <b>{cnt}개</b>가 선택한 조사원으로 재배정되고,
-                각 학교의 조사원 변경이력에 기록됩니다.
+                <b>{fromAcc.name || fromAcc.login_id}</b> 담당 학교 <b>{cnt}개</b>가 선택한 점검자로 재배정되고,
+                각 학교의 점검자 변경이력에 기록됩니다.
               </div>
             )}
             <label className="row" style={{ gap: 8, marginTop: 12, cursor: 'pointer', alignItems: 'center' }}>

@@ -151,7 +151,7 @@ export default function ConsoleApp() {
         <div className="lh"><h2><Info size={18} /> 기기·세션 운영 안내</h2></div>
         <div className="card-body" style={{ padding: '18px 26px', fontSize: 13.5, lineHeight: 1.9 }}>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
-            <li>조사원은 앱에서 <b>아이디·비밀번호로 로그인</b>하면 그날 일정표(근무 종합관리표) 학교가 자동으로 열립니다. 비상 시에만 <a href="/sessions" style={{ color: 'var(--violet)' }}>/sessions</a> 에서 세션코드를 발급하세요.</li>
+            <li>점검자는 앱에서 <b>아이디·비밀번호로 로그인</b>하면 그날 일정표(근무 종합관리표) 학교가 자동으로 열립니다. 비상 시에만 <a href="/sessions" style={{ color: 'var(--violet)' }}>/sessions</a> 에서 세션코드를 발급하세요.</li>
             <li>태블릿 앱의 서버 주소는 앱 로그인 화면의 <b>[서버 주소 설정]</b>에서 변경합니다(터널 주소 변경 시 재빌드 불필요).</li>
             <li>현장 제출은 오프라인 큐에 쌓였다가 연결 시 자동 동기화됩니다 — 제출 직후 목록에 없으면 앱의 <b>동기화</b> 상태를 확인하세요.</li>
             <li>앱 임시저장 건은 각 업무 화면에서 <b>[이어서 작성]</b>으로 PC에서 이어받을 수 있습니다.</li>

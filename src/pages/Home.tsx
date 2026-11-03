@@ -439,8 +439,8 @@ export function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plans, visitPlansKey])
 
-  // 점검 일정(schedules) 오버레이 — 로그인 조사원 '본인 이름'으로 홈 캘린더에 표시.
-  // 조사원은 /users 권한이 없어 로그인ID로 표시되므로, /auth/me 의 실제 이름으로 매칭한다.
+  // 점검 일정(schedules) 오버레이 — 로그인 점검자 '본인 이름'으로 홈 캘린더에 표시.
+  // 점검자는 /users 권한이 없어 로그인ID로 표시되므로, /auth/me 의 실제 이름으로 매칭한다.
   const [myName, setMyName] = useState('')
   const [myRole, setMyRole] = useState('')
   type SchedDoc = Record<string, Record<string, Record<string, { schools?: string[]; note?: string; region?: string }>>>
@@ -474,11 +474,11 @@ export function Home() {
     }
   }
 
-  // 캘린더 근무표 오버레이 대상 선택 — 본사(hq_admin·executive)는 조사원별 일정을 골라 볼 수 있다.
-  // 조사원은 본인 일정만(현행 유지). '' = 내 일정(myName).
+  // 캘린더 근무표 오버레이 대상 선택 — 본사(hq_admin·executive)는 점검자별 일정을 골라 볼 수 있다.
+  // 점검자는 본인 일정만(현행 유지). '' = 내 일정(myName).
   const isHqUser = myRole === 'hq_admin' || myRole === 'executive'
-  const [schedNames, setSchedNames] = useState<string[]>([]) // 본사용: 전체 조사원 이름
-  const [schedWho, setSchedWho] = useState('')               // 선택된 조사원(빈 값=본인)
+  const [schedNames, setSchedNames] = useState<string[]>([]) // 본사용: 전체 점검자 이름
+  const [schedWho, setSchedWho] = useState('')               // 선택된 점검자(빈 값=본인)
   useEffect(() => {
     if (!isHqUser) return
     api<{ name?: string; role?: string }[]>('/users')
@@ -516,7 +516,7 @@ export function Home() {
     return m
   }, [visits, schoolName])
 
-  // 점검 일정(선택 대상) 날짜별 — 홈 캘린더 오버레이(현재 표시 달 · 선택 조사원 기준)
+  // 점검 일정(선택 대상) 날짜별 — 홈 캘린더 오버레이(현재 표시 달 · 선택 점검자 기준)
   const schedByDate = useMemo(() => {
     const m = new Map<string, { schools: string[]; note?: string }>()
     const ym = `${calY}-${pad2(calM)}`
@@ -626,7 +626,7 @@ export function Home() {
   )
 
   // 근무표(점검 일정)에서 특정 날짜의 방문 학교를 꺼낸다 — 캘린더와 동일 연동 규칙 [H-6b]:
-  // 조사원 선택(schedWho) 시 그 사람, 조사원 계정은 본인, 본사 관리자 미선택 시 전체 조사원 합산.
+  // 점검자 선택(schedWho) 시 그 사람, 점검자 계정은 본인, 본사 관리자 미선택 시 전체 점검자 합산.
   const schedSchoolsOn = useCallback((key: string): { school: string; who: string }[] => {
     const month = sched[key.slice(0, 7)] || {}
     const pickOne = (nm: string) =>
@@ -657,13 +657,13 @@ export function Home() {
         name: e.school + (isHqUser && !schedWho ? ` — ${e.who}` : ''),
         school_id: findSid(e.school),
         done: false,
-        // 담당자(조사원)별 그룹핑 키 — 본사에서 전체 조사원 일정을 볼 때만 이름이 채워진다. [visit-fold]
+        // 담당자(점검자)별 그룹핑 키 — 본사에서 전체 점검자 일정을 볼 때만 이름이 채워진다. [visit-fold]
         who: isHqUser && !schedWho ? e.who : '',
       })),
     ]
   }, [visitsByDate, plans, TODAY_YMD, myIds, schedSchoolsOn, isHqUser, schedWho, findSid])
 
-  // 담당자(조사원)별 그룹 — 본사에서 전체 조사원 일정을 볼 때 목록이 길어지므로 접이식으로 묶는다. [visit-fold]
+  // 담당자(점검자)별 그룹 — 본사에서 전체 점검자 일정을 볼 때 목록이 길어지므로 접이식으로 묶는다. [visit-fold]
   // 방문 완료(done) 건은 목록에서 제외(TodayHero와 동일 규칙). '기타' = 담당자 미상(자유 계획 등).
   const todayGroups = useMemo(() => {
     const pending = todayItems.filter((i) => !i.done)
@@ -680,7 +680,7 @@ export function Home() {
   }, [todayItems])
 
   /* ---- 이번 주 방문 예정: 내일부터 7일간 — 캘린더 계획 + 근무표(점검 일정) 병합.
-     근무표 대상은 캘린더와 동일 연동(조사원 선택 시 그 사람, 본사 미선택 시 전원 합산) [H-6b] ---- */
+     근무표 대상은 캘린더와 동일 연동(점검자 선택 시 그 사람, 본사 미선택 시 전원 합산) [H-6b] ---- */
   const weekPlans = useMemo(() => {
     const out: { ymd: string; label: string; entries: Plan[] }[] = []
     // 오늘 포함 7일 — 캘린더에 오늘 업무가 있으면 위젯에도 바로 보인다 [H-6c]
@@ -783,7 +783,7 @@ export function Home() {
     searchFields: [(r) => r.name, (r) => r.manager ?? ''],
     filters: SCH_FILTERS,
     sortAccessors: SCH_SORTS,
-    searchPlaceholder: '학교명·조사원',
+    searchPlaceholder: '학교명·점검자',
   })
 
   /* ---- 사이클 히어로: 안전점검 월 세그먼트 ---- */
@@ -816,8 +816,8 @@ export function Home() {
   const renderBlock = (id: HomeBlockId) => {
     switch (id) {
       case 'today': {
-        // 담당자(조사원) 그룹이 하나뿐이면(조사원 로그인 또는 특정 조사원 선택) 기존 리치 뷰 유지.
-        // 여러 명이면(본사에서 전체 조사원 일정 열람) 담당자별 접이식 폴드로 묶어 목록 과밀을 해소한다. [visit-fold]
+        // 담당자(점검자) 그룹이 하나뿐이면(점검자 로그인 또는 특정 점검자 선택) 기존 리치 뷰 유지.
+        // 여러 명이면(본사에서 전체 점검자 일정 열람) 담당자별 접이식 폴드로 묶어 목록 과밀을 해소한다. [visit-fold]
         if (todayGroups.length <= 1) {
           return <TodayHero today={today} items={todayItems} schools={schools} unvisited={unvisited} />
         }
@@ -830,7 +830,7 @@ export function Home() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <h2>오늘의 할 일</h2>
                 <div className="hm-tagline">
-                  {today.getMonth() + 1}월 {today.getDate()}일 ({DOW_LABELS[today.getDay()]}) · 조사원 {todayGroups.length}명 · 방문 예정 {pendingCount}곳 · 완료 {doneCount}곳
+                  {today.getMonth() + 1}월 {today.getDate()}일 ({DOW_LABELS[today.getDay()]}) · 점검자 {todayGroups.length}명 · 방문 예정 {pendingCount}곳 · 완료 {doneCount}곳
                 </div>
               </div>
               <div className="hm-td-sum">
@@ -886,7 +886,7 @@ export function Home() {
                               <div className="t">
                                 {label}
                                 {sc?.school_level && <i>{sc.school_level}</i>}
-                                {sc?.manager && <span className="mg">조사원 {sc.manager}</span>}
+                                {sc?.manager && <span className="mg">점검자 {sc.manager}</span>}
                               </div>
                             </div>
                             <span className="hm-td-pill">방문 예정</span>
@@ -1073,7 +1073,7 @@ export function Home() {
                 className="lselect"
                 value={schedWho}
                 onChange={(e) => setSchedWho(e.target.value)}
-                title="근무표를 볼 조사원 선택"
+                title="근무표를 볼 점검자 선택"
                 style={{ marginLeft: 4 }}
               >
                 <option value="">내 일정</option>
@@ -1369,7 +1369,7 @@ export function Home() {
             <div className="hm-r">{memoFeed.length}건 · 내가 등록한 메모만 표시</div>
           </div>
           {memoFeed.length === 0 && (
-            <div className="hm-empty">아직 내 현장 메모가 없습니다. 조사원 앱의 [메모] 버튼으로 남기면 여기에 표시됩니다(본인에게만 보입니다).</div>
+            <div className="hm-empty">아직 내 현장 메모가 없습니다. 점검자 앱의 [메모] 버튼으로 남기면 여기에 표시됩니다(본인에게만 보입니다).</div>
           )}
           {memoFeed.slice(0, 12).map((m) => (
             <div className="hm-todo" key={m.school_id + m.id} style={{ alignItems: 'flex-start' }}>
@@ -1547,7 +1547,7 @@ export function Home() {
           )}
           <div className="field" style={{ marginTop: 8 }}>
             <span>학교 방문 추가 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>
-              ({myName || '조사원'}{myAffil ? ` · ${myAffil}` : ''} · 담당/전체(소속)/모든 탭 · 클릭해서 추가)</span></span>
+              ({myName || '점검자'}{myAffil ? ` · ${myAffil}` : ''} · 담당/전체(소속)/모든 탭 · 클릭해서 추가)</span></span>
             <SchoolScopePicker
               schools={schoolsLite}
               scopeName={myName}

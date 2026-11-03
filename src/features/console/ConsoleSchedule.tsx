@@ -1,8 +1,8 @@
-// 근무 종합관리표 — 본사 콘솔용 전체 조사원 월간 마스터 캘린더(읽기 전용).
+// 근무 종합관리표 — 본사 콘솔용 전체 점검자 월간 마스터 캘린더(읽기 전용).
 // 렌더링은 features/schedule/MasterCalendar(단일 소스)를 공유하고,
 // 이 파일은 콘솔 탭용 데이터 로드 + 헤더(월 이동·요약 pill) + 안내문만 담당한다.
 // 데이터: /ops/docs/schedules ({ "YYYY-MM": { 담당자명: { "YYYY-MM-DD": {schools?,region?,note?} } } }) + /users
-// 편집은 /schedule(직원 근무표)에서 조사원·날짜별로. 이 화면은 종합 열람용(HQ 콘솔은 hqOnly 게이팅).
+// 편집은 /schedule(직원 근무표)에서 점검자·날짜별로. 이 화면은 종합 열람용(HQ 콘솔은 hqOnly 게이팅).
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarRange, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -17,7 +17,7 @@ type Account = { name: string; role: string; login_id: string }
 
 export default function ConsoleSchedule() {
   const [doc, setDoc] = useState<SchedDoc>({})
-  const [accNames, setAccNames] = useState<string[]>([]) // 전체 조사원 이름
+  const [accNames, setAccNames] = useState<string[]>([]) // 전체 점검자 이름
   const [month, setMonth] = useState(curYm())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -53,10 +53,10 @@ export default function ConsoleSchedule() {
       <div className="lh">
         <h2><CalendarRange size={18} /> 근무 종합관리표
           <InfoTip>
-            일정 편집은 <Link to="/schedule">직원 근무표</Link>에서 조사원·날짜를 선택해 등록하세요. 이 표는 전체 조사원 종합 열람용입니다.
+            일정 편집은 <Link to="/schedule">직원 근무표</Link>에서 점검자·날짜를 선택해 등록하세요. 이 표는 전체 점검자 종합 열람용입니다.
           </InfoTip></h2>
         <div className="sp" />
-        <span className="pillx doing">조사원 {activeCount || inspectors.length}명</span>
+        <span className="pillx doing">점검자 {activeCount || inspectors.length}명</span>
         <span className="pillx na">일정 {totalEntries}건</span>
         <div className="cal-nav">
           <button className="btn btn-ghost" aria-label="이전 달" onClick={() => setMonth((m) => shiftMonth(m, -1))}><ChevronLeft size={16} /></button>

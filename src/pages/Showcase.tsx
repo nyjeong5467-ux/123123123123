@@ -33,7 +33,7 @@ export function Showcase() {
       <PageHeader
         crumb={<>홈 / <b>이력관리 대장</b></>}
         title="이력관리 대장 · 메인 대시보드"
-        sub={<>담당 학교 현황 한눈 조회 · 5대 업무 상태·진도 자동 계산 · <b>조사원 개인 시점</b> (2025 회계연도 · 2025.03~2026.02)</>}
+        sub={<>담당 학교 현황 한눈 조회 · 5대 업무 상태·진도 자동 계산 · <b>점검자 개인 시점</b> (2025 회계연도 · 2025.03~2026.02)</>}
         actions={
           <>
             <Button><Upload size={15} /> 엑셀 일괄 업로드</Button>
@@ -58,7 +58,7 @@ export function Showcase() {
           <>
             <div className="search">
               <Search size={15} />
-              <input className="input" placeholder="학교·담당조사원 검색" />
+              <input className="input" placeholder="학교·담당점검자 검색" />
             </div>
             <select className="select" style={{ width: 120 }}>
               <option>전체 (62)</option>
@@ -73,7 +73,7 @@ export function Showcase() {
               <tr>
                 <th style={{ width: 34 }}>#</th>
                 <th>학교명</th>
-                <th>담당조사원</th>
+                <th>담당점검자</th>
                 <th>현업종사자 (조·시·미·통·당 / 계)</th>
                 <th className="num">안전점검</th>
                 <th className="num">위험성평가</th>
@@ -88,7 +88,7 @@ export function Showcase() {
                 <tr key={r.n} className={r.danger ? 'row-danger' : undefined}>
                   <td className="num muted">{r.n}</td>
                   <td className="school-name">{r.name}</td>
-                  <td>J-07A 조사원</td>
+                  <td>J-07A 점검자</td>
                   <td>
                     <div className="cell-stack">
                       <b>{r.workers}</b>

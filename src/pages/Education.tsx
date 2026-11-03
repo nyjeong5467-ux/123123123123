@@ -415,7 +415,7 @@ export function Education() {
 
   // ── 내보내기 ──
   function exportOverview() {
-    csvDownload(`교육이수현황_${todayStr()}.csv`, ['학교', '구분', '지역', '담당 조사원', '대상', '이수', '진행 중', '미시작', '이수율(%)', '평균 진도(%)'],
+    csvDownload(`교육이수현황_${todayStr()}.csv`, ['학교', '구분', '지역', '담당 점검자', '대상', '이수', '진행 중', '미시작', '이수율(%)', '평균 진도(%)'],
       schoolQ.all.map((s) => [s.school_name, s.school_level, s.region, s.manager, s.total, s.completed, s.in_progress, s.not_started, s.total ? Math.round(s.completed / s.total * 100) : 0, pct(s.avg_progress)]))
   }
   function exportSchool() {
@@ -460,7 +460,7 @@ export function Education() {
             </select>
           </label>
           {isSuper && (
-            <label>담당 조사원
+            <label>담당 점검자
               <select className="select" value={fManager} onChange={(e) => setFManager(e.target.value)}>
                 <option value="">전체</option>
                 {managers.map((m) => <option key={m} value={m}>{m}</option>)}
@@ -570,7 +570,7 @@ export function Education() {
       <>
         <button className="edw-back" onClick={() => setWs((w) => ({ ...w, active: 'overview' }))}><ArrowLeft size={14} /> 학교 목록</button>
         <div className="edw-head">
-          <div><h3>{st?.school_name || schoolName(sid)}</h3><div className="sub">근무자별 교육 진도{st?.manager ? ` · 담당 조사원 ${st.manager}` : ''}</div></div>
+          <div><h3>{st?.school_name || schoolName(sid)}</h3><div className="sub">근무자별 교육 진도{st?.manager ? ` · 담당 점검자 ${st.manager}` : ''}</div></div>
           <div className="sp" />
           <button className="edw-btn" onClick={exportSchool}><Download size={15} /> 현황 다운로드</button>
           {isHq && <button className="edw-btn" onClick={() => void sendMail()}><Mail size={15} /> 진도 메일</button>}
@@ -755,7 +755,7 @@ export function Education() {
           </div>
           {importMsg && <div className="tstate" style={{ color: importMsg.ok ? 'var(--ink-2)' : 'var(--red-ink)', textAlign: 'left', paddingLeft: 0 }}>{importMsg.ok ? '✓ ' : '✕ '}{importMsg.text}</div>}
           <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.8, marginTop: 12 }}>
-            · 열람 범위: <b>admin</b>(관리자) 계정만 전체 수강생. 그 외 계정은 명단의 '담당자' 열이 본인 이름인 수강생(담당자 빈 행은 학교 담당 조사원 기준)만 보입니다.<br />
+            · 열람 범위: <b>admin</b>(관리자) 계정만 전체 수강생. 그 외 계정은 명단의 '담당자' 열이 본인 이름인 수강생(담당자 빈 행은 학교 담당 점검자 기준)만 보입니다.<br />
             · 현재 범위: {ov ? (ov.scope === 'all' ? '전체' : `내 담당(${ov.names.join(', ')})`) : '…'} · 학교 {ov?.schools.length ?? 0}곳 · 수강생 {kpi.total}명
           </div>
         </div>

@@ -28,7 +28,7 @@ function mask(v: string): string {
 
 const EVENT_LABELS: { key: keyof NotifySettings['events']; label: string; desc: string }[] = [
   { key: 'eduoffice_result', label: '교육청 전송 결과', desc: '봇이 교육청에 전송 성공·실패했을 때' },
-  { key: 'submit', label: '현장 제출', desc: '조사원이 점검·조사를 제출했을 때' },
+  { key: 'submit', label: '현장 제출', desc: '점검자가 점검·조사를 제출했을 때' },
   { key: 'review', label: '검수 필요', desc: '증상조사표 OMR 인식 검수가 필요할 때' },
 ]
 

@@ -1,4 +1,4 @@
-// 세션코드 발급 — 본사가 외근(조사원·학교 묶음·열 업무·유효기간) 단위로 1회성 코드를 발급.
+// 세션코드 발급 — 본사가 외근(점검자·학교 묶음·열 업무·유효기간) 단위로 1회성 코드를 발급.
 // 규모(수백 개교) 대응: 학교 검색·학교급 필터·담당학교 필터·일괄 선택 + 업무/기간 프리셋.
 // 선택 UI는 체크박스 대신 토글 칩(sessions.css sess-).
 // 발급 후에도 영속 목록(GET /field/sessions)으로 발급 내역을 조회·수정·폐기한다.
@@ -151,7 +151,7 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
     const now = new Date()
     setValidFrom(toLocalInput(now))
     setValidUntil(toLocalInput(new Date(now.getTime() + 8 * 3600e3)))
-    // 기본 조사원 = 로그인 사용자(각자 자신부터 시작). 비어있으면 공란.
+    // 기본 점검자 = 로그인 사용자(각자 자신부터 시작). 비어있으면 공란.
     if (user?.login) setInspectorId(user.login)
     let alive = true
     api<School[]>('/schools')
@@ -165,7 +165,7 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 조사원 ID 자동완성 후보 — 학교 대장의 담당 조사원들
+  // 점검자 ID 자동완성 후보 — 학교 대장의 담당 점검자들
   const inspectorOptions = useMemo(
     () => [...new Set(schools.map((s) => s.assigned_inspector_id).filter((v): v is string => !!v))].sort(),
     [schools],
@@ -213,7 +213,7 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
     setError('')
     setResult(null)
     setCopied(false)
-    if (!inspectorId.trim()) { setError('조사원 ID를 입력하세요.'); return }
+    if (!inspectorId.trim()) { setError('점검자 ID를 입력하세요.'); return }
     if (schoolIds.length === 0) { setError('대상 학교를 선택하세요.'); return }
     if (modules.length === 0) { setError('열어줄 업무를 선택하세요.'); return }
     if (!validFrom || !validUntil) { setError('유효기간을 입력하세요.'); return }
@@ -351,13 +351,13 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
       <div className="ledger" style={{ marginBottom: 24 }}>
         <div className="lh"><h2><KeyRound size={18} /> 외근 정보</h2></div>
         <div className="card-body" style={{ padding: '22px 26px' }}>
-          {/* 1. 조사원 + 유효기간 */}
+          {/* 1. 점검자 + 유효기간 */}
           <div className="sess-sec">
             <div className="formrow">
               <label className="field" style={{ minWidth: 220 }}>
-                <span>조사원 ID</span>
+                <span>점검자 ID</span>
                 <input className="input" list="sess-inspectors" value={inspectorId}
-                  onChange={(e) => setInspectorId(e.target.value)} placeholder="조사원 ID (자동완성)" />
+                  onChange={(e) => setInspectorId(e.target.value)} placeholder="점검자 ID (자동완성)" />
                 <datalist id="sess-inspectors">
                   {inspectorOptions.map((v) => <option key={v} value={v} />)}
                 </datalist>
@@ -415,15 +415,15 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
             <div className="sess-row">
               <span className="sess-search">
                 <Search size={14} />
-                <input className="input" placeholder="학교명·조사원 검색" value={schQ} onChange={(e) => setSchQ(e.target.value)} />
+                <input className="input" placeholder="학교명·점검자 검색" value={schQ} onChange={(e) => setSchQ(e.target.value)} />
               </span>
               <select className="select" value={schLevel} onChange={(e) => setSchLevel(e.target.value)} style={{ width: 120 }}>
                 <option value="">구분 전체</option>
                 {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
               </select>
               <button className={'sess-preset' + (onlyMine ? ' on' : '')} onClick={() => setOnlyMine((v) => !v)}
-                title="조사원 ID와 담당 조사원이 일치하는 학교만 표시">
-                이 조사원 담당학교만
+                title="점검자 ID와 담당 점검자가 일치하는 학교만 표시">
+                이 점검자 담당학교만
               </button>
               <div className="sp" />
               <button className="sess-preset" onClick={selectFiltered}>검색결과 전체 선택 ({filtered.length})</button>
@@ -496,7 +496,7 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
         <div className="twrap">
           <table className="tbl">
             <thead>
-              <tr><th>코드</th><th>조사원</th><th>학교</th><th>업무</th><th>유효기간</th><th>상태</th><th>관리</th></tr>
+              <tr><th>코드</th><th>점검자</th><th>학교</th><th>업무</th><th>유효기간</th><th>상태</th><th>관리</th></tr>
             </thead>
             <tbody>
               {sessions.length === 0 && (
@@ -605,7 +605,7 @@ export function Sessions({ embedded = false }: { embedded?: boolean } = {}) {
             <div className="sess-row">
               <span className="sess-search">
                 <Search size={14} />
-                <input className="input" placeholder="학교명·조사원 검색" value={eSchQ} onChange={(e) => setESchQ(e.target.value)} />
+                <input className="input" placeholder="학교명·점검자 검색" value={eSchQ} onChange={(e) => setESchQ(e.target.value)} />
               </span>
               <select className="select" value={eSchLevel} onChange={(e) => setESchLevel(e.target.value)} style={{ width: 120 }}>
                 <option value="">구분 전체</option>

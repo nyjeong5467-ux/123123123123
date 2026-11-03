@@ -148,8 +148,8 @@ export function SchoolFormModal({
         <input className="input" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} placeholder="관리감독자" />
       </label>
       <label className="field">
-        <span>조사원</span>
-        <input className="input" value={manager} onChange={(e) => setManager(e.target.value)} placeholder="조사원" />
+        <span>점검자</span>
+        <input className="input" value={manager} onChange={(e) => setManager(e.target.value)} placeholder="점검자" />
       </label>
       <label className="field">
         <span>안전점검기관</span>

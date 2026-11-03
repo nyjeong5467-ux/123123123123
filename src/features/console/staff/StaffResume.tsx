@@ -1,4 +1,4 @@
-// [148] 조사원 이력서 — 보기 + 편집(모달). 저장: /ops/docs/staff-resumes (조사원 단위 병합 저장)
+// [148] 점검자 이력서 — 보기 + 편집(모달). 저장: /ops/docs/staff-resumes (점검자 단위 병합 저장)
 import { useRef, useState } from 'react'
 import { FileUp, Plus, Trash2, Wand2 } from 'lucide-react'
 import { Modal } from '../../../components/Modal'
@@ -134,7 +134,7 @@ export function ResumeEditModal({ login, name, resume, onClose, onSaved }: {
         </div>
       )}
       <div className="sf-edit-basic">
-        <label className="field"><span>직위</span><input className="input" value={d.position ?? ''} onChange={(e) => setD({ ...d, position: e.target.value })} placeholder="예: 선임 조사원" /></label>
+        <label className="field"><span>직위</span><input className="input" value={d.position ?? ''} onChange={(e) => setD({ ...d, position: e.target.value })} placeholder="예: 선임 점검자" /></label>
         <label className="field"><span>입사일</span><input className="input" type="date" value={d.hire_date ?? ''} onChange={(e) => setD({ ...d, hire_date: e.target.value })} /></label>
         <label className="field"><span>이메일</span><input className="input" value={d.email ?? ''} onChange={(e) => setD({ ...d, email: e.target.value })} /></label>
         <label className="field"><span>연락처</span><input className="input" value={d.phone ?? ''} onChange={(e) => setD({ ...d, phone: e.target.value })} placeholder="계정·권한 탭 번호가 우선 표시" /></label>

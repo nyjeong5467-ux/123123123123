@@ -1,8 +1,8 @@
-// 직원 이력 — 관리자 전용 조사원 관리.
-// [148] 조사원을 누르면: 조사원 정보·이력서 + 금일 업무 수행률(오늘 할 업무 대비 실제 기록) + 근태(출석·휴가) + 업무 기록.
+// 직원 이력 — 관리자 전용 점검자 관리.
+// [148] 점검자를 누르면: 점검자 정보·이력서 + 금일 업무 수행률(오늘 할 업무 대비 실제 기록) + 근태(출석·휴가) + 업무 기록.
 //   · 오늘 할 업무 = 홈 캘린더 방문계획(학교별 업무 visit-plans-{login}) → 없으면 근무표(schedules)의 오늘 학교
 //   · 수행 여부 = 오늘 날짜의 실제 기록(GET /history) 이 그 학교·업무에 있는지
-//   · '조사원 담당학교 변경' 버튼 → 기존 조사원 선택 → 그 조사원의 학교마다 새 조사원 지정
+//   · '점검자 담당학교 변경' 버튼 → 기존 점검자 선택 → 그 점검자의 학교마다 새 점검자 지정
 // ?author= 쿼리로 딥링크(계정·권한 탭 "이력" 버튼과 연동). 데이터 규칙은 staff/staffData.ts.
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -22,7 +22,7 @@ import '../../styles/staff.css'
 
 type Person = { login: string; name: string; role: string; affiliation: string }
 type SubTab = 'today' | 'schools' | 'att'
-const ROLE_LABEL: Record<string, string> = { hq_admin: '본사 관리자', executive: '경영진', field_inspector: '현장 조사원', school_confirmer: '학교 확인자' }
+const ROLE_LABEL: Record<string, string> = { hq_admin: '본사 관리자', executive: '경영진', field_inspector: '현장 점검자', school_confirmer: '학교 확인자' }
 
 export default function ConsoleStaffHistory() {
   const [sp, setSp] = useSearchParams()
@@ -73,7 +73,7 @@ export default function ConsoleStaffHistory() {
     api<SchoolLite[]>('/schools').then((s) => setSchools(Array.isArray(s) ? s : [])).catch(() => setSchools([]))
   }, [reloadSchools])
 
-  // 조사원 목록 = 현장 조사원 계정 + 기록이 있는 작성자(계정 없는 경우 포함)
+  // 점검자 목록 = 현장 점검자 계정 + 기록이 있는 작성자(계정 없는 경우 포함)
   const people: Person[] = useMemo(() => {
     const m = new Map<string, Person>()
     for (const u of users) {
@@ -89,7 +89,7 @@ export default function ConsoleStaffHistory() {
   }, [users, authors, reg])
   const hasUnknown = authors.some((a) => a.author_id === UNKNOWN && a.total > 0)
 
-  // 오늘 수행률 — 조사원별(목록 배지·상단 요약)
+  // 오늘 수행률 — 점검자별(목록 배지·상단 요약)
   useEffect(() => {
     if (loading || !people.length) return
     let alive = true
@@ -110,13 +110,13 @@ export default function ConsoleStaffHistory() {
         <div className="lh">
           <h2><ScrollText size={18} /> 직원 이력
             <InfoTip>
-              조사원을 누르면 기본 정보·이력서, 오늘 할 업무의 수행률, 근태(출석·휴가), 업무 기록을 볼 수 있습니다.
+              점검자를 누르면 기본 정보·이력서, 오늘 할 업무의 수행률, 근태(출석·휴가), 업무 기록을 볼 수 있습니다.
               오늘 할 업무는 홈 캘린더 방문계획(학교별 업무)을 기준으로 하고, 없으면 근무표의 오늘 학교를 기준으로 합니다.
               학교에 나가 점검 등을 기록하면 그날은 출석으로 자동 체크됩니다.
             </InfoTip></h2>
           <div className="sp" />
           {msg && <span className="pillx ok">{msg}</span>}
-          <button className="btn btn-primary" onClick={() => setAssignOpen(true)}><ArrowLeftRight size={15} /> 조사원 담당학교 변경</button>
+          <button className="btn btn-primary" onClick={() => setAssignOpen(true)}><ArrowLeftRight size={15} /> 점검자 담당학교 변경</button>
         </div>
 
         {loading && <div className="tstate">불러오는 중…</div>}
@@ -125,7 +125,7 @@ export default function ConsoleStaffHistory() {
         {!loading && !error && (
           <div className="sf-body">
             <div className="sf-wrap">
-              {/* 좌: 조사원 목록 */}
+              {/* 좌: 점검자 목록 */}
               <div className="sf-list">
                 <div className="lsearch sf-mini-search"><Search size={14} />
                   <input className="input" placeholder="이름·아이디·소속 검색" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -146,7 +146,7 @@ export default function ConsoleStaffHistory() {
                       </button>
                     )
                   })}
-                  {shown.length === 0 && <div className="tstate">조사원이 없습니다.</div>}
+                  {shown.length === 0 && <div className="tstate">점검자가 없습니다.</div>}
                   {hasUnknown && (
                     <button className={'sf-person' + (selected === UNKNOWN ? ' on' : '')} onClick={() => pick(UNKNOWN)}>
                       <span className="sf-av muted">?</span>
@@ -158,7 +158,7 @@ export default function ConsoleStaffHistory() {
 
               {/* 우: 상세 */}
               <div className="sf-detail">
-                {!selected && <div className="tstate">왼쪽에서 조사원을 선택하면 정보·이력서·오늘 업무·근태가 표시됩니다.</div>}
+                {!selected && <div className="tstate">왼쪽에서 점검자를 선택하면 정보·이력서·오늘 업무·근태가 표시됩니다.</div>}
                 {selected === UNKNOWN && <Records login={UNKNOWN} />}
                 {selected && selected !== UNKNOWN && (
                   <PersonDetail
@@ -189,7 +189,7 @@ export default function ConsoleStaffHistory() {
   )
 }
 
-/* ---------------- 조사원 상세 ---------------- */
+/* ---------------- 점검자 상세 ---------------- */
 function PersonDetail({ person, reg, resume, attPerson, schools, today, sched, sub, setSub, onEditResume, onAttChange }: {
   person: Person; reg?: StaffReg; resume?: ResumeDoc[string]; attPerson?: AttDoc[string]; schools: SchoolLite[]
   today?: TodayResult; sched: SchedDoc; sub: SubTab; setSub: (s: SubTab) => void; onEditResume: () => void; onAttChange: (p: AttDoc[string]) => void
@@ -335,7 +335,7 @@ function WorkPane({ login, name, sched, todayR }: { login: string; name: string;
 function SchoolsPane({ login, schools }: { login: string; schools: SchoolLite[] }) {
   const nav = useNavigate()
   const [q, setQ] = useState('')
-  const [last, setLast] = useState<Record<string, HistRow>>({}) // 학교별 이 조사원의 최근 기록
+  const [last, setLast] = useState<Record<string, HistRow>>({}) // 학교별 이 점검자의 최근 기록
   const [cnt, setCnt] = useState<Record<string, number>>({})
   useEffect(() => {
     let alive = true
@@ -356,7 +356,7 @@ function SchoolsPane({ login, schools }: { login: string; schools: SchoolLite[] 
     .filter((s) => !q.trim() || (s.name + ' ' + (s.region || '') + ' ' + (s.office || '')).includes(q.trim()))
     .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
   const levels = schools.reduce<Record<string, number>>((m, s) => { const k = s.school_level || '기타'; m[k] = (m[k] || 0) + 1; return m }, {})
-  if (!schools.length) return <div className="tstate">담당 학교가 없습니다. 위의 &lsquo;조사원 담당학교 변경&rsquo;으로 학교를 배정하세요.</div>
+  if (!schools.length) return <div className="tstate">담당 학교가 없습니다. 위의 &lsquo;점검자 담당학교 변경&rsquo;으로 학교를 배정하세요.</div>
   return (
     <div>
       <div className="sf-rec-tools">
@@ -370,7 +370,7 @@ function SchoolsPane({ login, schools }: { login: string; schools: SchoolLite[] 
       </div>
       <div className="twrap" style={{ maxHeight: 520, overflowY: 'auto' }}>
         <table className="tbl">
-          <thead><tr><th>학교(기관)</th><th style={{ width: 70 }}>구분</th><th style={{ width: 130 }}>지역</th><th style={{ width: 90 }}>계약</th><th style={{ width: 300 }}>최근 업무 (이 조사원)</th><th style={{ width: 80 }}>기록</th></tr></thead>
+          <thead><tr><th>학교(기관)</th><th style={{ width: 70 }}>구분</th><th style={{ width: 130 }}>지역</th><th style={{ width: 90 }}>계약</th><th style={{ width: 300 }}>최근 업무 (이 점검자)</th><th style={{ width: 80 }}>기록</th></tr></thead>
           <tbody>
             {shown.map((s) => {
               const r = last[s.id]
