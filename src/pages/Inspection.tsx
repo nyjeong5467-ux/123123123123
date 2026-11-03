@@ -2,7 +2,7 @@
 // Risk.tsx("학교별 평가")와 동일 패턴: 학교 테이블 → 백버튼 있는 학교 컨텍스트 → 드릴다운 모달.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ChevronRight, ClipboardCheck, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronRight, ClipboardCheck, Trash2, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useAffiliationScope } from '../lib/affiliationScope'
@@ -576,9 +576,25 @@ export function Inspection() {
     const mine = schools.filter((s) => s.assigned_inspector_id === (user?.login ?? ''))
     return mine.length > 0 ? new Set(mine.map((s) => s.id)) : null // null = 담당 배정 없음 → 전체
   }, [schools, user])
+  // [160] '내 점검 작업' 카드 숨기기(X) — 점검표는 지우지 않고 이 목록에서만 뺀다(계정별·브라우저 저장).
+  //       같은 점검표에 새 공정이 임시저장되면(키가 달라지면) 다시 나타난다.
+  const hideKey = `insp-mywork-hidden-${user?.login ?? 'anon'}`
+  const [hiddenDrafts, setHiddenDrafts] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`insp-mywork-hidden-${user?.login ?? 'anon'}`) || '[]') as string[] } catch { return [] }
+  })
+  useEffect(() => {
+    try { setHiddenDrafts(JSON.parse(localStorage.getItem(hideKey) || '[]') as string[]) } catch { setHiddenDrafts([]) }
+  }, [hideKey])
+  const draftKey = (r: { school: { id: string }; parts: { id: string }[] }) => `${r.school.id}:${r.parts.map((p) => p.id).sort().join(',')}`
+  const hideDraft = (key: string) => setHiddenDrafts((h) => {
+    const next = [...h.filter((k) => k !== key), key].slice(-200)
+    try { localStorage.setItem(hideKey, JSON.stringify(next)) } catch { /* 저장 실패 무시 */ }
+    return next
+  })
   const draftSheets = useMemo(
-    () => reportRows.filter((r) => r.status === 'draft' && (!myIds || myIds.has(r.school.id))),
-    [reportRows, myIds],
+    () => reportRows.filter((r) => r.status === 'draft' && (!myIds || myIds.has(r.school.id)) && !hiddenDrafts.includes(draftKey(r))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reportRows, myIds, hiddenDrafts],
   )
   const todaySubmitted = useMemo(
     () => reportRows.filter((r) => r.status !== 'draft' && r.date === TODAY_YMD && (!myIds || myIds.has(r.school.id))),
@@ -743,6 +759,14 @@ export function Inspection() {
                 <div className="inh-mywork-cards">
                   {draftSheets.map((r) => (
                     <div key={r.school.id} className="inh-mywork-card">
+                      <button
+                        className="inh-mywork-x"
+                        aria-label="목록에서 숨기기"
+                        title="이 목록에서 숨기기 — 점검표는 삭제되지 않으며 아래 '작성된 점검표'에서 계속 열 수 있습니다"
+                        onClick={() => hideDraft(draftKey(r))}
+                      >
+                        <X size={13} />
+                      </button>
                       <div className="inh-mywork-info">
                         <div className="t">{r.school.name}</div>
                         <div className="p">{r.parts.map((p) => PART_LABEL[p.part] || p.part).join(' · ')}</div>

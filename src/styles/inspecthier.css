@@ -65,3 +65,22 @@
   padding: 0 14px;
   font-size: 12.5px;
 }
+/* [160] 내 점검 작업 카드 — 오른쪽 위 모서리 X(목록에서 숨기기) */
+.inh-mywork-card { position: relative; }
+.inh-mywork-x {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: var(--sh-soft);
+}
+.inh-mywork-x:hover { background: var(--red-soft); color: var(--red-ink); border-color: var(--red-soft); }
