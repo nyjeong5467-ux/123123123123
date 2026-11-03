@@ -175,6 +175,10 @@ export function InspectionForm() {
   const [place, setPlace] = useState('')
   const [accType, setAccType] = useState(ACC_TYPES[0])
   const [inspectDate, setInspectDate] = useState(today)
+  // [162] 수정 시 최초 점검일·작성일 고정 — 수정한 날짜로 바뀌지 않게
+  const [origWriteDate, setOrigWriteDate] = useState('') // 최초 작성일(부가정보에 저장된 값)
+  const [editState, setEditState] = useState<Record<string, { signed: boolean; submitted: boolean }>>({})
+  const [sigTouched, setSigTouched] = useState(false) // 이번 화면에서 서명을 새로 했는지(이름 변경·서명패드)
   const [signerName, setSignerName] = useState('')
   const [signed, setSigned] = useState(false)
   // [G-6] 웹 서명패드 — 그린 서명 PNG(dataURL)·원본 스트로크(앱 동일 스키마). 서명 시 백엔드로 전송.
@@ -317,6 +321,7 @@ export function InspectionForm() {
               if (extra.info?.place) setPlace((v) => v || extra.info.place)
               if (extra.info?.accType) setAccType((v) => (v === ACC_TYPES[0] ? extra.info.accType : v))
               if (extra.info?.inspectDate) setInspectDate(extra.info.inspectDate)
+              if (extra.info?.writeDate) setOrigWriteDate(extra.info.writeDate) // [162]
               if (extra.signer) { setSignerName((v) => v || extra.signer); setSigned(true) }
             })
             .catch(() => { /* 부가정보 없으면 기본 폼 */ })
@@ -354,6 +359,15 @@ export function InspectionForm() {
             }
             setDraftIds((p) => ({ ...ids, ...p }))
             setResumeParts(targets.map((t) => t.part))
+            // [162] 최초 점검일 고정 — 점검표 목록의 점검일과 같은 규칙(제출일 → 서명일)으로 기존 기록에서 가져옴
+            //       (부가정보에 저장된 점검일이 있으면 그 값이 우선 적용됨)
+            const firstDate = targets
+              .map((t) => String(t.submitted_at || t.signed_at || t.signatures?.[0]?.signed_at || '').slice(0, 10))
+              .filter(Boolean).sort()[0]
+            if (firstDate) { setInspectDate(firstDate); setOrigWriteDate((v) => v || firstDate) }
+            const es: Record<string, { signed: boolean; submitted: boolean }> = {}
+            for (const t of targets) if (t.id) es[t.id] = { signed: !!(t.signed_at || t.signatures?.length), submitted: t.status === 'submitted' || !!t.submitted_at }
+            setEditState(es)
           }
         } else if (resumeId) {
           const target = list.find((x) => x.id === resumeId)
@@ -537,7 +551,7 @@ export function InspectionForm() {
         ids: [],
         info: {
           org, dept, role, writer,
-          writeDate: today, inspectDate, place, accType,
+          writeDate: origWriteDate || today, inspectDate, place, accType,
         },
         targets: PARTDEF.filter((d) => enabled[d.label]).map((d) => d.key),
         etc,
@@ -568,7 +582,7 @@ export function InspectionForm() {
         ids,
         info: {
           org, dept, role, writer,
-          writeDate: today, inspectDate, place, accType,
+          writeDate: origWriteDate || today, inspectDate, place, accType,
         },
         targets: PARTDEF.filter((d) => enabled[d.label]).map((d) => d.key),
         etc,
@@ -700,6 +714,12 @@ export function InspectionForm() {
           usedIds.push(created.id)
           setStatus(d.label, 'done', '수정 저장 완료 (교육청 전송완료 건)')
         } else {
+          // [162] 이미 서명·제출된 점검표의 수정 — 재서명·재제출하면 서명일·제출일(=목록의 점검일)이
+          //       수정한 날로 바뀌므로, 서명을 새로 한 경우에만 서명하고 제출은 다시 하지 않는다.
+          const es = editState[created.id]
+          const needSign = !es || !es.signed || sigTouched
+          const needSubmit = !es || !es.submitted
+          if (needSign) {
           setStatus(d.label, 'run', '서명')
           // [G-6] 서명패드로 그린 서명이 있으면 PNG(b64)+스트로크를 함께 전송 —
           // 백엔드가 앱(field/sync)과 같은 규약으로 저장(sign_<iid>.png / .strokes.json).
@@ -714,9 +734,15 @@ export function InspectionForm() {
             }),
           })
           if (signRes.sign_strokes_ref) strokesRefOut = signRes.sign_strokes_ref
+          }
+          if (!needSubmit) {
+            usedIds.push(created.id)
+            setStatus(d.label, 'done', '수정 저장 완료 (점검일 유지)')
+          } else {
           const sub = await api<{ status: string; eduoffice: string | null }>(`/inspections/${created.id}/submit`, { method: 'POST' })
           usedIds.push(created.id)
           setStatus(d.label, 'done', sub.eduoffice === 'pending' ? '제출 완료 · 교육청 전송 대기' : '제출 완료')
+          }
         }
       } catch (e) {
         okAll = false
@@ -839,8 +865,11 @@ export function InspectionForm() {
           <label className="field"><span>부서명</span><input className="input" value={dept} onChange={(e) => setDept(e.target.value)} placeholder="직급/부서" /></label>
           <label className="field"><span>직책</span><input className="input" value={role} onChange={(e) => setRole(e.target.value)} placeholder="예: 대리" /></label>
           <label className="field"><span>작성자</span><input className="input" value={writer} onChange={(e) => setWriter(e.target.value)} placeholder="이름" /></label>
-          <label className="field"><span>작성일</span><input className="input" value={today} disabled /></label>
-          <label className="field"><span>점검일</span><input className="input" type="date" value={inspectDate} onChange={(e) => setInspectDate(e.target.value)} /></label>
+          <label className="field"><span>작성일</span><input className="input" value={origWriteDate || today} disabled /></label>
+          <label className="field"><span>점검일{editIds.length > 0 && <small className="muted"> (최초 점검일 고정)</small>}</span>
+            <input className="input" type="date" value={inspectDate} disabled={editIds.length > 0}
+              title={editIds.length > 0 ? '수정해도 점검일은 최초 점검일로 유지됩니다' : undefined}
+              onChange={(e) => setInspectDate(e.target.value)} /></label>
           <label className="field"><span>점검장소</span><input className="input" placeholder="예: 급식실, 시설창고" value={place} onChange={(e) => setPlace(e.target.value)} /></label>
           <label className="field">
             <span>재해형태</span>
@@ -1076,7 +1105,7 @@ export function InspectionForm() {
           <label className="field">
             <span>{confLine[confPrimary]?.title || '담당자'}</span>
             <input className="input" placeholder="성명 (학교 대장 확인자 연동)" value={signerName}
-              onChange={(e) => { setSignerName(e.target.value); setSigned(false); setSignImage(''); setSignStrokes(null) }} />
+              onChange={(e) => { setSignerName(e.target.value); setSigned(false); setSignImage(''); setSignStrokes(null); setSigTouched(true) }} />
           </label>
           <label className="field">
             <span>서명</span>
@@ -1181,11 +1210,11 @@ export function InspectionForm() {
           onApply={(png, strokes) => {
             // [119] 추가 확인자 서명은 이미지(dataURL)만 보관 — 백엔드 sign(주서명)은 주확인자 1명
             if (padTarget >= 0) { patchExtra(padTarget, { signed: true, image: png }); setPadOpen(false); return }
-            setSignImage(png); setSignStrokes(strokes); setSigned(true); setPadOpen(false)
+            setSignImage(png); setSignStrokes(strokes); setSigned(true); setPadOpen(false); setSigTouched(true)
           }}
           onNameOnly={() => {
             if (padTarget >= 0) { patchExtra(padTarget, { signed: true, image: '' }); setPadOpen(false); return }
-            setSignImage(''); setSignStrokes(null); setSigned(true); setPadOpen(false)
+            setSignImage(''); setSignStrokes(null); setSigned(true); setPadOpen(false); setSigTouched(true)
           }}
           onClose={() => setPadOpen(false)}
         />,
