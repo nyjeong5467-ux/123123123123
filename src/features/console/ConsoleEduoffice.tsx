@@ -67,6 +67,13 @@ function fmt(ts: string | null): string {
 export default function ConsoleEduoffice() {
   const [insp, setInsp] = useState<InspJob[]>([])
   const [queue, setQueue] = useState<QueueJob[]>([])
+  // [163] 사립학교 — 교육청 업로드 대상 아님(전송·재전송 차단)
+  const [privateIds, setPrivateIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    api<{ id: string; is_private?: boolean }[]>('/schools')
+      .then((l) => setPrivateIds(new Set((Array.isArray(l) ? l : []).filter((x) => x.is_private).map((x) => x.id))))
+      .catch(() => {})
+  }, [])
   const [loading, setLoading] = useState(true)
   const [fStatus, setFStatus] = useState('')
   const [fModule, setFModule] = useState('')
@@ -270,6 +277,7 @@ export default function ConsoleEduoffice() {
   )
 
   async function resend(j: QueueJob) {
+    if (privateIds.has(j.school_id)) { window.alert('사립학교입니다. 교육청 업로드를 할 수 없습니다.'); return } // [163]
     setBusy(j.job_id)
     setMsg('')
     try {
@@ -321,8 +329,10 @@ export default function ConsoleEduoffice() {
 
   // 현재 업무 범위의 실패 건을 일괄 재전송(배치 enqueue) → 폴링이 게이지를 채운다.
   async function resendAllFailed() {
-    const targets = queue.filter((j) => (!fModule || j.module === fModule) && j.status === 'failed')
-    if (!targets.length) return
+    const all = queue.filter((j) => (!fModule || j.module === fModule) && j.status === 'failed')
+    const targets = all.filter((j) => !privateIds.has(j.school_id)) // [163] 사립학교 제외
+    const skipped = all.length - targets.length
+    if (!targets.length) { if (skipped) window.alert('사립학교입니다. 교육청 업로드를 할 수 없습니다.\n(실패 건 ' + skipped + '건이 모두 사립학교라 재전송하지 않습니다)'); return }
     setBatchBusy(true); setMsg('')
     try {
       for (const j of targets) {
@@ -334,7 +344,7 @@ export default function ConsoleEduoffice() {
           }),
         })
       }
-      setMsg(`${targets.length}건 재전송 대기 등록 — 봇 폴러가 처리합니다`)
+      setMsg(`${targets.length}건 재전송 대기 등록 — 봇 폴러가 처리합니다${skipped ? ` · 사립학교 ${skipped}건 제외` : ''}`)
       await refreshQueue()
       setTimeout(() => setMsg(''), 3000)
     } catch (e) {

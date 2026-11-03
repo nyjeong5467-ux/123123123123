@@ -644,8 +644,11 @@ export function InspectionForm() {
     setBusy(false)
   }
 
-  async function submitAll() {
+  // [163] 사립학교 — 전남교육청 업로드 대상 아님. 업로드 버튼을 누르면 안내 후 점검표만 저장(제출·교육청 전송 대기 없음)
+  const isPrivateSchool = !!ledger?.school.is_private
+  async function submitAll(viaUpload = false) {
     if (!ledger || busy) return
+    if (isPrivateSchool && viaUpload && !window.confirm('사립학교입니다. 교육청 업로드를 할 수 없습니다.\n\n[확인]을 누르면 점검표만 저장합니다(교육청 업로드 제외).')) return
     if (!activeDefs.length) {
       setSubmitErr('점검대상 파트가 없습니다. 점검대상을 선택하세요.')
       setProg({ done: 0, total: 0, label: '', phase: 'err', msg: '점검대상 파트가 없습니다 — 점검대상을 먼저 선택하세요' })
@@ -718,7 +721,7 @@ export function InspectionForm() {
           //       수정한 날로 바뀌므로, 서명을 새로 한 경우에만 서명하고 제출은 다시 하지 않는다.
           const es = editState[created.id]
           const needSign = !es || !es.signed || sigTouched
-          const needSubmit = !es || !es.submitted
+          const needSubmit = (!es || !es.submitted) && !isPrivateSchool // [163] 사립은 제출(=교육청 전송 대기) 안 함
           if (needSign) {
           setStatus(d.label, 'run', '서명')
           // [G-6] 서명패드로 그린 서명이 있으면 PNG(b64)+스트로크를 함께 전송 —
@@ -737,7 +740,7 @@ export function InspectionForm() {
           }
           if (!needSubmit) {
             usedIds.push(created.id)
-            setStatus(d.label, 'done', '수정 저장 완료 (점검일 유지)')
+            setStatus(d.label, 'done', isPrivateSchool ? '저장 완료 (사립 · 교육청 업로드 제외)' : '수정 저장 완료 (점검일 유지)')
           } else {
           const sub = await api<{ status: string; eduoffice: string | null }>(`/inspections/${created.id}/submit`, { method: 'POST' })
           usedIds.push(created.id)
@@ -756,7 +759,7 @@ export function InspectionForm() {
       // 전송완료(success) 건이 포함된 수정 저장 — 교육청 재전송(기존 건 수정) 여부 확인 [F-2]
       const affected = usedIds.filter((id) => eduSuccessIds.includes(id))
       let resent = false
-      if (affected.length && window.confirm('이미 교육청에 전송된 점검입니다. 수정 내용을 교육청에 재전송(기존 건 수정)할까요?')) {
+      if (affected.length && !isPrivateSchool && window.confirm('이미 교육청에 전송된 점검입니다. 수정 내용을 교육청에 재전송(기존 건 수정)할까요?')) {
         try {
           for (const id of affected) {
             await api(`/inspections/${id}/request-eduoffice`, { method: 'POST' })
@@ -770,7 +773,9 @@ export function InspectionForm() {
       setProg((p) => (p ? {
         ...p,
         phase: 'done',
-        msg: affected.length
+        msg: isPrivateSchool
+          ? '점검표 저장 완료 (사립학교 · 교육청 업로드 제외)'
+          : affected.length
           ? (resent ? '수정 저장 + 교육청 재전송 대기 등록 완료' : '수정 저장 완료 (교육청 재전송 안 함)')
           : '전남교육청 전송 대기 등록 완료',
       } : p))
@@ -815,7 +820,7 @@ export function InspectionForm() {
         <div className="sp" />
         <Link className="btn btn-ghost" to="/inspection">목록</Link>
         <button className="btn btn-ghost" disabled={busy || !ledger} onClick={() => { void saveDraft() }}>임시저장</button>
-        <button className="btn btn-primary" disabled={busy || !ledger} onClick={submitAll}>
+        <button className="btn btn-primary" disabled={busy || !ledger} onClick={() => void submitAll(false)}>
           {busy ? '저장 중…' : '저장'}
         </button>
       </div>
@@ -1285,7 +1290,7 @@ export function InspectionForm() {
               <button
                 className="btn btn-primary"
                 disabled={(!isErr && busy) || !ledger}
-                onClick={isErr ? () => setProg(null) : submitAll}
+                onClick={isErr ? () => setProg(null) : () => void submitAll(true)}
                 title={isErr ? (prog?.msg || '실패 — 눌러서 초기화 후 다시 시도') : isRun ? prog?.msg : undefined}
                 style={{
                   position: 'relative', overflow: 'hidden', minWidth: 168,
@@ -1304,7 +1309,7 @@ export function InspectionForm() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" style={{ flex: 'none' }}><path d="M18 6 6 18M6 6l12 12" /></svg>
                   )}
                   {isRun ? `업로드 중 ${prog!.done}/${prog!.total}${prog!.label ? ` · ${prog!.label}` : ''}`
-                    : isDone ? '전송 대기 등록 완료'
+                    : isDone ? (isPrivateSchool ? '저장 완료 (사립)' : '전송 대기 등록 완료')
                     : isErr ? '실패 · 다시 시도'
                     : '전남교육청 업로드'}
                 </span>

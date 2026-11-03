@@ -59,7 +59,7 @@ type Inspection = {
   created_at?: string | null // 백엔드 엔티티에 아직 없음 — 생기면 자동 수용
   inspector_id?: string // [161] 작성자(로그인 ID) — 요약 API 제공 시 '내 점검 작업' 판정에 사용
 }
-type School = { id: string; name: string; manager?: string; school_level?: string; address?: string; assigned_inspector_id?: string; inspection_agency?: string }
+type School = { id: string; name: string; manager?: string; school_level?: string; address?: string; assigned_inspector_id?: string; inspection_agency?: string; is_private?: boolean }
 
 // [perf-0828] 목록 요약은 GET /inspections/summary 1콜의 경량 항목(items/followups 없음).
 // 상세·실물양식 등 전체 데이터가 필요한 경로는 해당 학교 1곳만 GET /inspections?school_id= 로 지연 조회.
@@ -459,6 +459,7 @@ export function Inspection() {
   // SUCCESS→PENDING 재대기열: 봇이 교육청 사이트의 기존 건을 수정 업로드한다(F-2).
   async function resendEduoffice(id: string, schoolId: string) {
     if (!id || resendBusy) return
+    if (schools.find((x) => x.id === schoolId)?.is_private) { window.alert('사립학교입니다. 교육청 업로드를 할 수 없습니다.'); return } // [163]
     if (!window.confirm('이미 교육청에 전송된 점검입니다. 수정 내용을 교육청에 재전송(기존 건 수정)할까요?')) return
     setResendBusy(true)
     try {
