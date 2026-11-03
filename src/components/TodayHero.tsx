@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Activity, AlertTriangle, BookOpen, CheckCircle2, ChevronRight, ClipboardCheck, FileCheck2, ListTodo, StickyNote } from 'lucide-react'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { hasMusDraft } from '../lib/musDraft'
 
 export type TodayItem = { key: string; name: string; school_id?: string; done: boolean }
@@ -23,7 +24,7 @@ const FT_GROUPS: { due: FieldTodo['due']; label: string }[] = [
 ]
 
 type TaskChip = { label: string; cls: 'warn' | 'doing' | 'bad' | 'muted' }
-type InspRow = { status: string; submitted_at?: string | null; signed_at?: string | null }
+type InspRow = { status: string; submitted_at?: string | null; signed_at?: string | null; inspector_id?: string }
 type StatusRow = { status: string }
 type MusRow = { needs_review: number }
 // 학교별 업무 요약 — 칩 + 업무별 진행중(이어서 작성 가능) 여부 [058][065]
@@ -61,6 +62,7 @@ export function TodayHero(p: {
   unvisited: number
 }) {
   const nav = useNavigate()
+  const { user } = useAuth()
   const { today, items, schools } = p
   const YM = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`
   const doneCount = items.filter((i) => i.done).length
@@ -90,12 +92,15 @@ export function TodayHero(p: {
           api<StatusRow[]>(`/compliance?school_id=${id}`).catch(() => [] as StatusRow[]),
           api<MusRow[]>(`/musculo?school_id=${id}`).catch(() => [] as MusRow[]),
         ])
-        return [id, deriveTasks(insp, risk, comp, mus, YM)] as const
+        // [161] 안전점검 '이어서 작성'은 본인 작성분만 — 작성자 정보가 있는 다른 점검자의 작성중 점검은 제외
+        const login = user?.login ?? ''
+        const myInsp = insp.filter((r) => !r.inspector_id || r.inspector_id === login)
+        return [id, deriveTasks(myInsp, risk, comp, mus, YM)] as const
       }),
     ).then((pairs) => { if (alive) setTasks(Object.fromEntries(pairs)) })
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idsKey])
+  }, [idsKey, user?.login])
 
   // [G-5] 현장 할 일 로드 — 점검자 앱 메모 시트의 [할 일]과 실시간 공유
   const [fieldTodos, setFieldTodos] = useState<FieldTodo[]>([])

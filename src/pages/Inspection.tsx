@@ -57,6 +57,7 @@ type Inspection = {
   signed_at?: string | null
   submitted_at?: string | null
   created_at?: string | null // 백엔드 엔티티에 아직 없음 — 생기면 자동 수용
+  inspector_id?: string // [161] 작성자(로그인 ID) — 요약 API 제공 시 '내 점검 작업' 판정에 사용
 }
 type School = { id: string; name: string; manager?: string; school_level?: string; address?: string; assigned_inspector_id?: string; inspection_agency?: string }
 
@@ -572,10 +573,16 @@ export function Inspection() {
     const p = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
   }, [])
-  const myIds = useMemo(() => {
-    const mine = schools.filter((s) => s.assigned_inspector_id === (user?.login ?? ''))
-    return mine.length > 0 ? new Set(mine.map((s) => s.id)) : null // null = 담당 배정 없음 → 전체
-  }, [schools, user])
+  // [161] '내 점검 작업'은 본인 것만 — 다른 점검자의 작성중 점검표는 보이지 않게 한다.
+  //   ① 점검 기록에 작성자(inspector_id)가 있으면: 내 로그인 ID로 작성한 것만
+  //   ② 작성자 정보가 없으면(구 데이터·목서버): 내가 담당 점검자인 학교(점검자 이름 = 내 이름, 또는 배정 ID = 내 ID)만
+  //   (예전에는 담당 배정이 없으면 '전체'를 보여 줘 다른 점검자 것까지 보였음)
+  const isMine = useCallback((r: InsReportRow) => {
+    const login = user?.login ?? ''
+    const authors = r.parts.map((p) => p.inspector_id).filter((x): x is string => !!x)
+    if (authors.length) return !!login && authors.includes(login)
+    return (!!myName && (r.school.manager ?? '').trim() === myName) || (!!login && r.school.assigned_inspector_id === login)
+  }, [user, myName])
   // [160] '내 점검 작업' 카드 숨기기(X) — 점검표는 지우지 않고 이 목록에서만 뺀다(계정별·브라우저 저장).
   //       같은 점검표에 새 공정이 임시저장되면(키가 달라지면) 다시 나타난다.
   const hideKey = `insp-mywork-hidden-${user?.login ?? 'anon'}`
@@ -592,13 +599,13 @@ export function Inspection() {
     return next
   })
   const draftSheets = useMemo(
-    () => reportRows.filter((r) => r.status === 'draft' && (!myIds || myIds.has(r.school.id)) && !hiddenDrafts.includes(draftKey(r))),
+    () => reportRows.filter((r) => r.status === 'draft' && isMine(r) && !hiddenDrafts.includes(draftKey(r))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reportRows, myIds, hiddenDrafts],
+    [reportRows, isMine, hiddenDrafts],
   )
   const todaySubmitted = useMemo(
-    () => reportRows.filter((r) => r.status !== 'draft' && r.date === TODAY_YMD && (!myIds || myIds.has(r.school.id))),
-    [reportRows, TODAY_YMD, myIds],
+    () => reportRows.filter((r) => r.status !== 'draft' && r.date === TODAY_YMD && isMine(r)),
+    [reportRows, TODAY_YMD, isMine],
   )
 
   function openSchool(s: School) {
@@ -753,7 +760,7 @@ export function Inspection() {
                     오늘 제출 {todaySubmitted.length}건
                   </span>
                 )}
-                {myIds && <span className="inh-mywork-note">담당 학교 기준</span>}
+                <span className="inh-mywork-note">본인 작성분만 표시</span>
               </div>
               {draftSheets.length > 0 && (
                 <div className="inh-mywork-cards">
