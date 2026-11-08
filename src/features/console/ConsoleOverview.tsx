@@ -47,10 +47,8 @@ const releaseLabel = (name: string) =>
 const fmtMB = (bytes: number) => `${(bytes / 1048576).toFixed(1)} MB`
 
 type School = SchoolLite
-type Invoice = { id: string; amount: number; status: string }
 type Complaint = { id: string; school_id: string; date: string; content: string; status: string }
 type Visit = { id: string; school_id: string; date: string; visitor: string; purpose: string }
-type OpsDash = { school_count?: number; visit_count?: number; complaint_count?: number }
 
 // [167] 학교·기관 연락 이력 — 접수 원장(/complaints) + 메타(구분·유형·점검자·보내기) + 점검자 확인
 type UserAcc = { id: string; login_id: string; name: string; role: string }
@@ -64,16 +62,9 @@ const CMP_FILTERS: FilterDef<CRow>[] = [
 ]
 const CMP_SORTS = { date: (r: CRow) => r.date, status: (r: CRow) => r.st }
 
-function fmtKRW(n: number): string {
-  return n >= 100000000 ? `${(n / 100000000).toFixed(1)}억원` : `${Math.round(n / 10000).toLocaleString()}만원`
-}
 
 export default function ConsoleOverview() {
   const [schools, setSchools] = useState<School[]>([])
-  const [invoices, setInvoices] = useState<Invoice[] | null>(null)
-  const [opsDash, setOpsDash] = useState<OpsDash>({})
-  const [accidentCount, setAccidentCount] = useState<number | null>(null)
-  const [userCount, setUserCount] = useState<number | null>(null)
   const [users, setUsers] = useState<UserAcc[]>([])
   const [meta, setMeta] = useState<MetaDoc>({})
   const [acks, setAcks] = useState<Record<string, AckDoc>>({})
@@ -110,9 +101,6 @@ export default function ConsoleOverview() {
     let alive = true
     Promise.all([
       api<School[]>('/schools').catch(() => [] as School[]),
-      api<Invoice[]>('/invoices').catch(() => null),
-      api<OpsDash>('/ops/dashboard').catch(() => ({}) as OpsDash),
-      api<unknown[]>('/accidents').catch(() => null),
       api<UserAcc[]>('/users').catch(() => null),
       api<Complaint[]>('/complaints').catch(() => [] as Complaint[]),
       api<Visit[]>('/visits').catch(() => [] as Visit[]),
@@ -122,15 +110,11 @@ export default function ConsoleOverview() {
       getDoc<Options>(OPTIONS_KEY).catch(() => ({} as Options)),
       getDoc<Record<string, { phone?: string }>>('staff-registry').catch(() => ({} as Record<string, { phone?: string }>)),
       getDoc<Record<string, { phone?: string }>>('staff-resumes').catch(() => ({} as Record<string, { phone?: string }>)),
-    ]).then(([s, inv, od, acc, usr, cmp, vis, doc, rel, md, opt, reg, rsm]) => {
+    ]).then(([s, usr, cmp, vis, doc, rel, md, opt, reg, rsm]) => {
       if (!alive) return
       const list = Array.isArray(s) ? s : []
       setSchools(list)
       if (list.length) setVSid(list[0].id)
-      setInvoices(Array.isArray(inv) ? inv : null)
-      setOpsDash(od && typeof od === 'object' ? od : {})
-      setAccidentCount(Array.isArray(acc) ? acc.length : null)
-      setUserCount(Array.isArray(usr) ? usr.length : null)
       setUsers(Array.isArray(usr) ? usr : [])
       setMeta(md || {})
       setCtOpt(opt || {})
@@ -227,11 +211,6 @@ export default function ConsoleOverview() {
   const unacked = rows.filter((r) => r.st === 'sent').length
   const schoolName = (id: string) => schools.find((s) => s.id === id)?.name || id
 
-  // ── KPI 집계 ──
-  const issued = invoices?.filter((i) => i.status === 'issued') ?? []
-  const failedCnt = invoices?.filter((i) => i.status === 'failed').length ?? 0
-  const issuedSum = issued.reduce((a, b) => a + (b.amount || 0), 0)
-
   const cardBox: CSSProperties = {
     background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 'var(--r)',
     boxShadow: 'var(--sh-soft)', padding: '18px 22px',
@@ -247,40 +226,6 @@ export default function ConsoleOverview() {
 
   return (
     <>
-      {/* ── 경영 KPI — 6장 균등 그리드(랩핑 시 폭 불일치 방지, console.css) ── */}
-      <div className="kpis console-kpis" style={{ marginBottom: 18 }}>
-        <div className="kpi">
-          <div className="l">계약 학교</div>
-          <div className="v">{schools.length}<small> 개교</small></div>
-          <div className="d">{String(opsDash.school_count ?? schools.length)}개교 관리 중</div>
-        </div>
-        <div className="kpi">
-          <div className="l">세금계산서 발행액</div>
-          <div className="v">{invoices ? fmtKRW(issuedSum) : '—'}</div>
-          <div className="d">발행 {issued.length}건{invoices === null ? ' · 조회 권한 필요' : ''}</div>
-        </div>
-        <div className="kpi">
-          <div className="l">발행 실패</div>
-          <div className="v" style={failedCnt > 0 ? { color: 'var(--red-ink)' } : undefined}>{invoices ? failedCnt : '—'}<small> 건</small></div>
-          <div className="d">{failedCnt > 0 ? '청구·정산 탭에서 재발행하세요' : '이상 없음'}</div>
-        </div>
-        <div className="kpi">
-          <div className="l">불만 접수</div>
-          <div className="v">{rows.filter((r) => r.m.kind === 'complaint' && r.st !== 'canceled').length}<small> 건</small></div>
-          <div className="d">임원 방문 {opsDash.visit_count ?? visits.length}건</div>
-        </div>
-        <div className="kpi">
-          <div className="l">산재 이력</div>
-          <div className="v">{accidentCount ?? '—'}<small> 건</small></div>
-          <div className="d">산업재해 탭 연동</div>
-        </div>
-        <div className="kpi">
-          <div className="l">시스템 계정</div>
-          <div className="v">{userCount ?? '—'}<small> 개</small></div>
-          <div className="d">계정·권한 탭에서 관리</div>
-        </div>
-      </div>
-
       <div className="console-grid">
         {/* ── 좌: 불만/방문 이력(종합관리 통합) ── */}
         <div style={{ display: 'grid', gap: 18, minWidth: 0 }}>

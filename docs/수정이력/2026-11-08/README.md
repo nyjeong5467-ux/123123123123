@@ -1,22 +1,28 @@
 # 2026-11-08 수정이력
 
-총 5건 · 최신순 · 한국 시간 기준
+총 6건 · 최신순 · 한국 시간 기준
 
 [← 날짜 목차](../README.md)
 
-## 19:26 — [168] 학교·기관 연락 이력 — 입력 칸 대신 [＋ 등록] 창(학교·기관 이름 검색·담당 점검자 자동·전화 받은 사람), 구분·유형 직접 추가, 전달 칸 [보내기](요청·문의전달만, 불만은 보내지 않음), 보내기 창(받는 점검자=점검자 자동·보낸 사람·연락처), 점검자 홈에 보낸 사람·연락처 표시, 상단 검색·필터·내보내기 제거, '관련 점검자'→'점검자', 문의·전달 유형 '담당자 변경' 삭제
+## 19:29 — [169] 경영 현황 — 상단 지표 카드 6개(계약 학교·세금계산서 발행액·발행 실패·불만 접수·산재 이력·시스템 계정) 삭제, 카드 전용 조회(/invoices·/accidents·/ops/dashboard) 제거
 
 - 커밋: `(이번 업로드)` · 작성: nabong
+- 바뀐 파일 1개:
+  - (수정) `src/features/console/ConsoleOverview.tsx`
+
+## 19:26 — [168] 학교·기관 연락 이력 — 입력 칸 대신 [＋ 등록] 창(학교·기관 이름 검색·담당 점검자 자동·전화 받은 사람), 구분·유형 직접 추가, 전달 칸 [보내기](요청·문의전달만, 불만은 보내지 않음), 보내기 창(받는 점검자=점검자 자동·보낸 사람·연락처), 점검자 홈에 보낸 사람·연락처 표시, 상단 검색·필터·내보내기 제거, '관련 점검자'→'점검자', 문의·전달 유형 '담당자 변경' 삭제
+
+- 커밋: `53043b6` · 작성: nabong
 - 바뀐 파일 9개:
   - (수정) `docs/contact-history.md`
   - (수정) `src/features/console/ConsoleOverview.tsx`
   - (수정) `src/features/contact/ContactModal.tsx`
+  - (추가) `src/features/contact/ContactRegisterModal.tsx`
+  - (추가) `src/features/contact/ContactSendModal.tsx`
   - (수정) `src/features/contact/HqInbox.tsx`
   - (수정) `src/features/contact/StaffComplaints.tsx`
   - (수정) `src/features/contact/contactData.ts`
   - (수정) `src/styles/contact.css`
-  - (추가) `src/features/contact/ContactRegisterModal.tsx`
-  - (추가) `src/features/contact/ContactSendModal.tsx`
 
 ## 18:49 — [167] 경영 현황 불만 이력 → 학교·기관 연락 이력(구분 불만·요청·문의전달, 유형, 관련 점검자 자동, 처리 창: 조치 내용·담당자에게 보내기·완료 처리·등록 취소·수정 기록, 삭제 없음, 상단 검색·필터·내보내기 제거), 홈 내 현장 메모 본사 전달(확인·조치 완료·지난 본사 전달 보기), 직원 이력 불만·요청 탭(전체·미처리, 이름 옆 건수)
 
