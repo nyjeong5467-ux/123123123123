@@ -27,7 +27,7 @@ import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
-import { dedupeStories, groupByIssue, scoreRelevance, withinRetention, type RelevanceTag, type StoryRef } from '../lib/accidentRelevance'
+import { ACC_TYPES, accTypeOf, dedupeStories, groupByIssue, scoreRelevance, withinRetention, type RelevanceTag, type StoryRef } from '../lib/accidentRelevance'
 import '../styles/accidents.css'
 
 type Kind = 'accident' | 'disease'
@@ -495,9 +495,9 @@ export function Accidents() {
 
   // ── 국내재해사례(KOSHA) 조회 상태 ──────────────────────────
   const [tab, setTab] = useState<'records' | 'kosha'>('records')
-  const [kBiz, setKBiz] = useState('')
+  const [kType, setKType] = useState('') // [165] 재해 유형(업종 대신)
   const [kKw, setKKw] = useState('')
-  const [kSearch, setKSearch] = useState<{ business: string; keyword: string; pageNo: number } | null>(null)
+  const [kSearch, setKSearch] = useState<{ type: string; keyword: string; pageNo: number } | null>(null)
   const [kCases, setKCases] = useState<KoshaCase[]>([])
   const [kTotal, setKTotal] = useState(0)
   const [kSize, setKSize] = useState(KOSHA_ROWS)
@@ -534,7 +534,7 @@ export function Accidents() {
   // KOSHA 탭 최초 진입 시 첫 조회 트리거 (serviceKey는 서버 기본값 공용 — 사용자 설정 불필요)
   useEffect(() => {
     if (tab !== 'kosha' || kSearch !== null) return
-    setKSearch({ business: '', keyword: '', pageNo: 1 })
+    setKSearch({ type: '', keyword: '', pageNo: 1 })
   }, [tab, kSearch])
 
   // 조회 파라미터 변경 시 국내재해사례 목록 조회
@@ -544,12 +544,15 @@ export function Accidents() {
     setKLoading(true)
     setKError('')
     const qs = new URLSearchParams({ pageNo: String(kSearch.pageNo), numOfRows: String(KOSHA_ROWS) })
-    if (kSearch.business.trim()) qs.set('business', kSearch.business.trim())
-    if (kSearch.keyword.trim()) qs.set('keyword', kSearch.keyword.trim())
+    // [165] 재해 유형을 고르면 공단 전체 사례에서 그 유형 검색어로 조회(검색어를 따로 입력하면 검색어 우선 + 화면에서 유형으로 거름)
+    const tdef = ACC_TYPES.find((a) => a.key === kSearch.type)
+    const kw = kSearch.keyword.trim() || tdef?.q || ''
+    if (kw) qs.set('keyword', kw)
     api<KoshaCasesResp>(`/accidents/kosha/cases?${qs.toString()}`)
       .then((d) => {
         if (!alive) return
-        setKCases(Array.isArray(d.items) ? d.items : [])
+        const items = Array.isArray(d.items) ? d.items : []
+        setKCases(tdef && kSearch.keyword.trim() ? items.filter((c) => accTypeOf(c.title, c.contents).key === tdef.key) : items)
         setKTotal(typeof d.total === 'number' ? d.total : 0)
         setKSize(typeof d.size === 'number' && d.size > 0 ? d.size : KOSHA_ROWS)
         setKLoading(false)
@@ -564,8 +567,8 @@ export function Accidents() {
     return () => { alive = false }
   }, [kSearch])
 
-  function runKoshaSearch() {
-    setKSearch({ business: kBiz, keyword: kKw, pageNo: 1 })
+  function runKoshaSearch(type = kType) {
+    setKSearch({ type, keyword: kKw, pageNo: 1 })
   }
   const kPageNo = kSearch?.pageNo ?? 1
   const kPageCount = Math.max(1, Math.ceil(kTotal / (kSize || KOSHA_ROWS)))
@@ -825,34 +828,32 @@ export function Accidents() {
             <div className="lh">
               <h2><BookOpen size={19} /> KOSHA 재해사례 (안전보건공단)
                 <InfoTip>
-                  안전보건공단(KOSHA)의 국내 재해사례 게시판을 조회합니다. 산재내역(학교·기관에서 실제 발생한 산재)과는 별개의 공개 사례 라이브러리입니다.
+                  안전보건공단(KOSHA)의 국내 재해사례 게시판을 조회합니다. 업종(건설업·제조업) 대신 <b>재해 유형</b>(떨어짐·넘어짐·끼임·화상 등, 사례 제목·내용으로 자동 분류)으로 보고 고를 수 있습니다. 산재내역(학교·기관에서 실제 발생한 산재)과는 별개의 공개 사례 라이브러리입니다.
                   사례 행의 바로가기 아이콘을 누르면 산업안전포털의 원문 게시판을 새 탭에서 볼 수 있습니다.
                 </InfoTip></h2>
             </div>
 
-            {/* 검색바: 업종 + 키워드 + 조회 */}
-            <div className="formrow" style={{ padding: '12px 14px', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <label className="field" style={{ minWidth: 180 }}>
-                <span>업종</span>
-                <input
-                  className="input"
-                  value={kBiz}
-                  placeholder="예: 건설업"
-                  onChange={(e) => setKBiz(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') runKoshaSearch() }}
-                />
-              </label>
+            {/* [165] 재해 유형(사고 형태) 선택 — 업종(건설업·제조업) 대신 산업재해 유형으로 분류 */}
+            <div className="acc-ktypes">
+              <span className="lab">재해 유형</span>
+              {[{ key: '', label: '전체' }, ...ACC_TYPES].map((a) => (
+                <button key={a.key || 'all'} className={'acc-ktype' + (kType === a.key ? ' on' : '')}
+                  onClick={() => { setKType(a.key); runKoshaSearch(a.key) }} disabled={kLoading}>{a.label}</button>
+              ))}
+            </div>
+            {/* 검색바: 키워드 + 조회 */}
+            <div className="formrow" style={{ padding: '6px 14px 12px', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <label className="field" style={{ flex: 1, minWidth: 200 }}>
                 <span>키워드</span>
                 <input
                   className="input"
                   value={kKw}
-                  placeholder="제목·내용 검색어"
+                  placeholder="제목·내용 검색어 (예: 조리, 사다리, 청소)"
                   onChange={(e) => setKKw(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') runKoshaSearch() }}
                 />
               </label>
-              <button className="btn btn-primary" onClick={runKoshaSearch} disabled={kLoading}>
+              <button className="btn btn-primary" onClick={() => runKoshaSearch()} disabled={kLoading}>
                 <Search size={15} /> {kLoading ? '조회 중…' : '조회'}
               </button>
             </div>
@@ -877,7 +878,7 @@ export function Accidents() {
               <table className="tbl">
                 <thead>
                   <tr>
-                    <th style={{ width: 150 }}>업종</th>
+                    <th style={{ width: 170 }}>재해 유형</th>
                     <th>제목</th>
                     <th className="c" style={{ width: 90 }}>글번호</th>
                     <th className="c" style={{ width: 120 }}>내용</th>
@@ -886,7 +887,10 @@ export function Accidents() {
                 <tbody>
                   {kCases.map((c, i) => (
                     <tr key={String(c.boardno ?? i)} onClick={() => setKExpanded(c)} style={{ cursor: 'pointer' }}>
-                      <td>{c.business || '—'}</td>
+                      <td>
+                        <span className={'acc-ktag t-' + accTypeOf(c.title, c.contents).key}>{accTypeOf(c.title, c.contents).label}</span>
+                        {c.business && <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>{c.business}</div>}
+                      </td>
                       <td><span className="acc-sum">{c.title || '—'}</span></td>
                       <td className="c"><span className="muted" style={{ fontSize: 12 }}>{c.boardno ?? '—'}</span></td>
                       <td className="c">
@@ -919,7 +923,7 @@ export function Accidents() {
                   {!kLoading && !kError && kCases.length === 0 && (
                     <tr>
                       <td colSpan={4}>
-                        <div className="tstate">조회된 국내재해사례가 없습니다. 업종·키워드로 조회하세요.</div>
+                        <div className="tstate">조회된 국내재해사례가 없습니다. 재해 유형·키워드로 조회하세요.</div>
                       </td>
                     </tr>
                   )}
@@ -1092,6 +1096,7 @@ export function Accidents() {
       {/* ── 국내재해사례 상세(내용) 모달 ── */}
       {kExpanded && (
         <Modal title="국내재해사례 상세" onClose={() => setKExpanded(null)} wide>
+          <div className="kv"><b>재해 유형</b><span>{accTypeOf(kExpanded.title, kExpanded.contents).label}</span></div>
           <div className="kv"><b>업종</b><span>{kExpanded.business || '—'}</span></div>
           <div className="kv"><b>제목</b><span>{kExpanded.title || '—'}</span></div>
           <div className="kv"><b>글번호</b><span>{kExpanded.boardno ?? '—'}</span></div>

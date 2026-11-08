@@ -143,3 +143,26 @@ export function groupByIssue<T extends StoryRef & { summary?: string; related?: 
   }
   return [...map.values()]
 }
+
+// [165] KOSHA 재해사례 — 업종(건설업·제조업) 대신 '재해 유형(사고 형태)'으로 분류.
+//   공단 사례 제목은 대부분 '… 작업 중 끼임/추락/깔림' 형태라 제목·내용의 사고 형태 단어로 판정한다(앞쪽 규칙 우선).
+//   q = 공단 API 키워드 검색어(전체 사례에서 그 유형만 조회) · re = 화면 분류 규칙
+export const ACC_TYPES: { key: string; label: string; q: string; re: RegExp }[] = [
+  { key: 'fall', label: '떨어짐(추락)', q: '추락', re: /추락|떨어짐|떨어져|떨어진|실족/ },
+  { key: 'slip', label: '넘어짐', q: '넘어', re: /넘어짐|넘어져|넘어진|미끄러|전도(?!체)|발이\s*걸려/ },
+  { key: 'caught', label: '끼임', q: '끼임', re: /끼임|끼여|끼인|협착|말림|감김|감겨/ },
+  { key: 'crush', label: '깔림·매몰', q: '깔림', re: /깔림|깔려|깔린|매몰|전복|뒤집|붕괴|무너/ },
+  { key: 'hit', label: '부딪힘·맞음', q: '맞음', re: /부딪힘|부딪혀|충돌|맞음|맞아|맞은|낙하물|날아온|비래|튕/ },
+  { key: 'cut', label: '베임·찔림', q: '베임', re: /베임|베여|절단|찔림|찔려/ },
+  { key: 'burn', label: '화상', q: '화상', re: /화상|고온|뜨거운|열탕|화염/ },
+  { key: 'elec', label: '감전', q: '감전', re: /감전|전기\s*충격|누전/ },
+  { key: 'gas', label: '질식·중독', q: '질식', re: /질식|중독|산소\s*결핍|유해\s*가스|일산화탄소|황화수소|밀폐공간/ },
+  { key: 'fire', label: '화재·폭발', q: '폭발', re: /화재|폭발|파열|불꽃/ },
+  { key: 'msd', label: '근골격계·과로', q: '근골격', re: /근골격|요통|허리|과로|뇌심혈관|심정지|열사병|온열/ },
+]
+export function accTypeOf(...texts: (string | null | undefined)[]): { key: string; label: string } {
+  const t = texts.filter(Boolean).join(' ')
+  // 제목 우선 — 제목에서 못 찾으면 내용까지
+  for (const src of [texts[0] || '', t]) for (const a of ACC_TYPES) if (a.re.test(src)) return { key: a.key, label: a.label }
+  return { key: 'etc', label: '기타' }
+}
