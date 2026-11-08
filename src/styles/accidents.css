@@ -341,12 +341,18 @@
 
 /* [142] 이슈(주제) 라벨 */
 .acc-issue { display: inline-block; margin-right: 6px; font-size: 11px; font-weight: 800; color: var(--violet); background: var(--violet-soft); border-radius: 5px; padding: 1px 7px; vertical-align: 1px; }
-/* [165] KOSHA 재해사례 — 재해 유형 칩·배지 */
-.acc-ktypes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 14px 0; }
-.acc-ktypes .lab { font-size: 12px; font-weight: 700; color: var(--ink-2); margin-right: 4px; }
+/* [165]→[166] KOSHA 재해사례 — 대상 칩 · 직종·재해 유형 배지 */
+.acc-ktarget { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 14px 0; }
+.acc-ktarget .lab { font-size: 12px; font-weight: 700; color: var(--ink-2); margin-right: 4px; }
 .acc-ktype { border: 1px solid var(--line); background: var(--card-2); border-radius: 99px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; color: var(--ink-2); cursor: pointer; font-family: inherit; }
 .acc-ktype:hover { border-color: var(--violet); color: var(--violet); }
 .acc-ktype.on { background: var(--violet); border-color: var(--violet); color: #fff; }
+.acc-ktags { display: flex; flex-wrap: wrap; gap: 4px; }
+.acc-kjob { display: inline-block; font-size: 11.5px; font-weight: 800; border-radius: 7px; padding: 2px 8px; background: var(--violet-soft); color: var(--violet); }
+.acc-kbiz { display: inline-block; font-size: 11.5px; font-weight: 700; border-radius: 7px; padding: 2px 8px; background: var(--bg); color: var(--muted); }
+.acc-kraw { text-align: right; padding: 0 14px 12px; }
+.acc-kraw button { border: 0; background: none; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.acc-kraw button:hover { color: var(--violet); text-decoration: underline; }
 .acc-ktag { display: inline-block; font-size: 11.5px; font-weight: 800; border-radius: 7px; padding: 2px 8px; background: var(--bg); color: var(--ink-2); }
 .acc-ktag.t-fall, .acc-ktag.t-crush { background: var(--red-soft); color: var(--red-ink); }
 .acc-ktag.t-slip, .acc-ktag.t-hit { background: var(--amber-soft); color: var(--amber-ink); }

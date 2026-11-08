@@ -166,3 +166,27 @@ export function accTypeOf(...texts: (string | null | undefined)[]): { key: strin
   for (const src of [texts[0] || '', t]) for (const a of ACC_TYPES) if (a.re.test(src)) return { key: a.key, label: a.label }
   return { key: 'etc', label: '기타' }
 }
+
+// [166] KOSHA 재해사례 — '업종(건설업·제조업)' 대신 학교·기관 '직종'으로 분류·조회.
+//   한국산업안전협회 대상 직종(급식·당직·통학·시설관리·미화) + 기관 직종(사무·행정·도서관·수련·연수시설).
+//   scope: school = 학교, org = 교육지원청 등 기관 · q = 공단 API 키워드(직종별로 나눠 조회 후 합침) · re = 화면 분류 규칙
+export type JobScope = 'school' | 'org'
+export const JOBS: { key: string; label: string; scope: JobScope[]; q: string[]; re: RegExp }[] = [
+  { key: 'meal', label: '급식·조리', scope: ['school'], q: ['급식', '조리', '식당'], re: /급식|조리(?!개)|조리원|조리실|취사|식당|주방|배식|국솥|튀김|세척기/ },
+  { key: 'guard', label: '당직·경비', scope: ['school', 'org'], q: ['경비', '당직'], re: /경비원|경비\s*업무|경비실|당직|야간\s*순찰|순찰/ },
+  { key: 'drive', label: '통학·운전', scope: ['school', 'org'], q: ['통학', '운전원', '버스'], re: /통학|스쿨\s*버스|운전원|운전기사|버스\s*운전|차량\s*운행|승하차|승차|하차/ },
+  { key: 'facility', label: '시설관리', scope: ['school', 'org'], q: ['시설관리', '건물관리', '보일러', '예초'], re: /시설\s*관리|건물\s*관리|영선|보일러|전기실|기계실|배관\s*보수|조경|제초|예초|전정|수목|형광등|전등\s*교체/ },
+  { key: 'clean', label: '미화', scope: ['school', 'org'], q: ['청소', '미화'], re: /청소|미화원|환경\s*미화|분리\s*수거|쓰레기|소독\s*작업/ },
+  { key: 'office', label: '사무·행정', scope: ['org'], q: ['사무실'], re: /사무실|사무직|행정\s*업무|서류|문서고/ },
+  { key: 'library', label: '도서관', scope: ['org'], q: ['도서관', '서가'], re: /도서관|서가|서고|책장/ },
+  { key: 'training', label: '수련·연수시설', scope: ['org'], q: ['수련원', '연수원', '수영장'], re: /수련원|수련관|연수원|야영장|숙박\s*시설|객실|수영장/ },
+]
+// 건설·제조 현장 사례 제외(학교·기관 업무와 무관)
+const JOB_EXCLUDE = /비계|굴착|타워\s*크레인|거푸집|철골|프레스|사출|컨베이어|선박|조선소|터널|교량|레미콘|항타|천공기|흙막이|건설\s*현장|공사\s*현장|신축\s*공사|공장|생산\s*라인|지게차/
+const BIZ_EXCLUDE = /건설|제조|광업|조선/
+export function jobOf(title?: string | null, contents?: string | null, business?: string | null): { key: string; label: string } | null {
+  const t = `${title || ''} ${contents || ''}`
+  if (BIZ_EXCLUDE.test(business || '') || JOB_EXCLUDE.test(t)) return null
+  for (const src of [title || '', t]) for (const j of JOBS) if (j.re.test(src)) return { key: j.key, label: j.label }
+  return null
+}
