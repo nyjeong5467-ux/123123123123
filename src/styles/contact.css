@@ -1,0 +1,62 @@
+/* [167] 학교·기관 연락 이력 · 본사 전달 — 접두사 ct- */
+.ct-kind { display: inline-block; white-space: nowrap; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 800; color: #fff; margin-right: 4px; }
+.ct-kind.k-complaint { background: var(--red, #e0453a); }
+.ct-kind.k-request { background: var(--violet); }
+.ct-kind.k-info { background: #8a8aa3; }
+.ct-type { display: inline-block; white-space: nowrap; font-size: 11.5px; font-weight: 700; color: var(--ink-2); background: var(--card-2); border-radius: 6px; padding: 2px 7px; }
+.ct-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.ct-row { cursor: pointer; }
+.ct-row.canceled td { opacity: 0.45; }
+.ct-row.canceled td:nth-child(5) { text-decoration: line-through; }
+.ct-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; align-items: end; }
+.ct-form .ct-wide { grid-column: span 2; }
+.ct-form > .btn { justify-self: end; }
+.ct-auto { font-size: 10px; font-weight: 800; background: var(--violet-soft); color: var(--violet); border-radius: 5px; padding: 1px 5px; margin-left: 4px; }
+.ct-err { color: var(--red-ink); font-size: 12.5px; font-weight: 600; }
+.pillx.ct-p-ack { background: #e6f4f6; color: #12858a; }
+.ct-nowrap { white-space: nowrap; }
+
+/* 처리 창 */
+.ct-modal { display: grid; gap: 14px; }
+.ct-kv { display: grid; grid-template-columns: 70px 1fr; gap: 8px 12px; font-size: 13px; }
+.ct-kv b { color: var(--muted); font-weight: 700; font-size: 12px; }
+.ct-orig { white-space: pre-wrap; }
+.ct-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ct-grid2 { display: grid; grid-template-columns: 200px 1fr; gap: 10px; }
+.ct-ta { min-height: 64px; resize: vertical; padding-top: 8px; font-family: inherit; }
+.ct-call { display: flex; align-items: center; gap: 8px; background: var(--violet-soft); color: var(--violet); border-radius: 12px; padding: 10px 14px; font-weight: 700; font-size: 12.5px; }
+.btn.ct-xs { height: 30px; padding: 0 12px; font-size: 12px; gap: 4px; }
+.ct-send { border: 1.5px solid var(--violet); border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+.ct-send h4 { margin: 0; font-size: 13px; color: var(--violet); display: flex; align-items: center; gap: 6px; }
+.ct-send-foot { display: flex; align-items: center; gap: 10px; justify-content: space-between; font-size: 11.5px; }
+.ct-track { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
+.ct-track > span { border: 1px solid var(--line); border-radius: 99px; padding: 3px 10px; color: var(--muted); font-weight: 700; }
+.ct-track > span.on { background: var(--ok-soft); color: var(--ok-ink); border-color: transparent; }
+.ct-act { flex-basis: 100%; background: var(--card-2); border-radius: 10px; padding: 8px 12px; }
+.ct-log { font-size: 12px; color: var(--ink-2); }
+.ct-log summary { cursor: pointer; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.ct-log div { padding: 3px 0; border-bottom: 1px dashed var(--line); }
+.btn.ct-cancel:hover { color: var(--red-ink); }
+
+/* 홈 — 본사 전달 */
+.ct-hq { display: flex; gap: 10px; align-items: flex-start; background: #f4f7fe; border-radius: 12px; padding: 11px 12px; margin-bottom: 6px; }
+.ct-hqb { flex: none; background: var(--violet); color: #fff; border-radius: 6px; padding: 2px 7px; font-size: 10.5px; font-weight: 800; margin-top: 1px; }
+.ct-hq-main { flex: 1; min-width: 0; }
+.ct-hq-main .nm { font-weight: 700; font-size: 13px; white-space: pre-wrap; }
+.ct-hq-main .mt { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.ct-acked { font-size: 10.5px; font-weight: 800; color: #12858a; background: #e6f4f6; border-radius: 6px; padding: 1px 6px; margin-left: 6px; }
+.ct-hq-btns { display: flex; gap: 6px; align-items: center; flex: none; }
+.ct-fill { display: flex; gap: 6px; margin-top: 8px; max-width: 720px; }
+.ct-fill .input { flex: 1; height: 32px; }
+.btn.ct-ack { height: 28px; padding: 0 10px; font-size: 11.5px; border: 1px solid var(--violet); color: var(--violet); background: var(--card); }
+.ct-past { display: block; margin-left: auto; border: 0; background: none; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; padding: 10px 4px 0; font-family: inherit; }
+.ct-past:hover { color: var(--violet); text-decoration: underline; }
+.ct-past-row { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.ct-past-row .mt { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* 직원 이력 — 불만·요청 탭 */
+.ct-sum { display: flex; gap: 10px; margin-bottom: 12px; }
+.ct-sum div { background: var(--card-2); border-radius: 12px; padding: 9px 14px; font-size: 12px; color: var(--ink-2); font-weight: 700; }
+.ct-sum b { font-size: 16px; color: var(--ink); margin-left: 6px; }
+.ct-sum b.red { color: var(--red-ink); }
+.ct-cnt { background: var(--red, #e0453a); color: #fff; border-radius: 99px; font-size: 10px; font-weight: 800; padding: 0 6px; margin-left: 4px; line-height: 16px; display: inline-block; }

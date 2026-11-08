@@ -6,7 +6,7 @@
 // ?author= 쿼리로 딥링크(계정·권한 탭 "이력" 버튼과 연동). 데이터 규칙은 staff/staffData.ts.
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeftRight, CalendarCheck, CheckCircle2, CircleSlash, FileUser, ListChecks, School, ChevronLeft, ChevronRight, ScrollText, Search, XCircle } from 'lucide-react'
+import { ArrowLeftRight, CalendarCheck, MessageSquareWarning, CheckCircle2, CircleSlash, FileUser, ListChecks, School, ChevronLeft, ChevronRight, ScrollText, Search, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
 import { InfoTip } from '../../components/InfoTip'
 import type { SchedDoc } from '../schedule/MasterCalendar'
@@ -18,10 +18,11 @@ import {
 import StaffAssignModal from './staff/StaffAssignModal'
 import StaffAttendance from './staff/StaffAttendance'
 import { ResumeEditModal } from './staff/StaffResume'
+import { type ContactData, StaffComplaintsPane, complaintCount, useContactData, useStaffComplaints } from '../contact/StaffComplaints'
 import '../../styles/staff.css'
 
 type Person = { login: string; name: string; role: string; affiliation: string }
-type SubTab = 'today' | 'schools' | 'att'
+type SubTab = 'today' | 'schools' | 'att' | 'cmp'
 const ROLE_LABEL: Record<string, string> = { hq_admin: '본사 관리자', executive: '경영진', field_inspector: '현장 점검자', school_confirmer: '학교 확인자' }
 
 export default function ConsoleStaffHistory() {
@@ -45,6 +46,7 @@ export default function ConsoleStaffHistory() {
   const [resumeEdit, setResumeEdit] = useState(false)
   const [msg, setMsg] = useState('')
   const [reloadSchools, setReloadSchools] = useState(0)
+  const contact = useContactData() // [167] 불만 기록(연락 이력)
 
   // 기본 데이터
   useEffect(() => {
@@ -133,11 +135,12 @@ export default function ConsoleStaffHistory() {
                 <div className="sf-list-body">
                   {shown.map((p) => {
                     const t = todayMap[p.login]
+                    const nc = complaintCount(contact, p.login, p.name)
                     return (
                       <button key={p.login} className={'sf-person' + (p.login === selected ? ' on' : '')} onClick={() => pick(p.login)}>
                         <span className="sf-av">{p.name.slice(0, 1)}</span>
                         <span className="sf-pi">
-                          <b>{p.name}</b>
+                          <b>{p.name}{nc > 0 && <span className="ct-cnt" title="불만 기록">{nc}</span>}</b>
                           <small>{[p.login, p.affiliation].filter(Boolean).join(' · ')} · 담당 {schoolsOf(p.name).length}개</small>
                         </span>
                         <span className={'pillx ' + pctCls(t ? t.pct : null)} title="오늘 업무 수행률">
@@ -165,7 +168,7 @@ export default function ConsoleStaffHistory() {
                     person={cur ?? { login: selected, name: selected, role: '', affiliation: '' }}
                     reg={reg[selected]} resume={resumes[selected]} attPerson={att[selected]}
                     schools={schoolsOf(cur?.name ?? '')} today={todayMap[selected]} sched={sched} sub={sub} setSub={setSub}
-                    onEditResume={() => setResumeEdit(true)}
+                    onEditResume={() => setResumeEdit(true)} contact={contact}
                     onAttChange={(p) => setAtt((a) => ({ ...a, [selected]: p }))}
                   />
                 )}
@@ -190,10 +193,12 @@ export default function ConsoleStaffHistory() {
 }
 
 /* ---------------- 점검자 상세 ---------------- */
-function PersonDetail({ person, reg, resume, attPerson, schools, today, sched, sub, setSub, onEditResume, onAttChange }: {
+function PersonDetail({ person, reg, resume, attPerson, schools, today, sched, sub, setSub, onEditResume, onAttChange, contact }: {
   person: Person; reg?: StaffReg; resume?: ResumeDoc[string]; attPerson?: AttDoc[string]; schools: SchoolLite[]
   today?: TodayResult; sched: SchedDoc; sub: SubTab; setSub: (s: SubTab) => void; onEditResume: () => void; onAttChange: (p: AttDoc[string]) => void
+  contact: ContactData
 }) {
+  const cmp = useStaffComplaints(contact, person.login, person.name)
   const info = [reg?.affiliation && `소속 ${reg.affiliation}`, reg?.department, resume?.position].filter(Boolean)
   // [151] 프로필 요약 — 입사·경력·연락처·학력·이전 근무
   const nowMo = monthsOfTenure(resume?.hire_date)
@@ -229,6 +234,7 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sched, s
             {schools.length > 8 && <span className="muted">외 {schools.length - 8}개</span>}
           </div>
         </div>
+        {cmp.total > 0 && <button className="pillx warn sf-cmp-badge" style={{ border: 0, cursor: 'pointer' }} onClick={() => setSub('cmp')}>불만 {cmp.total}건 · 미처리 {cmp.pending}건</button>}
         <button className="btn btn-ghost" onClick={onEditResume}><FileUser size={15} /> 이력서 편집</button>
       </div>
 
@@ -236,11 +242,13 @@ function PersonDetail({ person, reg, resume, attPerson, schools, today, sched, s
         <button className={'tab' + (sub === 'att' ? ' active' : '')} onClick={() => setSub('att')}><CalendarCheck size={13} /> 근태 관리</button>
         <button className={'tab' + (sub === 'schools' ? ' active' : '')} onClick={() => setSub('schools')}><School size={13} /> 담당 학교<span className="n">{schools.length}</span></button>
         <button className={'tab' + (sub === 'today' ? ' active' : '')} onClick={() => setSub('today')}><ListChecks size={13} /> 금일 업무·업무 기록{today && today.pct !== null && <span className="n">{today.pct}%</span>}</button>
+        <button className={'tab' + (sub === 'cmp' ? ' active' : '')} onClick={() => setSub('cmp')}><MessageSquareWarning size={13} /> 불만·요청<span className="n">{cmp.total}</span></button>
       </div>
 
       <div className="sf-pane">
         {sub === 'today' && <WorkPane login={person.login} name={person.name} sched={sched} todayR={today} />}
         {sub === 'schools' && <SchoolsPane login={person.login} schools={schools} />}
+        {sub === 'cmp' && <StaffComplaintsPane data={cmp} />}
         {sub === 'att' && <StaffAttendance login={person.login} name={person.name} person={attPerson} onChange={onAttChange} />}
       </div>
     </div>

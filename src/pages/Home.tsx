@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { HqInboxList, HqPastModal, useHqInbox } from '../features/contact/HqInbox'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { FilterBar, Pagination, SortableTh } from '../components/table'
 import { Modal } from '../components/Modal'
@@ -461,6 +462,10 @@ export function Home() {
       .catch(() => {})
     return () => { alive = false }
   }, [dataReload])
+
+  // [167] 본사 전달 — 관리자가 [보내기]한 학교·기관 연락(내 현장 메모 맨 위)
+  const hqInbox = useHqInbox(user?.login || '', myName, dataReload)
+  const [hqPast, setHqPast] = useState(false)
 
   async function toggleMemoDone(m: FeedMemo) {
     const next = !m.done
@@ -1366,9 +1371,11 @@ export function Home() {
           <div className="hm-ch">
             <span className="hm-ic v"><StickyNote size={16} /></span>
             <h3>내 현장 메모</h3>
-            <div className="hm-r">{memoFeed.length}건 · 내가 등록한 메모만 표시</div>
+            {hqInbox.open.length > 0 && <span className="ct-hqb" style={{ marginLeft: 2 }}>본사 전달 {hqInbox.open.length}</span>}
+            <div className="hm-r">{memoFeed.length + hqInbox.open.length}건 · 내가 등록한 메모{hqInbox.open.length > 0 ? ' + 본사 전달' : '만 표시'}</div>
           </div>
-          {memoFeed.length === 0 && (
+          <HqInboxList inbox={hqInbox} onSchool={(id) => nav('/schools/' + id)} />
+          {memoFeed.length === 0 && hqInbox.open.length === 0 && (
             <div className="hm-empty">아직 내 현장 메모가 없습니다. 점검자 앱의 [메모] 버튼으로 남기면 여기에 표시됩니다(본인에게만 보입니다).</div>
           )}
           {memoFeed.slice(0, 12).map((m) => (
@@ -1397,6 +1404,8 @@ export function Home() {
                 onKeyDown={(e) => { if (e.key === 'Enter') nav('/schools/' + m.school_id) }}>학교 →</span>
             </div>
           ))}
+          {hqInbox.past.length > 0 && <button className="ct-past" onClick={() => setHqPast(true)}>지난 본사 전달 보기 (최근 30일 · {hqInbox.past.length}건) ›</button>}
+          {hqPast && <HqPastModal inbox={hqInbox} onClose={() => setHqPast(false)} />}
         </div>
       </div>
 

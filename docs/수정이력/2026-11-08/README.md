@@ -1,17 +1,31 @@
 # 2026-11-08 수정이력
 
-총 3건 · 최신순 · 한국 시간 기준
+총 4건 · 최신순 · 한국 시간 기준
 
 [← 날짜 목차](../README.md)
 
-## 17:14 — [166] KOSHA 재해사례 — 재해 유형 칩 삭제, 업종 대신 학교·기관 직종(급식·조리·당직·경비·통학·운전·시설관리·미화·사무·행정·도서관·수련·연수시설)으로 조회, 대상(전체·학교·기관) 칩, 직종·재해 유형 드롭다운, 건설·제조 사례 제외, 직종·재해 유형 배지, 공단 전체 사례 보기 링크
+## 18:49 — [167] 경영 현황 불만 이력 → 학교·기관 연락 이력(구분 불만·요청·문의전달, 유형, 관련 점검자 자동, 처리 창: 조치 내용·담당자에게 보내기·완료 처리·등록 취소·수정 기록, 삭제 없음, 상단 검색·필터·내보내기 제거), 홈 내 현장 메모 본사 전달(확인·조치 완료·지난 본사 전달 보기), 직원 이력 불만·요청 탭(전체·미처리, 이름 옆 건수)
 
 - 커밋: `(이번 업로드)` · 작성: nabong
+- 바뀐 파일 9개:
+  - (수정) `src/features/console/ConsoleOverview.tsx`
+  - (수정) `src/features/console/ConsoleStaffHistory.tsx`
+  - (수정) `src/pages/Home.tsx`
+  - (추가) `docs/contact-history.md`
+  - (추가) `src/features/contact/ContactModal.tsx`
+  - (추가) `src/features/contact/HqInbox.tsx`
+  - (추가) `src/features/contact/StaffComplaints.tsx`
+  - (추가) `src/features/contact/contactData.ts`
+  - (추가) `src/styles/contact.css`
+
+## 17:14 — [166] KOSHA 재해사례 — 재해 유형 칩 삭제, 업종 대신 학교·기관 직종(급식·조리·당직·경비·통학·운전·시설관리·미화·사무·행정·도서관·수련·연수시설)으로 조회, 대상(전체·학교·기관) 칩, 직종·재해 유형 드롭다운, 건설·제조 사례 제외, 직종·재해 유형 배지, 공단 전체 사례 보기 링크
+
+- 커밋: `c30156b` · 작성: nabong
 - 바뀐 파일 4개:
+  - (추가) `docs/kosha-jobs.md`
   - (수정) `src/lib/accidentRelevance.ts`
   - (수정) `src/pages/Accidents.tsx`
   - (수정) `src/styles/accidents.css`
-  - (추가) `docs/kosha-jobs.md`
 
 ## 17:02 — [165] KOSHA 재해사례 — 업종(건설업·제조업) 대신 재해 유형(떨어짐·넘어짐·끼임·깔림·부딪힘·베임·화상·감전·질식·화재폭발·근골격계)으로 분류·조회, 유형 배지 표시
 
