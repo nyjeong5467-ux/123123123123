@@ -1,21 +1,35 @@
 # 2026-11-08 수정이력
 
-총 4건 · 최신순 · 한국 시간 기준
+총 5건 · 최신순 · 한국 시간 기준
 
 [← 날짜 목차](../README.md)
 
-## 18:49 — [167] 경영 현황 불만 이력 → 학교·기관 연락 이력(구분 불만·요청·문의전달, 유형, 관련 점검자 자동, 처리 창: 조치 내용·담당자에게 보내기·완료 처리·등록 취소·수정 기록, 삭제 없음, 상단 검색·필터·내보내기 제거), 홈 내 현장 메모 본사 전달(확인·조치 완료·지난 본사 전달 보기), 직원 이력 불만·요청 탭(전체·미처리, 이름 옆 건수)
+## 19:26 — [168] 학교·기관 연락 이력 — 입력 칸 대신 [＋ 등록] 창(학교·기관 이름 검색·담당 점검자 자동·전화 받은 사람), 구분·유형 직접 추가, 전달 칸 [보내기](요청·문의전달만, 불만은 보내지 않음), 보내기 창(받는 점검자=점검자 자동·보낸 사람·연락처), 점검자 홈에 보낸 사람·연락처 표시, 상단 검색·필터·내보내기 제거, '관련 점검자'→'점검자', 문의·전달 유형 '담당자 변경' 삭제
 
 - 커밋: `(이번 업로드)` · 작성: nabong
 - 바뀐 파일 9개:
+  - (수정) `docs/contact-history.md`
+  - (수정) `src/features/console/ConsoleOverview.tsx`
+  - (수정) `src/features/contact/ContactModal.tsx`
+  - (수정) `src/features/contact/HqInbox.tsx`
+  - (수정) `src/features/contact/StaffComplaints.tsx`
+  - (수정) `src/features/contact/contactData.ts`
+  - (수정) `src/styles/contact.css`
+  - (추가) `src/features/contact/ContactRegisterModal.tsx`
+  - (추가) `src/features/contact/ContactSendModal.tsx`
+
+## 18:49 — [167] 경영 현황 불만 이력 → 학교·기관 연락 이력(구분 불만·요청·문의전달, 유형, 관련 점검자 자동, 처리 창: 조치 내용·담당자에게 보내기·완료 처리·등록 취소·수정 기록, 삭제 없음, 상단 검색·필터·내보내기 제거), 홈 내 현장 메모 본사 전달(확인·조치 완료·지난 본사 전달 보기), 직원 이력 불만·요청 탭(전체·미처리, 이름 옆 건수)
+
+- 커밋: `94b93b7` · 작성: nabong
+- 바뀐 파일 9개:
+  - (추가) `docs/contact-history.md`
   - (수정) `src/features/console/ConsoleOverview.tsx`
   - (수정) `src/features/console/ConsoleStaffHistory.tsx`
-  - (수정) `src/pages/Home.tsx`
-  - (추가) `docs/contact-history.md`
   - (추가) `src/features/contact/ContactModal.tsx`
   - (추가) `src/features/contact/HqInbox.tsx`
   - (추가) `src/features/contact/StaffComplaints.tsx`
   - (추가) `src/features/contact/contactData.ts`
+  - (수정) `src/pages/Home.tsx`
   - (추가) `src/styles/contact.css`
 
 ## 17:14 — [166] KOSHA 재해사례 — 재해 유형 칩 삭제, 업종 대신 학교·기관 직종(급식·조리·당직·경비·통학·운전·시설관리·미화·사무·행정·도서관·수련·연수시설)으로 조회, 대상(전체·학교·기관) 칩, 직종·재해 유형 드롭다운, 건설·제조 사례 제외, 직종·재해 유형 배지, 공단 전체 사례 보기 링크

@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, Footprints, Megaphone, MessageSquare, Monitor, PhoneCall, Plus, ShieldCheck, TabletSmartphone } from 'lucide-react'
+import { Download, Footprints, Megaphone, MessageSquare, Monitor, PhoneCall, Plus, Send, ShieldCheck, TabletSmartphone } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useTableQuery, type FilterDef } from '../../lib/useTableQuery'
-import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../../components/table'
+import { Pagination, SortableTh } from '../../components/table'
 import { InfoTip } from '../../components/InfoTip'
 import { useAuth } from '../../lib/auth'
 import {
-  type AckDoc, type ContactMeta, type Kind, type MetaDoc, type Status, KINDS, KIND_LABEL, META_KEY, STATUS_LABEL, STATUS_PILL,
-  ackFor, ackKey, getDoc, inspectorAt, metaOf, nowIso, patchItem, statusOf,
+  type AckDoc, type ContactMeta, type MetaDoc, type Options, type Status, META_KEY, OPTIONS_KEY, STATUS_LABEL, STATUS_PILL, kindLabel,
+  ackFor, ackKey, fmtTs, getDoc, metaOf, statusOf,
 } from '../contact/contactData'
 import ContactModal from '../contact/ContactModal'
+import ContactRegisterModal from '../contact/ContactRegisterModal'
+import ContactSendModal from '../contact/ContactSendModal'
 import StaffAssignModal from './staff/StaffAssignModal'
 import type { SchoolLite } from './staff/staffData'
 import '../../styles/contact.css'
@@ -50,11 +52,10 @@ type Complaint = { id: string; school_id: string; date: string; content: string;
 type Visit = { id: string; school_id: string; date: string; visitor: string; purpose: string }
 type OpsDash = { school_count?: number; visit_count?: number; complaint_count?: number }
 
-// [167] 학교·기관 연락 이력 — 접수 원장(/complaints) + 메타(구분·유형·관련 점검자·보내기) + 점검자 확인
+// [167] 학교·기관 연락 이력 — 접수 원장(/complaints) + 메타(구분·유형·점검자·보내기) + 점검자 확인
 type UserAcc = { id: string; login_id: string; name: string; role: string }
 type CRow = Complaint & { m: ContactMeta; st: Status; schoolName: string }
 const CMP_FILTERS: FilterDef<CRow>[] = [
-  { key: 'kind', label: '구분', options: KINDS.map((k) => ({ value: k.key, label: k.label })), accessor: (r) => r.m.kind },
   {
     key: 'st', label: '상태',
     options: (Object.keys(STATUS_LABEL) as Status[]).map((k) => ({ value: k, label: STATUS_LABEL[k] })),
@@ -94,15 +95,10 @@ export default function ConsoleOverview() {
   const dView = dEdit ? dDraft : dContent
 
   // 불만/방문 등록 폼(종합관리 통합)
-  const [fSid, setFSid] = useState('')
-  const [fDate, setFDate] = useState('')
-  const [fContent, setFContent] = useState('')
-  const [fKind, setFKind] = useState<Kind>('complaint')
-  const [fType, setFType] = useState(KINDS[0].types[0])
-  const [fInsp, setFInsp] = useState('')
-  const [fInspAuto, setFInspAuto] = useState(true)
-  const [fBusy, setFBusy] = useState(false)
-  const [fErr, setFErr] = useState('')
+  const [regOpen, setRegOpen] = useState(false) // [168] 등록 창
+  const [ctOpt, setCtOpt] = useState<Options>({}) // [168] 직접 추가한 구분·유형
+  const [sendId, setSendId] = useState<string | null>(null) // [169] 보내기 창
+  const [phones, setPhones] = useState<Record<string, string>>({}) // [169] 보낸 사람 연락처(login → 전화)
   const [vSid, setVSid] = useState('')
   const [vDate, setVDate] = useState('')
   const [vVisitor, setVVisitor] = useState('')
@@ -123,17 +119,25 @@ export default function ConsoleOverview() {
       api<{ doc: Partial<DashContent> }>('/ops/docs/dashboard-content').catch(() => ({ doc: {} as Partial<DashContent> })),
       api<ReleaseFile[]>('/release').catch(() => null),
       getDoc<MetaDoc>(META_KEY).catch(() => ({} as MetaDoc)),
-    ]).then(([s, inv, od, acc, usr, cmp, vis, doc, rel, md]) => {
+      getDoc<Options>(OPTIONS_KEY).catch(() => ({} as Options)),
+      getDoc<Record<string, { phone?: string }>>('staff-registry').catch(() => ({} as Record<string, { phone?: string }>)),
+      getDoc<Record<string, { phone?: string }>>('staff-resumes').catch(() => ({} as Record<string, { phone?: string }>)),
+    ]).then(([s, inv, od, acc, usr, cmp, vis, doc, rel, md, opt, reg, rsm]) => {
       if (!alive) return
       const list = Array.isArray(s) ? s : []
       setSchools(list)
-      if (list.length) { setFSid(list[0].id); setVSid(list[0].id) }
+      if (list.length) setVSid(list[0].id)
       setInvoices(Array.isArray(inv) ? inv : null)
       setOpsDash(od && typeof od === 'object' ? od : {})
       setAccidentCount(Array.isArray(acc) ? acc.length : null)
       setUserCount(Array.isArray(usr) ? usr.length : null)
       setUsers(Array.isArray(usr) ? usr : [])
       setMeta(md || {})
+      setCtOpt(opt || {})
+      const ph: Record<string, string> = {}
+      for (const [k, v] of Object.entries(rsm || {})) if (v?.phone) ph[k] = v.phone
+      for (const [k, v] of Object.entries(reg || {})) if (v?.phone) ph[k] = v.phone
+      setPhones(ph)
       setComplaints(Array.isArray(cmp) ? cmp : [])
       setVisits(Array.isArray(vis) ? vis : [])
       const d = doc?.doc || {}
@@ -187,41 +191,6 @@ export default function ConsoleOverview() {
     .map((u) => ({ login: u.login_id, name: u.name || u.login_id })).sort((a, b) => a.name.localeCompare(b.name, 'ko')), [users])
   const me = useMemo(() => users.find((u) => u.login_id === user?.login)?.name || user?.login || '관리자', [users, user])
 
-  // 학교·날짜를 고르면 그날 담당 점검자 자동(직접 바꾸면 자동 해제)
-  useEffect(() => {
-    if (!fSid || !fInspAuto) return
-    let alive = true
-    inspectorAt(fSid, fDate || nowIso().slice(0, 10), schools.find((s) => s.id === fSid)?.manager)
-      .then((n) => { if (alive) setFInsp(n) })
-    return () => { alive = false }
-  }, [fSid, fDate, fInspAuto, schools])
-
-  // ── 연락 등록 ──
-  async function submitComplaint() {
-    if (!fSid || !fDate || !fContent.trim()) { setFErr('학교·날짜·내용을 모두 입력하세요.'); return }
-    setFBusy(true)
-    setFErr('')
-    try {
-      const made = await api<Complaint>('/complaints', { method: 'POST', body: JSON.stringify({ school_id: fSid, date: fDate, content: fContent.trim() }) })
-      const list = await api<Complaint[]>('/complaints')
-      const id = made?.id || list.find((c) => c.school_id === fSid && c.date === fDate && c.content === fContent.trim())?.id
-      if (id) {
-        const sname = schools.find((s) => s.id === fSid)?.name || ''
-        const doc = await patchItem<ContactMeta>(META_KEY, id, () => ({
-          kind: fKind, type: fType, inspector: fInsp, inspector_login: inspectors.find((p) => p.name === fInsp)?.login || '',
-          school_id: fSid, school_name: sname, date: fDate, log: [{ ts: nowIso(), by: me, what: '접수' }],
-        }))
-        setMeta(doc)
-      }
-      setFContent('')
-      setFInspAuto(true)
-      setComplaints(list)
-    } catch (e) {
-      setFErr(e instanceof Error ? e.message : '등록 실패')
-    } finally {
-      setFBusy(false)
-    }
-  }
   async function submitVisit() {
     if (!vSid || !vDate || !vVisitor.trim()) { setVErr('학교·날짜·방문자를 모두 입력하세요.'); return }
     setVBusy(true)
@@ -250,18 +219,10 @@ export default function ConsoleOverview() {
     dateField: (r) => r.date,
     dateLabel: '날짜',
   })
-  const cmpExport: ExportColumn<CRow>[] = [
-    { header: '날짜', value: (r) => r.date },
-    { header: '학교·기관', value: (r) => r.schoolName },
-    { header: '구분', value: (r) => KIND_LABEL[r.m.kind] },
-    { header: '유형', value: (r) => r.m.type || '' },
-    { header: '관련 점검자', value: (r) => r.m.inspector || '' },
-    { header: '내용', value: (r) => r.content },
-    { header: '조치 내용', value: (r) => r.m.note || '' },
-    { header: '점검자 조치', value: (r) => ackFor(r.m, acks, r.id)?.act?.text || '' },
-    { header: '상태', value: (r) => STATUS_LABEL[r.st] },
-  ]
   const openRow = rows.find((r) => r.id === openId)
+  const sendRow = rows.find((r) => r.id === sendId)
+  // 보낸 사람 이름 → 연락처(계정 이름 기준, staff-registry 우선·없으면 이력서)
+  const phoneOf = (name: string) => { const u = users.find((x) => x.name === name); return (u && phones[u.login_id]) || '' }
   const pending = rows.filter((r) => r.st !== 'done' && r.st !== 'canceled').length
   const unacked = rows.filter((r) => r.st === 'sent').length
   const schoolName = (id: string) => schools.find((s) => s.id === id)?.name || id
@@ -333,58 +294,14 @@ export default function ConsoleOverview() {
                 </InfoTip></h2>
               <div className="sp" />
               {assignMsg && <span className="pillx ok">{assignMsg}</span>}
-              <FilterBar q={q} />
-              <ExportButton q={q} columns={cmpExport} filename="연락이력" />
               <span className="pillx warn">관리자 전용</span>
-            </div>
-            <div className="card-body" style={{ padding: '18px 26px', borderBottom: '1px solid var(--line)' }}>
-              <div className="ct-form">
-                <label className="field">
-                  <span>구분</span>
-                  <select className="select" value={fKind} onChange={(e) => { const k = e.target.value as Kind; setFKind(k); setFType(KINDS.find((x) => x.key === k)?.types[0] || '') }}>
-                    {KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>학교·기관</span>
-                  <select className="select" value={fSid} onChange={(e) => setFSid(e.target.value)}>
-                    {schools.length === 0 && <option value="">학교 없음</option>}
-                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>날짜</span>
-                  <input className="input" type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} />
-                </label>
-                <label className="field">
-                  <span>유형</span>
-                  <select className="select" value={fType} onChange={(e) => setFType(e.target.value)}>
-                    {(KINDS.find((k) => k.key === fKind)?.types ?? []).map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>관련 점검자{fInspAuto && fInsp && <span className="ct-auto">자동</span>}</span>
-                  <select className="select" value={fInsp} onChange={(e) => { setFInsp(e.target.value); setFInspAuto(false) }}>
-                    <option value="">없음</option>
-                    {fInsp && !inspectors.some((p) => p.name === fInsp) && <option value={fInsp}>{fInsp}</option>}
-                    {inspectors.map((p) => <option key={p.login} value={p.name}>{p.name}</option>)}
-                  </select>
-                </label>
-                <label className="field ct-wide">
-                  <span>내용</span>
-                  <input className="input" type="text" placeholder="연락 내용" value={fContent} onChange={(e) => setFContent(e.target.value)} />
-                </label>
-                <button className="btn btn-primary" onClick={() => void submitComplaint()} disabled={fBusy || schools.length === 0}>
-                  <Plus size={15} /> 등록
-                </button>
-              </div>
-              {fErr && <div className="muted" style={{ color: 'var(--red-ink)', marginTop: 10, fontSize: 12.5, fontWeight: 600 }}>{fErr}</div>}
+              <button className="btn btn-primary" onClick={() => setRegOpen(true)} disabled={schools.length === 0}><Plus size={15} /> 등록</button>
             </div>
             <div className="twrap">
               <table className="tbl">
                 <thead><tr>
                   <SortableTh q={q} col="date">날짜</SortableTh><th>학교·기관</th><th style={{ width: 190 }}>구분 · 유형</th>
-                  <th style={{ width: 100 }}>관련 점검자</th><th>내용</th><SortableTh q={q} col="status" className="c">상태</SortableTh>
+                  <th style={{ width: 100 }}>점검자</th><th>내용</th><th style={{ width: 190 }}>전달</th><SortableTh q={q} col="status" className="c">상태</SortableTh>
                 </tr></thead>
                 <tbody>
                   {q.view.map((c) => {
@@ -393,28 +310,45 @@ export default function ConsoleOverview() {
                       <tr key={c.id} className={'ct-row' + (c.st === 'canceled' ? ' canceled' : '')} onClick={() => setOpenId(c.id)}>
                         <td><b>{c.date}</b></td>
                         <td>{c.schoolName}</td>
-                        <td><span className={'ct-kind k-' + c.m.kind}>{KIND_LABEL[c.m.kind]}</span>{c.m.type && <span className="ct-type">{c.m.type}</span>}</td>
+                        <td><span className={'ct-kind k-' + (['complaint', 'request', 'info'].includes(c.m.kind) ? c.m.kind : 'custom')}>{kindLabel(c.m)}</span>{c.m.type && <span className="ct-type">{c.m.type}</span>}</td>
                         <td>{c.m.inspector ? <b>{c.m.inspector}</b> : <span className="muted">—</span>}</td>
                         <td>{c.content}
                           {act && <div className="ct-sub">점검자 조치: {act.text}</div>}
-                          {!act && c.m.send && <div className="ct-sub">{c.m.send.to_name}에게 전달</div>}
+                        </td>
+                        <td onClick={(e) => { if (c.m.kind !== 'complaint' && !c.m.send && c.st !== 'canceled') e.stopPropagation() }}>
+                          {c.m.kind === 'complaint' ? <span className="muted">—</span>
+                            : c.m.send ? (
+                              <div className="ct-sent"><b>{c.m.send.to_name}</b>에게
+                                <small>보낸 사람 {c.m.send.by} · {fmtTs(c.m.send.ts)}</small></div>
+                            ) : c.st === 'canceled' ? <span className="muted">—</span>
+                            : <button className="btn ct-tx" onClick={() => setSendId(c.id)}><Send size={12} /> 보내기</button>}
                         </td>
                         <td className="c"><span className={'pillx ' + STATUS_PILL[c.st]}>{STATUS_LABEL[c.st]}</span></td>
                       </tr>
                     )
                   })}
-                  {q.view.length === 0 && <tr><td colSpan={6}><div className="tstate">{complaints.length === 0 ? '등록된 연락 이력이 없습니다.' : '조건에 맞는 연락 이력이 없습니다.'}</div></td></tr>}
+                  {q.view.length === 0 && <tr><td colSpan={7}><div className="tstate">{complaints.length === 0 ? '등록된 연락 이력이 없습니다.' : '조건에 맞는 연락 이력이 없습니다.'}</div></td></tr>}
                 </tbody>
               </table>
             </div>
             <div className="muted" style={{ padding: '10px 26px 0', fontSize: 12 }}>미처리 {pending}건 · 전달 후 미확인 {unacked}건</div>
             <Pagination q={q} />
           </div>
+          {regOpen && (
+            <ContactRegisterModal schools={schools} inspectors={inspectors} me={me} options={ctOpt} onOptions={setCtOpt} onClose={() => setRegOpen(false)}
+              onDone={(list, doc) => { setComplaints(list); if (doc) setMeta(doc); setRegOpen(false) }} />
+          )}
+          {sendRow && (
+            <ContactSendModal key={sendRow.id} id={sendRow.id} date={sendRow.date} schoolName={sendRow.schoolName} content={sendRow.content}
+              meta={sendRow.m} inspectors={inspectors} me={me} phoneOf={phoneOf}
+              onClose={() => setSendId(null)} onSaved={(d) => { setMeta(d); setSendId(null) }} />
+          )}
           {openRow && (
             <ContactModal key={openRow.id} id={openRow.id} date={openRow.date} schoolName={openRow.schoolName} content={openRow.content}
-              meta={openRow.m} status={openRow.st} ack={ackFor(openRow.m, acks, openRow.id)} inspectors={inspectors} me={me}
+              meta={openRow.m} status={openRow.st} ack={ackFor(openRow.m, acks, openRow.id)} inspectors={inspectors} me={me} options={ctOpt}
               onClose={() => setOpenId(null)} onSaved={(d) => setMeta(d)}
-              onAssign={(from) => { setOpenId(null); setAssignFrom(from || '') }} />
+              onAssign={(from) => { setOpenId(null); setAssignFrom(from || '') }}
+              onSend={() => { setOpenId(null); setSendId(openRow.id) }} />
           )}
           {assignFrom !== null && (
             <StaffAssignModal schools={schools} inspectors={inspectors.map((p) => p.name)} initialFrom={assignFrom || undefined}

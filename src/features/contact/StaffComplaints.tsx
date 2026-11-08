@@ -1,4 +1,4 @@
-// [167] 직원 이력 › 점검자 상세 › '불만·요청' 탭 — 연락 이력 중 구분 '불만'이고 관련 점검자가 이 사람인 건(읽기 전용).
+// [167] 직원 이력 › 점검자 상세 › '불만·요청' 탭 — 연락 이력 중 구분 '불만'이고 점검자가 이 사람인 건(읽기 전용).
 //   기록은 지워지지 않고 계속 쌓인다(완료·등록 취소 포함, 등록 취소는 흐리게).
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../../lib/api'
@@ -54,7 +54,7 @@ export function StaffComplaintsPane({ data }: { data: ReturnType<typeof useStaff
         <div>미처리<b className={data.pending ? 'red' : ''}>{data.pending}</b></div>
       </div>
       {data.rows.length === 0 ? (
-        <div className="tstate">이 점검자와 관련된 불만 기록이 없습니다. (경영 현황 › 학교·기관 연락 이력에서 구분 '불만'·관련 점검자로 등록한 건이 여기에 모입니다)</div>
+        <div className="tstate">이 점검자와 관련된 불만 기록이 없습니다. (경영 현황 › 학교·기관 연락 이력에서 구분 '불만'·점검자로 등록한 건이 여기에 모입니다)</div>
       ) : (
         <div className="twrap">
           <table className="tbl">

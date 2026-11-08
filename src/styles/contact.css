@@ -1,5 +1,5 @@
 /* [167] 학교·기관 연락 이력 · 본사 전달 — 접두사 ct- */
-.ct-kind { display: inline-block; white-space: nowrap; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 800; color: #fff; margin-right: 4px; }
+.ct-kind { background: #12858a; display: inline-block; white-space: nowrap; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 800; color: #fff; margin-right: 4px; }
 .ct-kind.k-complaint { background: var(--red, #e0453a); }
 .ct-kind.k-request { background: var(--violet); }
 .ct-kind.k-info { background: #8a8aa3; }
@@ -60,3 +60,46 @@
 .ct-sum b { font-size: 16px; color: var(--ink); margin-left: 6px; }
 .ct-sum b.red { color: var(--red-ink); }
 .ct-cnt { background: var(--red, #e0453a); color: #fff; border-radius: 99px; font-size: 10px; font-weight: 800; padding: 0 6px; margin-left: 4px; line-height: 16px; display: inline-block; }
+
+/* [168] 등록 창 — 학교 검색·구분/유형 버튼 */
+.ct-lab { font-size: 12px; font-weight: 700; color: var(--ink-2); margin-bottom: 6px; }
+.ct-lab small { font-weight: 500; margin-left: 4px; }
+.ct-combo { position: relative; }
+.ct-search { display: flex; align-items: center; gap: 8px; height: 42px; border: 1.5px solid var(--line); border-radius: 12px; padding: 0 12px; color: var(--muted); background: var(--card); }
+.ct-search:focus-within { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-soft); }
+.ct-search input { flex: 1; border: 0; outline: none; background: transparent; font-size: 14px; color: var(--ink); font-family: inherit; }
+.ct-drop { border: 1px solid var(--line); border-radius: 12px; margin-top: 6px; overflow: hidden; box-shadow: 0 8px 24px rgba(20, 20, 50, 0.08); background: var(--card); }
+.ct-opt { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; border-bottom: 1px solid var(--line); background: none; padding: 9px 12px; font-size: 13px; text-align: left; cursor: pointer; font-family: inherit; color: var(--ink); }
+.ct-opt:last-child { border-bottom: 0; }
+.ct-opt.on { background: var(--violet-soft); }
+.ct-opt small { font-size: 11.5px; }
+.ct-opt .mg { margin-left: auto; font-size: 11.5px; font-weight: 700; color: var(--ink-2); }
+.ct-none { padding: 12px; font-size: 12.5px; color: var(--muted); }
+.ct-picked { display: flex; align-items: center; gap: 10px; border: 1.5px solid var(--violet); background: var(--violet-soft); border-radius: 12px; padding: 10px 12px; }
+.ct-picked b { font-size: 14px; }
+.ct-picked small { font-size: 12px; }
+.ct-link { margin-left: auto; border: 0; background: none; color: var(--violet); font-weight: 700; font-size: 12px; cursor: pointer; font-family: inherit; }
+.ct-grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ct-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ct-chip { border: 1px solid var(--line); background: var(--card); border-radius: 99px; padding: 6px 14px; font-size: 12.5px; font-weight: 700; color: var(--ink-2); cursor: pointer; font-family: inherit; }
+.ct-chip:hover { border-color: var(--violet); color: var(--violet); }
+.ct-chip.on { background: var(--violet); border-color: var(--violet); color: #fff; }
+.ct-chip.k-complaint.on { background: var(--red, #e0453a); border-color: var(--red, #e0453a); }
+.ct-chip.k-info.on { background: #8a8aa3; border-color: #8a8aa3; }
+.ct-chip.k-custom.on { background: #12858a; border-color: #12858a; }
+.ct-chip-add { display: inline-flex; align-items: center; gap: 3px; border-style: dashed; color: var(--muted); }
+.ct-addbox { display: inline-flex; align-items: center; gap: 6px; }
+.ct-addbox input { height: 32px; width: 150px; border: 1.5px solid var(--violet); border-radius: 99px; padding: 0 12px; font-size: 12.5px; outline: none; font-family: inherit; background: var(--card); color: var(--ink); }
+
+/* [169] 전달 칸 · 보내기 창 */
+.btn.ct-tx { height: 28px; padding: 0 10px; font-size: 11.5px; gap: 4px; border: 1px solid var(--violet); color: var(--violet); background: var(--card); white-space: nowrap; }
+.ct-sent { font-size: 12px; line-height: 1.45; }
+.ct-sent small { display: block; color: var(--muted); font-size: 11px; }
+.ct-nosend { background: var(--card-2); border-radius: 12px; padding: 11px 14px; font-size: 12.5px; color: var(--ink-2); }
+.ct-sendhead { font-size: 13px; color: var(--ink-2); }
+.ct-by { display: flex; align-items: center; gap: 8px; }
+.ct-by .input { flex: 1; }
+.ct-by .muted { font-size: 12px; white-space: nowrap; }
+.ct-who { color: var(--violet); }
+.ct-row td:first-child, .ct-row td:nth-child(2) { white-space: nowrap; }
+.ct-warn { display: block; margin-top: 4px; font-size: 11px; color: var(--amber-ink, #b26b00); }

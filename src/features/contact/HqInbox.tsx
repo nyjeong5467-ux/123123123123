@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check } from 'lucide-react'
 import { Modal } from '../../components/Modal'
-import { type AckDoc, type ContactMeta, type MetaDoc, KIND_LABEL, META_KEY, ackKey, fmtTs, getDoc, nowIso, patchItem } from './contactData'
+import { type AckDoc, type ContactMeta, type MetaDoc, kindLabel, META_KEY, ackKey, fmtTs, getDoc, nowIso, patchItem } from './contactData'
 import '../../styles/contact.css'
 
 type Item = { id: string; m: ContactMeta }
@@ -62,9 +62,9 @@ export function HqInboxList({ inbox, onSchool }: { inbox: ReturnType<typeof useH
           <div className="ct-hq" key={it.id}>
             <span className="ct-hqb">본사 전달</span>
             <div className="ct-hq-main">
-              <div className="nm"><span className={'ct-kind k-' + it.m.kind}>{KIND_LABEL[it.m.kind]}</span>{s.text}
+              <div className="nm"><span className={'ct-kind k-' + it.m.kind}>{kindLabel(it.m)}</span>{s.text}
                 {a?.ack_ts && <span className="ct-acked">{fmtTs(a.ack_ts)} 확인함</span>}</div>
-              <div className="mt">{it.m.school_name || ''} · {s.by} · {fmtTs(s.ts)}{it.m.type ? ` · ${it.m.type}` : ''}
+              <div className="mt">{it.m.school_name || ''} · 보낸 사람 <b className="ct-who">{s.by}{s.by_phone ? ` (${s.by_phone})` : ''}</b> · {fmtTs(s.ts)}{it.m.type ? ` · ${it.m.type}` : ''}
                 {it.m.kind === 'info' && ' · 확인하면 목록에서 사라집니다'}</div>
               {actId === it.id && (
                 <div className="ct-fill">
@@ -98,7 +98,7 @@ export function HqPastModal({ inbox, onClose }: { inbox: ReturnType<typeof useHq
         const a = inbox.ackOf(it)
         return (
           <div className="ct-past-row" key={it.id}>
-            <div><span className={'ct-kind k-' + it.m.kind}>{KIND_LABEL[it.m.kind]}</span>{it.m.send!.text}</div>
+            <div><span className={'ct-kind k-' + it.m.kind}>{kindLabel(it.m)}</span>{it.m.send!.text}</div>
             <div className="mt">{it.m.school_name} · 받은 날 {fmtTs(it.m.send!.ts)}{a?.ack_ts && ` · 확인 ${fmtTs(a.ack_ts)}`}
               {a?.act && ` · 조치 ${fmtTs(a.act.ts)}: ${a.act.text}`}{it.m.closed === 'done' && !a?.act && ' · 본사 완료 처리'}</div>
           </div>
