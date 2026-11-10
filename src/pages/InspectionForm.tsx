@@ -648,7 +648,7 @@ export function InspectionForm() {
   const isPrivateSchool = !!ledger?.school.is_private
   async function submitAll(viaUpload = false) {
     if (!ledger || busy) return
-    if (isPrivateSchool && viaUpload && !window.confirm('사립학교입니다. 교육청 업로드를 할 수 없습니다.\n\n[확인]을 누르면 점검표만 저장합니다(교육청 업로드 제외).')) return
+    if (isPrivateSchool && viaUpload && !window.confirm('사립학교입니다. 교육청 업로드를 할 수 없습니다.\n\n[확인]을 누르면 점검표를 제출만 합니다(교육청 업로드 제외).')) return
     if (!activeDefs.length) {
       setSubmitErr('점검대상 파트가 없습니다. 점검대상을 선택하세요.')
       setProg({ done: 0, total: 0, label: '', phase: 'err', msg: '점검대상 파트가 없습니다 — 점검대상을 먼저 선택하세요' })
@@ -721,7 +721,9 @@ export function InspectionForm() {
           //       수정한 날로 바뀌므로, 서명을 새로 한 경우에만 서명하고 제출은 다시 하지 않는다.
           const es = editState[created.id]
           const needSign = !es || !es.signed || sigTouched
-          const needSubmit = (!es || !es.submitted) && !isPrivateSchool // [163] 사립은 제출(=교육청 전송 대기) 안 함
+          // [163 보완] 사립도 제출은 한다 — 제출은 교육청 전송과 별개(이력·이행점검·메일 처리의 기준).
+          //           백엔드 submit 이 사립이면 전송 대기(pending) 대신 '전송 불필요'로 기록하므로 교육청에 올라가지 않는다.
+          const needSubmit = !es || !es.submitted
           if (needSign) {
           setStatus(d.label, 'run', '서명')
           // [G-6] 서명패드로 그린 서명이 있으면 PNG(b64)+스트로크를 함께 전송 —
@@ -740,11 +742,11 @@ export function InspectionForm() {
           }
           if (!needSubmit) {
             usedIds.push(created.id)
-            setStatus(d.label, 'done', isPrivateSchool ? '저장 완료 (사립 · 교육청 업로드 제외)' : '수정 저장 완료 (점검일 유지)')
+            setStatus(d.label, 'done', '수정 저장 완료 (점검일 유지)')
           } else {
           const sub = await api<{ status: string; eduoffice: string | null }>(`/inspections/${created.id}/submit`, { method: 'POST' })
           usedIds.push(created.id)
-          setStatus(d.label, 'done', sub.eduoffice === 'pending' ? '제출 완료 · 교육청 전송 대기' : '제출 완료')
+          setStatus(d.label, 'done', sub.eduoffice === 'pending' ? '제출 완료 · 교육청 전송 대기' : isPrivateSchool ? '제출 완료 (사립 · 교육청 업로드 제외)' : '제출 완료')
           }
         }
       } catch (e) {
@@ -774,7 +776,7 @@ export function InspectionForm() {
         ...p,
         phase: 'done',
         msg: isPrivateSchool
-          ? '점검표 저장 완료 (사립학교 · 교육청 업로드 제외)'
+          ? '점검표 제출 완료 (사립학교 · 교육청 업로드 제외)'
           : affected.length
           ? (resent ? '수정 저장 + 교육청 재전송 대기 등록 완료' : '수정 저장 완료 (교육청 재전송 안 함)')
           : '전남교육청 전송 대기 등록 완료',
@@ -1309,7 +1311,7 @@ export function InspectionForm() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" style={{ flex: 'none' }}><path d="M18 6 6 18M6 6l12 12" /></svg>
                   )}
                   {isRun ? `업로드 중 ${prog!.done}/${prog!.total}${prog!.label ? ` · ${prog!.label}` : ''}`
-                    : isDone ? (isPrivateSchool ? '저장 완료 (사립)' : '전송 대기 등록 완료')
+                    : isDone ? (isPrivateSchool ? '제출 완료 (사립 · 교육청 제외)' : '전송 대기 등록 완료')
                     : isErr ? '실패 · 다시 시도'
                     : '전남교육청 업로드'}
                 </span>
