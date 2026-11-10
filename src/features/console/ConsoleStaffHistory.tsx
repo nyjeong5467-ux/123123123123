@@ -53,22 +53,28 @@ export default function ConsoleStaffHistory() {
     let alive = true
     ;(async () => {
       try {
-        const [u, a, r, sc, rs, at] = await Promise.all([
+        // [170] 지연 줄이기 — 전체 기록 집계(/history/authors)는 기다리지 않고 따로 불러온다(아래 effect)
+        const [u, r, sc, rs, at] = await Promise.all([
           api<UserAcc[]>('/users').catch(() => [] as UserAcc[]),
-          api<Author[]>('/history/authors').catch(() => [] as Author[]),
           getDoc<Record<string, StaffReg>>('staff-registry').catch(() => ({})),
           getDoc<SchedDoc>('schedules').catch(() => ({} as SchedDoc)),
           getDoc<ResumeDoc>('staff-resumes').catch(() => ({} as ResumeDoc)),
           getDoc<AttDoc>('staff-attendance').catch(() => ({} as AttDoc)),
         ])
         if (!alive) return
-        setUsers(Array.isArray(u) ? u : []); setAuthors(Array.isArray(a) ? a : [])
+        setUsers(Array.isArray(u) ? u : [])
         setReg(r); setSched(sc); setResumes(rs); setAtt(at)
         setLoading(false)
       } catch (e) {
         if (alive) { setError(e instanceof Error ? e.message : '조회 실패'); setLoading(false) }
       }
     })()
+    return () => { alive = false }
+  }, [])
+  // 기록만 있고 계정 없는 작성자·'작성자 미상' — 화면을 먼저 띄운 뒤 뒤에서 합친다
+  useEffect(() => {
+    let alive = true
+    api<Author[]>('/history/authors').then((a) => { if (alive) setAuthors(Array.isArray(a) ? a : []) }).catch(() => {})
     return () => { alive = false }
   }, [])
   useEffect(() => {
@@ -91,14 +97,15 @@ export default function ConsoleStaffHistory() {
   }, [users, authors, reg])
   const hasUnknown = authors.some((a) => a.author_id === UNKNOWN && a.total > 0)
 
-  // 오늘 수행률 — 점검자별(목록 배지·상단 요약)
+  // [170] 오늘 수행률 — 전체 점검자를 한꺼번에 부르지 않고, 누른 점검자 것만 불러온다(한 번 본 사람은 다시 부르지 않음)
+  const selName = people.find((p) => p.login === selected)?.name
   useEffect(() => {
-    if (loading || !people.length) return
+    if (loading || !selected || selected === UNKNOWN || todayMap[selected]) return
     let alive = true
-    Promise.all(people.map((p) => loadToday(p.login, p.name, sched, today).then((r) => [p.login, r] as const)))
-      .then((rs) => { if (alive) setTodayMap(Object.fromEntries(rs)) })
+    loadToday(selected, selName || selected, sched, today).then((r) => { if (alive) setTodayMap((m) => ({ ...m, [selected]: r })) })
     return () => { alive = false }
-  }, [loading, people, sched, today])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, selected, selName, sched, today])
 
   const schoolsOf = (name: string) => schools.filter((s) => (s.manager || '').trim() === name)
   const pick = (login: string) => { setSp({ tab: 'history', author: login }); setSub('att') }
@@ -143,9 +150,9 @@ export default function ConsoleStaffHistory() {
                           <b>{p.name}{nc > 0 && <span className="ct-cnt" title="불만 기록">{nc}</span>}</b>
                           <small>{[p.login, p.affiliation].filter(Boolean).join(' · ')} · 담당 {schoolsOf(p.name).length}개</small>
                         </span>
-                        <span className={'pillx ' + pctCls(t ? t.pct : null)} title="오늘 업무 수행률">
-                          {!t ? '…' : t.pct === null ? '계획 없음' : `${t.pct}%`}
-                        </span>
+                        {t && ( // [170] 누른 점검자만 수행률 표시(전체 일괄 조회 안 함)
+                          <span className={'pillx ' + pctCls(t.pct)} title="오늘 업무 수행률">{t.pct === null ? '계획 없음' : `${t.pct}%`}</span>
+                        )}
                       </button>
                     )
                   })}
