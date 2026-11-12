@@ -13,7 +13,7 @@ import { InspectionSheetView, type SheetData } from '../components/InspectionShe
 import { resolveExtra, type InspExtra } from '../lib/inspExtra'
 import '../styles/inspectform.css'
 import { type ApprovalStep, defaultApproval, fetchApproval, primaryIdx, titleFor } from '../lib/approval' // [118] [123]
-import { useMyProfile } from '../lib/myProfile'
+import { useMyProfile, useStaffProfiles } from '../lib/myProfile'
 
 // 기존 사용처 호환 재수출 — InspExtra 본체는 lib/inspExtra.ts로 이동(공용 매칭 로직과 함께).
 export type { InspExtra } from '../lib/inspExtra'
@@ -170,8 +170,31 @@ export function InspectionForm() {
     if (!me.ready) return
     setOrg((v) => v || me.affiliation)
     setDept((v) => v || me.department)
+    setRole((v) => v || me.position) // [173] 계정·권한의 직급 → 직책
     setWriter((v) => v || me.name)
   }, [me])
+  // [173] 작성자 이름을 직원 이름으로 바꾸면(예: 관리자가 대신 작성) 그 직원의 소속·부서·직책으로 채운다.
+  //       직접 입력한 값은 덮어쓰지 않는다 — 비어 있거나 직전에 자동으로 채운 값일 때만 교체.
+  const staffProfiles = useStaffProfiles()
+  const [autoInfo, setAutoInfo] = useState<{ org: string; dept: string; role: string } | null>(null)
+  // 로그인 정보에 이름이 없을 때(서버마다 다름) — 계정 목록의 내 이름으로 작성자 채움
+  useEffect(() => {
+    if (!me.ready || !me.login) return
+    const mine = staffProfiles.find((x) => x.login === me.login)
+    if (mine?.name) setWriter((v) => v || mine.name)
+  }, [me, staffProfiles])
+  useEffect(() => {
+    const w = writer.trim()
+    const p = w ? staffProfiles.find((x) => x.name === w || x.login === w) : undefined
+    if (!p) return
+    const prev = autoInfo ?? { org: me.affiliation, dept: me.department, role: me.position }
+    const swap = (cur: string, old: string, next: string) => (!cur || cur === old ? next : cur)
+    setOrg((v) => swap(v, prev.org, p.affiliation))
+    setDept((v) => swap(v, prev.dept, p.department))
+    setRole((v) => swap(v, prev.role, p.position))
+    setAutoInfo({ org: p.affiliation, dept: p.department, role: p.position })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [writer, staffProfiles])
   const [place, setPlace] = useState('')
   const [accType, setAccType] = useState(ACC_TYPES[0])
   const [inspectDate, setInspectDate] = useState(today)
