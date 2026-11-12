@@ -1,0 +1,23 @@
+/* [172] 홈 공지사항 — 미리보기 · 상세 창 · 전체 보기 (접두사 nt-) */
+.nt-pin { display: inline-block; flex: none; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 800; background: var(--red-soft); color: var(--red-ink); margin-right: 8px; vertical-align: 2px; }
+.nt-pin.g { background: var(--card-2); color: var(--muted); }
+.nt-detail { display: grid; gap: 14px; }
+.nt-date { font-size: 12px; color: var(--muted); }
+.nt-body { white-space: pre-wrap; word-break: break-word; line-height: 1.75; font-size: 13.5px; background: var(--card-2); border-radius: 12px; padding: 14px 16px; min-height: 60px; }
+.nt-lab { font-size: 12px; font-weight: 700; color: var(--ink-2); margin-bottom: 6px; }
+.nt-file { display: flex; align-items: center; gap: 6px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin-bottom: 6px; }
+.btn.nt-del { color: var(--red-ink); }
+.nt-all { display: grid; }
+.nt-row { display: flex; align-items: flex-start; gap: 4px; width: 100%; border: 0; border-bottom: 1px solid var(--line); background: none; padding: 11px 6px; text-align: left; cursor: pointer; font-family: inherit; color: var(--ink); border-radius: 8px; }
+.nt-row:last-child { border-bottom: 0; }
+.nt-row:hover { background: var(--card-2); }
+.nt-main { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.nt-main b { font-size: 13px; }
+.nt-main small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nt-d { flex: none; font-size: 11.5px; color: var(--muted); }
+/* 홈 카드 */
+.hm-n .hm-npv { font-size: 11.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hm-n .hm-ngo { flex: none; margin-left: auto; color: var(--muted); font-size: 16px; line-height: 1; padding-top: 2px; }
+.hm-nall { display: block; margin-left: auto; border: 0; background: none; color: var(--violet); font-weight: 700; font-size: 12px; cursor: pointer; padding: 8px 18px 2px; font-family: inherit; }
+.hm-nall:hover { text-decoration: underline; }
+.hm-nhint { display: block; font-size: 11px; color: var(--muted); margin-top: 5px; }
