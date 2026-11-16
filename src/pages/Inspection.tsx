@@ -294,7 +294,7 @@ export function Inspection() {
     } catch { /* 조회 실패 시 보유분으로 표시 */ }
     let extra: InspExtra | undefined
     try {
-      const r = await api<{ doc: Record<string, InspExtra[]> }>('/ops/docs/inspection-extras')
+      const r = await api<{ doc: Record<string, InspExtra[]> }>(`/ops/docs/inspection-extras?school_id=${encodeURIComponent(school.id)}`)
       const ids = new Set(fullParts.map((p) => p.id))
       // id 직매칭 → 같은 점검일 → 학교 항목 사진 병합 폴백 (앱 파트별 제출로 ids가 어긋나도 사진 표시)
       extra = resolveExtra(r.doc?.[school.id], ids, date)
@@ -313,7 +313,7 @@ export function Inspection() {
     if (!detail || !sel) { setDetailPhotos([]); setDetailLines([]); setDetailPhotosLoading(false); return }
     let alive = true
     setDetailPhotosLoading(true)
-    api<{ doc: Record<string, InspExtra[]> }>('/ops/docs/inspection-extras')
+    api<{ doc: Record<string, InspExtra[]> }>(`/ops/docs/inspection-extras?school_id=${encodeURIComponent(sel.id)}`)
       .then(async (r) => {
         if (!alive) return
         const extra = resolveExtra(r.doc?.[sel.id], new Set([detail.id]), dateOf(detail))

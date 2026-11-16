@@ -310,7 +310,7 @@ export function InspectionForm() {
           const date = targets
             .map((t) => String(t.submitted_at || t.signed_at || t.signatures?.[0]?.signed_at || '').slice(0, 10))
             .find(Boolean) || ''
-          api<{ doc: Record<string, InspExtra[]> }>('/ops/docs/inspection-extras')
+          api<{ doc: Record<string, InspExtra[]> }>(`/ops/docs/inspection-extras?school_id=${encodeURIComponent(sid)}`)
             .then((r) => {
               if (!alive) return
               const extra = resolveExtra(r.doc?.[sid], ids, date)
