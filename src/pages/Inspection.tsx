@@ -12,7 +12,10 @@ import { useTableQuery, type TableQueryConfig } from '../lib/useTableQuery'
 import { ExportButton, Pagination, SortableTh, type ExportColumn } from '../components/table'
 import { WorkSearchPanel, type WorkSearch } from '../components/table/WorkSearchPanel'
 import { InspectionSheetView, SignImage, type SheetData } from '../components/InspectionSheetView'
-import { resolveExtra, type InspExtra, type PhotoSlot } from '../lib/inspExtra'
+import { resolveExtra, slotHasImage, type InspExtra, type PhotoSlot } from '../lib/inspExtra'
+// [사진 분리] 사진은 inspection-extras 의 base64 가 아닌 path → GET /files/img 썸네일/원본으로 표시
+import { PhotoGrid, PhotoLightbox } from '../components/InspectionPhotos'
+import { fetchInspectionMedia } from '../lib/media'
 import '../styles/hier.css'
 import '../styles/inspecthier.css'
 import { fetchApproval, titleFor } from '../lib/approval' // [118] [126]
@@ -267,6 +270,8 @@ export function Inspection() {
   const [detail, setDetail] = useState<Inspection | null>(null)
   // 상세 모달 사진대지 썸네일 — 앱이 올린 사진을 '보기' 양식까지 안 가도 바로 확인 [사진표시 수정]
   const [detailPhotos, setDetailPhotos] = useState<{ label: string; slots: PhotoSlot[] }[]>([])
+  const [detailPhotosLoading, setDetailPhotosLoading] = useState(false) // 사진대지 목록 수신 중(스켈레톤)
+  const [lightbox, setLightbox] = useState<{ slot: PhotoSlot; name: string } | null>(null) // 썸네일 클릭 → 원본
   // 상세 모달 결재선 — 현장앱 다중 결재란(서명 이미지 포함)도 상세에서 바로 확인 [서명·사진 출력 수정]
   const [detailLines, setDetailLines] = useState<NonNullable<InspExtra['approval_lines']>>([])
   // 점검 삭제 — 삭제 중 잠금(id) + 결과 토스트
@@ -301,23 +306,41 @@ export function Inspection() {
   }
 
   // 상세 모달 열릴 때 해당 점검의 사진대지 로드 — resolveExtra 폴백으로 앱 파트별 제출도 커버
+  // [사진 분리] extras 문서는 이제 사진 바이트 없이 {name, caption, path, thumb} 만 실려 가벼움 — 전체 문서 호출은 유지.
+  //   슬롯에 dataUrl(구서버) 이 있으면 그대로, path 면 /files/img 로 썸네일·원본을 따로 받는다(PhotoGrid).
+  //   extras 에서 이 점검의 사진을 하나도 못 찾으면 GET /inspections/{iid}/media 로 1회 폴백(백엔드 미구현이면 조용히 무시).
   useEffect(() => {
-    if (!detail || !sel) { setDetailPhotos([]); setDetailLines([]); return }
+    if (!detail || !sel) { setDetailPhotos([]); setDetailLines([]); setDetailPhotosLoading(false); return }
     let alive = true
+    setDetailPhotosLoading(true)
     api<{ doc: Record<string, InspExtra[]> }>('/ops/docs/inspection-extras')
-      .then((r) => {
+      .then(async (r) => {
         if (!alive) return
         const extra = resolveExtra(r.doc?.[sel.id], new Set([detail.id]), dateOf(detail))
         const photos = extra?.photos ?? {}
         const own = PART_LABEL[detail.part]
         // 이 공정 사진이 있으면 그것만, 없으면(첫 파트에만 묶여 온 경우 등) 학교 점검표 전체 사진을 라벨별 표시
-        const groups = photos[own]?.length
+        let groups = (photos[own]?.length
           ? [{ label: own, slots: photos[own] }]
-          : Object.entries(photos).map(([label, slots]) => ({ label, slots }))
-        setDetailPhotos(groups.filter((g) => (g.slots ?? []).some((s) => s.dataUrl)))
+          : Object.entries(photos).map(([label, slots]) => ({ label, slots })))
+          .filter((g) => (g.slots ?? []).some(slotHasImage))
+        if (groups.length === 0) {
+          try {
+            const m = await fetchInspectionMedia(detail.id)
+            const byPart: Record<string, PhotoSlot[]> = {}
+            for (const ph of m.photos ?? []) {
+              const label = PART_LABEL[ph.part] || ph.part || own
+              ;(byPart[label] ??= []).push({ name: ph.name || '', caption: ph.caption || '', path: ph.path, thumb: ph.thumb })
+            }
+            groups = Object.entries(byPart).map(([label, slots]) => ({ label, slots }))
+          } catch { /* 미디어 API 없음/실패 — 사진 없음으로 표시 */ }
+        }
+        if (!alive) return
+        setDetailPhotos(groups)
         setDetailLines((extra?.approval_lines ?? []).map((l) => ({ ...l, title: titleFor(sel, l.title || '') }))) // [126] 기관 직책 표시
       })
       .catch(() => { if (alive) { setDetailPhotos([]); setDetailLines([]) } })
+      .finally(() => { if (alive) setDetailPhotosLoading(false) })
     return () => { alive = false }
   }, [detail, sel])
 
@@ -1060,37 +1083,18 @@ export function Inspection() {
             </>
           )}
           <div className="kv"><b>교육청 전송</b><span>{EDUOFFICE[detail.eduoffice_submit_status]?.label || detail.eduoffice_submit_status}</span></div>
-          {detailPhotos.length > 0 && (
+          {/* 사진대지 — 썸네일(w=320) 격자, 10장 넘으면 접힘, 클릭 시 원본 라이트박스 [사진 분리] */}
+          {(detailPhotos.length > 0 || detailPhotosLoading) && (
             <>
               <div style={{ fontWeight: 700, fontSize: 13, marginTop: 6 }}>사진대지</div>
-              {detailPhotos.map((g) => (
-                <div key={g.label} style={{ margin: '4px 0 8px' }}>
-                  <div style={{ fontSize: 12, color: 'var(--muted, #888)', marginBottom: 4 }}>{g.label}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {g.slots.filter((s) => s.dataUrl).map((s, i) => (
-                      <figure key={i} style={{ margin: 0, width: 104 }}>
-                        <img
-                          src={s.dataUrl}
-                          alt={s.caption || s.name || '사진'}
-                          title={(s.caption || s.name || '사진') + ' — 클릭하면 다운로드'}
-                          style={{ width: 104, height: 104, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line, #ddd)', display: 'block', cursor: 'pointer' }}
-                          onClick={() => {
-                            const a = document.createElement('a')
-                            a.href = s.dataUrl
-                            a.download = s.name || `${g.label}_사진${String(i + 1).padStart(2, '0')}.jpg`
-                            a.click()
-                          }}
-                        />
-                        {(s.caption || s.name) && (
-                          <figcaption style={{ fontSize: 11, color: 'var(--muted, #888)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {s.caption || s.name}
-                          </figcaption>
-                        )}
-                      </figure>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              <div style={{ margin: '4px 0 8px' }}>
+                <PhotoGrid
+                  key={detail.id}
+                  groups={detailPhotos}
+                  loading={detailPhotosLoading}
+                  onOpen={(slot, name) => setLightbox({ slot, name })}
+                />
+              </div>
             </>
           )}
           <div style={{ fontWeight: 700, fontSize: 13, marginTop: 6 }}>점검 항목 ({detail.items.length})</div>
@@ -1122,6 +1126,7 @@ export function Inspection() {
       )}
 
       {sheetView && <InspectionSheetView sheet={sheetView} autoPrint={sheetAuto} onClose={() => { setSheetView(null); setSheetAuto(false) }} />}
+      {lightbox && <PhotoLightbox slot={lightbox.slot} fileName={lightbox.name} onClose={() => setLightbox(null)} />}
     </div>
   )
 }

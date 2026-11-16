@@ -8,6 +8,7 @@ import { FileText, Mail, Send, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { InspectionSheetBody, type SheetData } from './InspectionSheetView'
 import { waitForSheetImages } from './SignImage'
+import { resolvePhotoDataUrls } from '../lib/inspExtra' // [사진 분리] path 사진 → dataUrl 어댑터
 
 declare global {
   interface Window {
@@ -48,11 +49,23 @@ export function InspectionMailModal(p: {
   const [sent, setSent] = useState('')
   const [err, setErr] = useState('')
   const paperRef = useRef<HTMLDivElement>(null)
+  // [사진 분리] 캡처용 양식 데이터 — path 만 있는 사진은 원본을 /files/img 로 받아 dataUrl 로 채운 뒤 렌더
+  //   (html2canvas 캡처 흐름은 종전과 동일하게 <img src="data:…"> 를 본다)
+  const [sheet, setSheet] = useState<SheetData | null>(null)
+  useEffect(() => {
+    let alive = true
+    resolvePhotoDataUrls(p.sheet.extra?.photos)
+      .then((photos) => { if (alive) setSheet(p.sheet.extra ? { ...p.sheet, extra: { ...p.sheet.extra, photos } } : p.sheet) })
+      .catch(() => { if (alive) setSheet(p.sheet) })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const fileName = `종사자안전보건점검표_${p.sheet.schoolName}_${p.sheet.date || '작성중'}.pdf`
 
-  /* 양식 → PDF 생성 (모달 열릴 때 1회) */
+  /* 양식 → PDF 생성 (사진 dataUrl 준비 후 1회) */
   useEffect(() => {
+    if (!sheet) return
     let alive = true
     ;(async () => {
       try {
@@ -115,7 +128,7 @@ export function InspectionMailModal(p: {
     })()
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [sheet])
 
   async function send() {
     if (!to.trim()) { setErr('받는 사람 이메일을 입력하세요.'); return }
@@ -194,7 +207,7 @@ export function InspectionMailModal(p: {
 
       {/* 화면 밖 양식 렌더 — PDF 캡처용 (사용자에게 보이지 않음) */}
       <div ref={paperRef} className="inss-pdf" style={{ position: 'fixed', left: -20000, top: 0, width: 794, background: '#fff' }} aria-hidden>
-        <InspectionSheetBody sheet={p.sheet} />
+        {sheet && <InspectionSheetBody sheet={sheet} />}
       </div>
     </div>,
     document.body,

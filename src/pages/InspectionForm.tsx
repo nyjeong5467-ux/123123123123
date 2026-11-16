@@ -1,7 +1,7 @@
 // 종사자 안전·보건 점검표 작성 — 발주처 프로토타입(school-safety-ledger.js v-inspect) 포팅.
 // PARTDEF/EXCL_RULES/CARRY_VALUE/autoExcl/renderInspect/tally 도메인 로직을 TS로 이식.
 // 경로: /inspection/new?school=<id>
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { api } from '../lib/api'
@@ -12,7 +12,8 @@ import { LawHint, appendCitation } from '../components/LawHint' // 비고 법령
 import '../styles/law.css'
 import { SignaturePadModal, type SignStrokes } from '../components/SignaturePadModal'
 import { InspectionSheetView, type SheetData } from '../components/InspectionSheetView'
-import { resolveExtra, type InspExtra } from '../lib/inspExtra'
+import { resolveExtra, slotHasAny, slotHasImage, type InspExtra, type PhotoSlot } from '../lib/inspExtra'
+import { PhotoLightbox, SlotImage, THUMB_W } from '../components/InspectionPhotos' // [사진 분리] 수신 사진(path) 썸네일·원본
 import '../styles/inspectform.css'
 import { type ApprovalStep, defaultApproval, fetchApproval, primaryIdx, titleFor } from '../lib/approval' // [118] [123]
 import { useMyProfile } from '../lib/myProfile'
@@ -124,7 +125,8 @@ type PrevInsp = {
 // 이어서 작성(resume): 저장된 결과값 → 폼 답변 역매핑 (구 시드 ok/fix 값도 방어적으로 수용)
 const RES_INV: Record<string, Ans> = { good: '양호', poor: '미흡', na: '해당없음', ok: '양호', fix: '미흡' }
 type Ans = '양호' | '미흡' | '해당없음'
-type Slot = { name: string; dataUrl: string; caption: string }
+// [사진 분리] 슬롯 = 공용 PhotoSlot — 새 업로드는 dataUrl(업로드 형식 불변), 수신분은 path/thumb 로 옴. 삭제·교체 시 path 도 비운다.
+type Slot = PhotoSlot
 type PartStatus = { st: 'idle' | 'run' | 'done' | 'err'; note: string }
 
 const RES_API: Record<Ans, string> = { 양호: 'good', 미흡: 'poor', 해당없음: 'na' }
@@ -215,6 +217,7 @@ export function InspectionForm() {
   // [128] PDF 변환 — '보기'와 같은 양식으로 통일: 현재 입력 내용을 보기 창(InspectionSheetView)으로 열고 인쇄 창을 띄움
   //       (구: 백엔드 아카이브 GET /inspections/{id}/report.pdf 다운로드 — 서식이 보기와 달라 폐지)
   const [pdfSheet, setPdfSheet] = useState<SheetData | null>(null)
+  const [lightbox, setLightbox] = useState<{ slot: PhotoSlot; name: string } | null>(null) // [사진 분리] 사진 칸 클릭 → 원본 보기
 
   /* 학교 목록 + 기본 선택 */
   useEffect(() => {
@@ -480,10 +483,53 @@ export function InspectionForm() {
   function onPickPhoto(label: string, idx: number, e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
+    loadPhoto(label, idx, f)
+  }
+  function loadPhoto(label: string, idx: number, f: File) {
     const reader = new FileReader()
-    reader.onload = () => patchSlot(label, idx, { name: f.name, dataUrl: String(reader.result || '') })
+    // 새 파일로 교체 — 서버 저장 경로(path/thumb)는 비워 백엔드가 새 dataUrl 을 저장하게
+    reader.onload = () => patchSlot(label, idx, { name: f.name, dataUrl: String(reader.result || ''), path: '', thumb: '' })
     reader.readAsDataURL(f)
   }
+  /* 사진 드래그 첨부 — 폴더의 사진을 칸에 끌어다 놓으면 업로드.
+     첫 장은 놓은 칸(있으면 교체), 여러 장이면 그 뒤의 빈 칸부터 차례로(최대 MAX_SLOTS). */
+  const [dropAt, setDropAt] = useState('')
+  const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
+  function onDropPhotos(label: string, idx: number, e: DragEvent<HTMLElement>) {
+    e.preventDefault()
+    e.stopPropagation()
+    setDropAt('')
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+    if (!files.length) return
+    const cur = slotsFor(label)
+    const targets = [idx]
+    for (let j = idx + 1; j < MAX_SLOTS && targets.length < files.length; j++) {
+      if (!slotHasImage(cur[j])) targets.push(j)
+    }
+    targets.forEach((t, k) => loadPhoto(label, t, files[k]))
+  }
+  const dropProps = (label: string, idx: number) => ({
+    onDragOver: (e: DragEvent<HTMLElement>) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+      if (dropAt !== `${label}:${idx}`) setDropAt(`${label}:${idx}`)
+    },
+    onDragLeave: () => setDropAt((v) => (v === `${label}:${idx}` ? '' : v)),
+    onDrop: (e: DragEvent<HTMLElement>) => onDropPhotos(label, idx, e),
+  })
+  // 칸 밖에 잘못 놓아도 브라우저가 사진을 열며 작성 중인 점검표를 떠나지 않게 막는다.
+  useEffect(() => {
+    const block = (e: globalThis.DragEvent) => {
+      if (Array.from(e.dataTransfer?.types ?? []).includes('Files')) e.preventDefault()
+    }
+    window.addEventListener('dragover', block)
+    window.addEventListener('drop', block)
+    return () => {
+      window.removeEventListener('dragover', block)
+      window.removeEventListener('drop', block)
+    }
+  }, [])
 
   /* 메일 문구 (ins-mailto) */
   const schoolName = ledger?.school.name || schools.find((s) => s.id === sid)?.name || ''
@@ -1005,6 +1051,8 @@ export function InspectionForm() {
                         ) : (
                           <>
                             <input placeholder="보완계획" value={remarks[code] ?? ''} onChange={(e) => setRemarks((p) => ({ ...p, [code]: e.target.value }))} />
+                            {/* 법령 근거 추천 — 누른 조문만 비고 끝에 '(「법령」 제N조 의거)'로 붙는다(자동 삽입 없음) */}
+                            <LawHint code={code} query={remarks[code] ?? ''} onPick={(pk) => setRemarks((p) => ({ ...p, [code]: appendCitation(p[code] ?? '', pk) }))} />
                             {/* 비고 추천문구 칩 — 결과값(양호/미흡/해당없음)은 건드리지 않고 비고칸만 원탭 입력·재탭 해제 [테스터 요청 #5] */}
                             {sugg && (
                               <>
@@ -1046,9 +1094,7 @@ export function InspectionForm() {
           <i className="insf-sq" /><h3>사진대지<InfoTip>사진마다 설명을 적어야 PDF에 함께 출력됩니다 · 인원 ~5명 1컷 · 6~10명 2컷 · 11~15명 3컷 · 공정 관련 추가 가능<br />사진 원본은 기기에서 미리보기로만 사용되며, 제출 시에는 파일명 메타만 메일 문구에 포함됩니다.</InfoTip></h3>
         </div>
         {/* 선택 공정 + (앱 수신 등으로) 사진이 실려 있는 공정 — 라벨이 달라도 사진이 숨지 않게 [서명·사진 출력 수정] */}
-        {PARTDEF.filter((d) => enabled[d.label] || (photos[d.label] ?? []).some((s) => s.dataUrl || s.name || s.caption)).map((d) => {
-                            {/* 법령 근거 추천 — 누른 조문만 비고 끝에 '(「법령」 제N조 의거)'로 붙는다(자동 삽입 없음) */}
-                            <LawHint code={code} query={remarks[code] ?? ''} onPick={(pk) => setRemarks((p) => ({ ...p, [code]: appendCitation(p[code] ?? '', pk) }))} />
+        {PARTDEF.filter((d) => enabled[d.label] || (photos[d.label] ?? []).some(slotHasAny)).map((d) => {
           const n = counts[d.key] ?? 0
           const slots = slotsFor(d.label)
           return (
@@ -1061,17 +1107,14 @@ export function InspectionForm() {
                 {slots.map((s, i) => (
                   <div className="insf-phitem" key={i}>
                     <div className="insf-phnum">사진 {String(i + 1).padStart(2, '0')}</div>
-                    {/* 업로드됨: 클릭=다운로드(교체·삭제는 우상단 버튼) · 빈칸: 클릭=업로드 [H-1] */}
-                    {s.dataUrl ? (
-                      <div className="insf-ph" style={{ position: 'relative', cursor: 'pointer' }}
-                        title="클릭하면 사진을 다운로드합니다"
-                        onClick={() => {
-                          const a = document.createElement('a')
-                          a.href = s.dataUrl
-                          a.download = s.name || `${d.name}_사진${String(i + 1).padStart(2, '0')}.jpg`
-                          a.click()
-                        }}>
-                        <img src={s.dataUrl} alt={s.name} />
+                    {/* 업로드됨: 클릭=원본 보기(다운로드는 원본 창에서 · 교체·삭제는 우상단 버튼) · 빈칸: 클릭=업로드 [H-1] */}
+                    {slotHasImage(s) ? (
+                      <div className={'insf-ph' + (dropAt === `${d.label}:${i}` ? ' drop' : '')} style={{ position: 'relative', cursor: 'pointer' }}
+                        title="클릭하면 원본을 봅니다 · 다른 사진을 끌어다 놓으면 교체"
+                        {...dropProps(d.label, i)}
+                        onClick={() => setLightbox({ slot: s, name: s.name || `${d.name}_사진${String(i + 1).padStart(2, '0')}.jpg` })}>
+                        {/* [사진 분리] 새 업로드(dataUrl) 는 그대로, 수신분(path) 은 w=320 썸네일을 인증 fetch */}
+                        <SlotImage slot={s} w={THUMB_W} alt={s.name} />
                         <span style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 4 }}
                           onClick={(e) => e.stopPropagation()}>
                           <label title="사진 교체" style={{ cursor: 'pointer', background: 'rgba(22,22,42,.62)', color: '#fff', borderRadius: 7, padding: '3px 8px', fontSize: 11, fontWeight: 700 }}>
@@ -1080,14 +1123,14 @@ export function InspectionForm() {
                           </label>
                           <button type="button" title="사진 삭제"
                             style={{ cursor: 'pointer', background: 'rgba(192,57,43,.85)', color: '#fff', border: 'none', borderRadius: 7, padding: '3px 8px', fontSize: 11, fontWeight: 700 }}
-                            onClick={() => patchSlot(d.label, i, { dataUrl: '', name: '' })}>
+                            onClick={() => patchSlot(d.label, i, { dataUrl: '', name: '', path: '', thumb: '' })}>
                             ✕
                           </button>
                         </span>
                       </div>
                     ) : (
-                      <label className="insf-ph">
-                        {'+ 사진 추가'}
+                      <label className={'insf-ph' + (dropAt === `${d.label}:${i}` ? ' drop' : '')} {...dropProps(d.label, i)}>
+                        {dropAt === `${d.label}:${i}` ? '여기에 놓기' : <>{'+ 사진 추가'}<small className="insf-phhint">또는 사진을 끌어다 놓기</small></>}
                         <input type="file" accept="image/*" hidden onChange={(e) => onPickPhoto(d.label, i, e)} />
                       </label>
                     )}
@@ -1234,6 +1277,7 @@ export function InspectionForm() {
 
       {/* [128] PDF 변환 — 보기 양식 + 자동 인쇄 창 */}
       {pdfSheet && <InspectionSheetView sheet={pdfSheet} autoPrint onClose={() => setPdfSheet(null)} />}
+      {lightbox && <PhotoLightbox slot={lightbox.slot} fileName={lightbox.name} onClose={() => setLightbox(null)} />}
 
       {/* [062] 학교 메일 전송 모달 — 점검표 PDF 자동 첨부 + 학교 이메일 자동 입력 */}
       {mailOpen && (

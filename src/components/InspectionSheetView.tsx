@@ -5,7 +5,8 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
 import { PARTDEF } from '../pages/InspectionForm'
-import type { InspExtra } from '../lib/inspExtra'
+import { slotHasAny, type InspExtra } from '../lib/inspExtra'
+import { SlotImage } from './InspectionPhotos' // [사진 분리] dataUrl/path 양쪽 호환 사진 표시
 import { SignImage, waitForSheetImages } from './SignImage'
 import '../styles/inspectsheet.css'
 import { normalizeApproval, primaryIdx, titleFor } from '../lib/approval' // [118] [123] 확인자 공용 규칙(학교/기관 구분·주확인자=담당자)
@@ -88,7 +89,7 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
   }
   const photoSlots = ordered.flatMap((p) => {
     const def = PARTDEF.find((d) => d.key === p.part)
-    return ((def && extra?.photos?.[def.label]) || []).filter((s) => s.name || s.dataUrl || s.caption)
+    return ((def && extra?.photos?.[def.label]) || []).filter(slotHasAny)
   })
 
   return (
@@ -211,7 +212,8 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
               {photoSlots.map((sl, i) => (
                 <figure key={i} className="inss-photo" data-brk={i % 2 === 0 ? '' : undefined}>
                   <div className="img">
-                    {sl.dataUrl ? <img src={sl.dataUrl} alt={sl.caption || sl.name} /> : <span className="ph">{sl.name || '사진'}</span>}
+                    {/* 양식·인쇄·PDF 는 원본(w 없음)을 즉시 받음(lazy=false) — waitForSheetImages 가 .st-loading 으로 대기 */}
+                    <SlotImage slot={sl} lazy={false} alt={sl.caption || sl.name} emptyText={sl.name || '사진'} />
                   </div>
                   <figcaption>{sl.caption || ''}</figcaption>
                 </figure>

@@ -36,6 +36,7 @@ import { useAffiliationScope } from '../lib/affiliationScope'
 import { dedupeStories, groupByIssue, scoreRelevance, withinRetention, type RelevanceTag } from '../lib/accidentRelevance'
 import { AY_MONTH_NO, CycleHero, CYCLE_DOC_DEFAULT, migrateCycleDoc, type CycleDoc } from '../components/CycleHero'
 import { TodayHero } from '../components/TodayHero'
+import { HomePopupGate } from '../components/HomePopup'
 import './../styles/home.css'
 
 /* ===================== 타입 ===================== */
@@ -718,6 +719,8 @@ export function Home() {
 
   /* ---- 공지 등록 모달 (본사 관리자) ---- */
   const [noticeOpen, setNoticeOpen] = useState(false)
+  // 공지 본문 보기 — 제목을 누르면 본문·첨부를 모달로(11-16: 제목만 보이고 내용이 안 열리던 문제)
+  const [noticeView, setNoticeView] = useState<Notice | null>(null)
   const [nTitle, setNTitle] = useState('')
   const [nBody, setNBody] = useState('')
   const [nFiles, setNFiles] = useState<NoticeFile[]>([])
@@ -925,7 +928,10 @@ export function Home() {
               {sortedNotices.slice(0, 6).map((n) => (
                 <div className="hm-n" key={n.id}>
                   <span className={'hm-pin' + (n.pinned ? '' : ' g')}>{n.pinned ? '필독' : '안내'}</span>
-                  <div className="hm-nbody">
+                  <div className="hm-nbody" role="button" tabIndex={0} style={{ cursor: 'pointer' }}
+                    title="눌러서 내용 보기"
+                    onClick={() => setNoticeView(n)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setNoticeView(n) } }}>
                     <div className="b">{n.title}</div>
                     <div className="m">
                       {n.created_at && <span className="dt">{n.created_at.slice(0, 10)}</span>}
@@ -1317,6 +1323,7 @@ export function Home() {
 
   return (
     <div className="page rv">
+      <HomePopupGate />
       {/* ===== 인사말 + 홈 편집 바 [033] ===== */}
       <div className="hm-custombar">
         <div className="hm-greet">
@@ -1410,6 +1417,26 @@ export function Home() {
       </div>
 
       {/* ===== 공지 등록 모달 ===== */}
+      {noticeView && (
+        <Modal
+          title={<><span className={'hm-pin' + (noticeView.pinned ? '' : ' g')} style={{ marginRight: 8 }}>{noticeView.pinned ? '필독' : '안내'}</span>{noticeView.title}</>}
+          onClose={() => setNoticeView(null)}
+          wide
+          footer={<button className="btn" type="button" onClick={() => setNoticeView(null)}>닫기</button>}
+        >
+          <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 10 }}>
+            {noticeView.created_at ? noticeView.created_at.slice(0, 10) : ''}
+          </div>
+          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: 14.5 }}>
+            {(noticeView.body || '').trim() ? noticeView.body : '본문이 없는 공지입니다.'}
+          </div>
+          {(noticeView.files ?? []).length > 0 && (
+            <div style={{ marginTop: 14, fontSize: 13, color: 'var(--muted)' }}>
+              <Paperclip size={12} /> 첨부: {(noticeView.files ?? []).map((f) => f.name).join(' · ')}
+            </div>
+          )}
+        </Modal>
+      )}
       {noticeOpen && (
         <Modal
           title="공지 등록"

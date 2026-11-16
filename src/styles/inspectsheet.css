@@ -109,6 +109,10 @@
 }
 .inss-photo img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
 .inss-photo .ph { color: #999; font-size: 12px; padding: 8px; text-align: center; word-break: break-all; }
+/* [사진 분리] SlotImage(인증 fetch 사진) — 양식 안에서는 테두리 없이 기존 img 와 동일, 스켈레톤은 박스를 채움 */
+.inss-photo .ph-img { border: none; border-radius: 0; background: none; cursor: default; }
+.inss-photo .ph-skel, .inss-photo .ph-empty { width: 100%; height: 100%; }
+.inss-photo .ph-empty { color: #999; font-size: 12px; }
 .inss-photo figcaption {
   margin-top: 7px; min-height: 40px; border: 1px solid #c9c9d0; border-radius: 4px;
   padding: 10px 11px; font-size: 13px; line-height: 1.5; color: #333; background: #fff;

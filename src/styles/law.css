@@ -1,48 +1,222 @@
-/* 법령 검색 페이지 + 점검표 비고 '법령' 힌트 */
-.law-page { display: flex; flex-direction: column; gap: 14px; }
-.law-head h1 { display: flex; align-items: center; gap: 8px; font-size: 22px; margin: 0 0 4px; }
-.law-sub { color: var(--ink-2, #5a5670); font-size: 13.5px; margin: 0; }
-.law-card { background: var(--card, #fff); border: 1px solid var(--line, #ededf4); border-radius: 14px; padding: 14px 16px; }
-.law-searchrow { display: flex; align-items: center; gap: 10px; }
-.law-searchrow .law-ico { color: var(--ink-3, #9a96ad); flex: none; }
-.law-searchrow input[type="text"], .law-searchrow input:not([type]) { flex: 1; min-width: 0; font-size: 15px; padding: 10px 12px; border: 1px solid var(--line, #ededf4); border-radius: 10px; background: var(--card-2, #fafafe); }
-.law-searchrow select { padding: 9px 10px; border: 1px solid var(--line, #ededf4); border-radius: 10px; background: var(--card-2, #fafafe); max-width: 260px; }
-.law-chk { display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
-.law-examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.law-examples button { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line, #ededf4); background: var(--card-2, #fafafe); cursor: pointer; }
-.law-examples button:hover { background: color-mix(in srgb, var(--violet, #7c5cfb) 12%, var(--card, #fff)); }
-.law-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
-@media (max-width: 1100px) { .law-body { grid-template-columns: 1fr; } }
-.law-results { display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow: auto; }
-.law-count { font-size: 12px; color: var(--ink-3, #9a96ad); }
-.law-hit { text-align: left; border: 1px solid var(--line, #ededf4); border-radius: 10px; padding: 10px 12px; background: var(--card, #fff); cursor: pointer; }
-.law-hit:hover { border-color: var(--violet, #7c5cfb); }
-.law-hit.on { border-color: var(--violet, #7c5cfb); background: color-mix(in srgb, var(--violet, #7c5cfb) 8%, var(--card, #fff)); }
-.law-hit-top { display: flex; align-items: center; gap: 8px; }
-.law-kind { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--violet, #7c5cfb); color: #fff; }
-.law-kind.k-annex { background: var(--amber, #ea9a1c); }
-.law-hit-title { font-weight: 700; font-size: 14px; }
-.law-hit-law { font-size: 12px; color: var(--ink-2, #5a5670); margin-top: 2px; }
-.law-hit-snip { font-size: 12.5px; color: var(--ink-2, #5a5670); margin-top: 4px; line-height: 1.45; }
-.law-doc { position: sticky; top: 12px; max-height: 70vh; overflow: auto; }
-.law-doc-cite { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.law-doc-cite strong { font-size: 15px; }
-.law-doc-meta { font-size: 12px; color: var(--ink-2, #5a5670); margin: 4px 0 10px; }
-.law-doc-text { white-space: pre-wrap; font-family: inherit; font-size: 13.5px; line-height: 1.65; margin: 0; }
-.law-doc-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 12px; color: var(--ink-3, #9a96ad); }
-.law-copy { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line, #ededf4); background: var(--card-2, #fafafe); cursor: pointer; white-space: nowrap; }
-.law-copy:hover { border-color: var(--violet, #7c5cfb); }
-.law-copy:disabled { opacity: .5; cursor: default; }
-.law-msg { font-size: 13px; color: var(--ink-2, #5a5670); padding: 8px 2px; }
-.law-err { color: var(--red-ink, #d63a42); }
-.law-admin h2 { font-size: 15px; margin: 0; }
-.law-admin-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
-.law-admin-meta { flex: 1; font-size: 12.5px; color: var(--ink-2, #5a5670); }
-.law-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.law-table th, .law-table td { padding: 6px 8px; border-bottom: 1px solid var(--line, #ededf4); text-align: left; }
-.law-table td.r { text-align: right; }
+/* 법령 검색 — "검색 엔진" 화면. tokens.css 변수(--card/--line/--ink/--muted/--violet …) 기반, activity.css·resources.css 톤.
+   접두사 law-. 맨 아래 .insf-law* 는 점검표 비고 '법령' 힌트(LawHint) 전용 — 그대로 둔다.
+   반응형: 1280 이상 3단(패싯·목록·원문) / 900~1279 2단(패싯 접힘, 목록·원문) / 899 이하 1단 + 원문 모달 */
 
-/* 점검표 비고 힌트 */
+.law-page { position: relative; display: flex; flex-direction: column; min-height: 60vh; }
+/* .page 의 overflow:auto 는 sticky(상단 검색창·원문 패널)를 막는다 — 이 페이지는 가로 넘침 요소가 없어 visible 로 */
+.law-page.page { overflow: visible; }
+.law-crumb { align-self: flex-start; }
+.law-page.has-gear .law-topbar { padding-right: 56px; }
+
+/* ---------- 공용 조각 ---------- */
+.law-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; background: var(--line); color: var(--ink-2); max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.law-badge.k-act { background: var(--violet-soft); color: var(--violet); }           /* 법률 */
+.law-badge.k-decree { background: var(--info-soft); color: var(--info-ink); }        /* 대통령령 */
+.law-badge.k-rule { background: var(--ok-soft); color: var(--ok-ink); }              /* 부령·규칙 */
+.law-badge.k-annex { background: var(--amber-soft); color: var(--amber-ink); }       /* 별표·서식 */
+
+.law-page mark { background: var(--amber-soft); color: var(--amber-ink); border-radius: 3px; padding: 0 1px; font-weight: 700; }
+[data-theme='dark'] .law-page mark { background: rgba(244, 182, 69, 0.22); color: #ffd98a; }
+
+.law-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 600 13px var(--font); cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+.law-chip:hover { border-color: var(--violet); color: var(--violet); background: var(--violet-soft); }
+.law-chip.soft { background: var(--card-2); color: var(--ink-2); padding: 0; }
+.law-chip.soft > button { height: 100%; padding: 0 6px 0 12px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; border-radius: 999px 0 0 999px; }
+.law-chip.soft > button:hover { color: var(--violet); }
+.law-chip-x { display: inline-grid; place-items: center; width: 26px; height: 100%; border: 0; background: transparent; color: var(--muted); border-radius: 0 999px 999px 0; }
+.law-chip-x:hover { color: var(--red-ink); background: var(--red-soft); }
+.law-chip.soft:hover { border-color: var(--line); background: var(--card-2); }
+
+.law-link { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--violet); font: 600 12px var(--font); cursor: pointer; padding: 2px 4px; }
+.law-link:hover { text-decoration: underline; }
+.law-act { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px; border-radius: 9px; border: 1px solid var(--line); background: var(--card-2); color: var(--ink-2); font: 700 12.5px var(--font); cursor: pointer; white-space: nowrap; text-decoration: none; }
+.law-act:hover { border-color: var(--violet); color: var(--violet); }
+.law-act:disabled { opacity: .45; cursor: default; }
+.law-act.primary { background: var(--violet); border-color: var(--violet); color: #fff; }
+.law-act.primary:hover { filter: brightness(1.06); color: #fff; }
+.law-mini { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink-2); cursor: pointer; }
+.law-mini:hover { border-color: var(--violet); color: var(--violet); }
+.law-msg { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); padding: 12px 6px; }
+.law-err { color: var(--red-ink); }
+.law-amber { color: var(--amber-ink); display: flex; align-items: center; gap: 5px; }
+.law-spin { animation: law-spin 1s linear infinite; }
+@keyframes law-spin { to { transform: rotate(360deg); } }
+.law-src { font-size: 11.5px; color: var(--muted); text-align: center; padding: 14px 8px 4px; line-height: 1.5; }
+.law-sec-h { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--ink-2); margin-bottom: 10px; }
+.law-sec-h svg { color: var(--violet); }
+.law-sec-h .law-link { margin-left: 4px; }
+.law-sec-hint { font-weight: 500; color: var(--muted); font-size: 12px; margin-left: 4px; }
+
+/* ---------- 검색창(홈: 큼 / 결과: 콤팩트) ---------- */
+.law-box { position: relative; width: 100%; }
+.law-box-row { display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 10px 0 20px; border-radius: 30px; border: 1.5px solid var(--line); background: var(--card); box-shadow: var(--sh-soft); transition: border-color .15s, box-shadow .15s; }
+.law-box-row:focus-within { border-color: var(--violet); box-shadow: 0 0 0 4px var(--violet-soft), var(--sh-soft); }
+.law-box.open .law-box-row { border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
+.law-box-ico { color: var(--muted); flex: none; }
+.law-box-row input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; color: var(--ink); font: 500 17px var(--font); outline: none; }
+.law-box-row input::placeholder { color: var(--muted); }
+.law-box-clear { display: inline-grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.law-box-clear:hover { background: var(--line); color: var(--ink); }
+.law-box-go { height: 42px; padding: 0 20px; border: 0; border-radius: 22px; background: var(--grad-violet); color: #fff; font: 800 14px var(--font); cursor: pointer; box-shadow: var(--sh-violet); }
+.law-box-go:hover { filter: brightness(1.06); }
+.law-box-go:disabled { opacity: .5; box-shadow: none; cursor: default; }
+.law-scope { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 6px 0 10px; border-radius: 999px; background: var(--violet-soft); color: var(--violet); font-size: 12px; font-weight: 800; white-space: nowrap; max-width: 240px; }
+.law-scope > span, .law-scope { overflow: hidden; text-overflow: ellipsis; }
+.law-scope button { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; flex: none; }
+.law-scope button:hover { background: var(--violet); color: #fff; }
+.law-box.compact .law-box-row { height: 46px; border-radius: 23px; padding: 0 6px 0 16px; box-shadow: none; }
+.law-box.compact .law-box-row input { font-size: 15px; }
+.law-box.compact .law-box-go { height: 34px; padding: 0 16px; border-radius: 17px; font-size: 13px; box-shadow: none; }
+
+/* 미리보기 드롭다운 */
+.law-preview { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30; list-style: none; margin: 0; padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--sh-pop); }
+.law-preview li[role='option'] { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; row-gap: 2px; align-items: center; padding: 8px 10px; border-radius: 10px; cursor: pointer; }
+.law-preview li[role='option'].on, .law-preview li[role='option']:hover { background: var(--violet-soft); }
+.law-preview .law-badge { grid-row: 1 / span 2; }
+.law-preview-t { font-size: 13.5px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.law-preview-s { font-size: 12px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.law-preview-foot { padding: 6px 10px 2px; font-size: 11px; color: var(--muted); text-align: right; }
+
+/* ---------- 첫 화면 ---------- */
+.law-home { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 48px 0 16px; max-width: 920px; width: 100%; margin: 0 auto; }
+.law-hero { text-align: center; }
+.law-hero-t { display: inline-flex; align-items: center; gap: 10px; font-size: 30px; font-weight: 800; letter-spacing: -0.03em; color: var(--ink); }
+.law-hero-t svg { color: var(--violet); }
+.law-hero-s { margin: 8px 0 0; font-size: 14px; color: var(--ink-2); }
+.law-home .law-box { max-width: 720px; }
+.law-topics { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.law-recent { width: 100%; max-width: 720px; }
+.law-recent-l { display: flex; flex-wrap: wrap; gap: 8px; }
+.law-laws { width: 100%; margin-top: 10px; }
+.law-laws-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.law-lawcard { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .1s; }
+.law-lawcard:hover { border-color: var(--violet); box-shadow: var(--sh-soft); transform: translateY(-1px); }
+.law-lawcard-n { font-size: 13.5px; font-weight: 800; color: var(--ink); line-height: 1.35; letter-spacing: -0.02em; }
+.law-lawcard-m { font-size: 11.5px; color: var(--muted); }
+
+/* ---------- 결과 화면 ---------- */
+.law-results { display: flex; flex-direction: column; gap: 10px; }
+.law-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 14px; padding: 12px 0 8px; margin: -22px 0 0; background: var(--bg); transition: background .35s ease; }
+.law-brand { display: inline-flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--ink); font: 800 17px var(--font); letter-spacing: -0.02em; cursor: pointer; white-space: nowrap; }
+.law-brand svg { color: var(--violet); }
+.law-brand:hover span { color: var(--violet); }
+.law-topbar .law-box { max-width: 760px; }
+.law-statbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 0 4px; }
+.law-stat { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.law-stat b { color: var(--ink); font-weight: 800; }
+.law-stat-sub { color: var(--muted); font-weight: 500; font-size: 12px; }
+.law-stat-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.law-tool { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink-2); font: 700 12px var(--font); cursor: pointer; }
+.law-tool.on { border-color: var(--violet); color: var(--violet); }
+.law-tool select { border: 0; background: transparent; color: var(--ink); font: 700 12.5px var(--font); cursor: pointer; }
+.law-tool input[type='checkbox'] { accent-color: var(--violet); margin: 0; }
+.law-tool-n { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--violet); color: #fff; font-size: 10.5px; }
+
+/* 3단 그리드 */
+.law-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (min-width: 900px) { .law-grid { grid-template-columns: minmax(0, 1fr) minmax(320px, 44%); } }
+@media (min-width: 1280px) { .law-grid { grid-template-columns: 220px minmax(0, 1fr) minmax(360px, 40%); } }
+@media (min-width: 900px) and (max-width: 1279px) { .law-col-facet { grid-column: 1 / -1; } }
+.law-grid.no-cols { grid-template-columns: minmax(0, 1fr); }   /* 검색 중·결과 없음: 목록 영역만 한 칸으로 */
+.law-col-list { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.law-col-doc { position: sticky; top: 66px; max-height: calc(100vh - 86px); overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 16px; min-width: 0; }
+.law-doc-ph { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 260px; padding: 24px; text-align: center; color: var(--muted); }
+.law-doc-ph svg { color: var(--line); }
+.law-doc-ph p { margin: 0; font-size: 13.5px; color: var(--ink-2); font-weight: 600; }
+.law-doc-ph small { font-size: 11.5px; }
+.law-doc-wrap { position: relative; }
+.law-doc-loading { position: absolute; top: 12px; right: 14px; color: var(--violet); }
+
+/* 패싯 */
+.law-col-facet { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 10px; }
+@media (min-width: 1280px) { .law-col-facet { position: sticky; top: 66px; max-height: calc(100vh - 86px); overflow: auto; } }
+.law-facets { display: flex; flex-direction: column; gap: 14px; }
+@media (min-width: 900px) and (max-width: 1279px) { .law-facets { flex-direction: row; flex-wrap: wrap; gap: 18px; } .law-facets .law-facet { flex: 1 1 220px; } }
+.law-facet-h { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 6px 6px; }
+.law-facet-h button { border: 0; background: transparent; color: var(--violet); font: 700 11px var(--font); cursor: pointer; text-transform: none; letter-spacing: 0; }
+.law-facet-i { display: flex; align-items: center; gap: 8px; padding: 6px 6px; border-radius: 8px; cursor: pointer; font-size: 12.5px; color: var(--ink-2); }
+.law-facet-i:hover { background: var(--card-2); }
+.law-facet-i.on { color: var(--violet); font-weight: 700; background: var(--violet-soft); }
+.law-facet-i input { accent-color: var(--violet); margin: 0; flex: none; }
+.law-facet-l { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
+.law-facet-n { font-size: 11px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.law-facet-i.on .law-facet-n { color: var(--violet); }
+
+/* 결과 항목 */
+.law-hit { display: flex; align-items: flex-start; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 4px 8px 4px 4px; transition: border-color .15s, box-shadow .15s; }
+.law-hit:hover { border-color: var(--violet); box-shadow: var(--sh-soft); }
+.law-hit.on { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 6%, var(--card)); }
+.law-hit-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 10px 10px; border: 0; background: transparent; text-align: left; color: inherit; cursor: pointer; border-radius: 10px; }
+.law-hit-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
+.law-hit-law { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+.law-hit-date { color: var(--muted); margin-left: auto; white-space: nowrap; }
+.law-hit-title { font-size: 15px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; line-height: 1.35; }
+.law-hit-main:hover .law-hit-title { color: var(--violet); }
+.law-hit-snip { font-size: 13px; color: var(--ink-2); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.law-hit-acts { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; }
+.law-more { align-self: center; display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 22px; margin: 6px 0; border-radius: 19px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 700 13px var(--font); cursor: pointer; }
+.law-more:hover { border-color: var(--violet); color: var(--violet); }
+.law-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 40px 20px; text-align: center; background: var(--card); border: 1px dashed var(--line); border-radius: 16px; }
+.law-empty-t { font-size: 15px; font-weight: 800; color: var(--ink); }
+.law-empty-s { font-size: 13px; color: var(--ink-2); }
+
+/* ---------- 원문 ---------- */
+.law-doc { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px 14px; }
+.law-doc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.law-doc-meta { font-size: 12px; color: var(--ink-2); }
+.law-doc-cite { margin: 0; font-size: 16.5px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); line-height: 1.4; }
+.law-doc-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.law-doc-nav { display: inline-flex; gap: 6px; margin-left: auto; }
+.law-doc-text { font-size: 14px; line-height: 1.75; color: var(--ink); }
+.law-line { margin: 0 0 4px; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+.law-line.lvh { font-weight: 800; margin-bottom: 8px; }
+.law-line.lv1 { padding-left: 0; margin-top: 6px; }
+.law-line.lv2 { padding-left: 1.4em; }
+.law-line.lv3 { padding-left: 2.8em; }
+.law-related { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.law-related-h { font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.law-related-i { display: flex; flex-direction: column; gap: 1px; padding: 7px 9px; border-radius: 9px; border: 1px solid transparent; background: var(--card-2); text-align: left; cursor: pointer; color: inherit; }
+.law-related-i:hover { border-color: var(--violet); }
+.law-related-t { font-size: 13px; font-weight: 700; color: var(--ink); }
+.law-related-s { font-size: 11.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.law-doc-foot { font-size: 11px; color: var(--muted); line-height: 1.5; }
+.law-modal-t { display: inline-flex; align-items: center; gap: 6px; }
+.modal .law-doc { padding: 0; }
+
+/* ---------- 관리(본사) ---------- */
+.law-gear { position: absolute; top: 16px; right: 24px; z-index: 21; display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--muted); cursor: pointer; }
+.law-gear:hover, .law-gear.on { border-color: var(--violet); color: var(--violet); }
+.law-page.searching .law-gear { top: 5px; }
+.law-drawer-bg { position: fixed; inset: 0; z-index: 90; background: rgba(13, 14, 16, 0.3); }
+.law-drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 91; width: min(560px, 100vw); overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 18px 20px 24px; background: var(--card); border-left: 1px solid var(--line); box-shadow: var(--sh-pop); animation: law-slide .18s ease-out; }
+@keyframes law-slide { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.law-drawer-h { display: flex; align-items: center; justify-content: space-between; }
+.law-drawer-h h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; font-weight: 800; }
+.law-drawer-meta { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-2); }
+.law-drawer-meta b { color: var(--ink); }
+.law-drawer .law-act.primary { align-self: flex-start; }
+.law-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.law-table th, .law-table td { padding: 7px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.law-table th { font-size: 11px; color: var(--muted); font-weight: 800; }
+.law-table .r { text-align: right; font-variant-numeric: tabular-nums; }
+.law-table .law-badge { margin-right: 4px; }
+
+/* ---------- 좁은 화면 ---------- */
+@media (max-width: 899px) {
+  .law-home { padding-top: 24px; gap: 16px; }
+  .law-hero-t { font-size: 24px; }
+  .law-box-row { height: 52px; padding-left: 14px; }
+  .law-box-row input { font-size: 15px; }
+  .law-topbar { flex-direction: column; align-items: stretch; gap: 6px; }
+  .law-brand { align-self: flex-start; }
+  .law-scope { max-width: 120px; }
+  .law-hit-acts { flex-direction: row; padding-top: 10px; }
+  .law-hit { flex-wrap: wrap; }
+  .law-page.searching .law-gear { top: 6px; right: 16px; }
+  .law-gear { right: 16px; }
+}
+
+/* ---------- 점검표 비고 '법령' 힌트(LawHint) — 변경 금지 ---------- */
 .insf-law { position: relative; display: inline-block; margin-left: 6px; vertical-align: middle; }
 .insf-lawbtn { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line, #ededf4); background: var(--card-2, #fafafe); color: var(--ink-2, #5a5670); cursor: pointer; }
 .insf-lawbtn:hover, .insf-lawbtn.on { border-color: var(--violet, #7c5cfb); color: var(--violet, #7c5cfb); }

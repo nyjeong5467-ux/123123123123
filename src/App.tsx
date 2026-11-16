@@ -25,6 +25,7 @@ import { Mail } from './pages/Mail'
 import { Resources } from './pages/Resources'
 import { LawSearch } from './pages/LawSearch'
 import { Schedule } from './pages/Schedule'
+import { Activity } from './pages/Activity'
 import { useAuth } from './lib/auth'
 
 function Protected({ children }: { children: ReactNode }) {
@@ -72,6 +73,8 @@ export default function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/mail" element={<Mail />} />
+          {/* 활동 현황(관리자 전용) — 페이지 안에서 /auth/me 역할을 다시 확인해 executive·hq_admin 외에는 안내만 표시 */}
+          <Route path="/activity" element={<Activity />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

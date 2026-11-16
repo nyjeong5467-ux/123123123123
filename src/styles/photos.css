@@ -1,0 +1,60 @@
+/* 안전점검 사진대지 공용 — 썸네일 격자·스켈레톤·접기·라이트박스 (components/InspectionPhotos.tsx) */
+.ph-img { display: block; object-fit: cover; border-radius: 8px; border: 1px solid var(--line, #ddd); background: var(--card-2, #fafafe); }
+img.ph-img { cursor: pointer; }
+.ph-empty {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  color: var(--muted, #888); font-size: 11px; padding: 6px; word-break: keep-all; cursor: default;
+}
+.ph-err { color: #c0392b; }
+
+/* 스켈레톤 — 수신 중/화면 밖 칸 */
+.ph-skel {
+  position: relative; overflow: hidden;
+  background: linear-gradient(90deg, var(--line-2, #f4f4f9) 25%, var(--line, #ededf4) 37%, var(--line-2, #f4f4f9) 63%);
+  background-size: 400% 100%;
+  animation: ph-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes ph-shimmer { 0% { background-position: 100% 0 } 100% { background-position: 0 0 } }
+@media print { .ph-skel { animation: none; background: #f2f2f2; } }
+
+.ph-wrap { display: flex; flex-direction: column; gap: 6px; }
+.ph-group { margin: 2px 0 4px; }
+.ph-glabel { font-size: 12px; color: var(--muted, #888); margin-bottom: 4px; }
+.ph-glabel span { font-size: 11px; opacity: .8; }
+.ph-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.ph-tile { margin: 0; }
+.ph-tile figcaption {
+  font-size: 11px; color: var(--muted, #888); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ph-tile figcaption b { color: var(--text, #333); font-weight: 600; }
+.ph-more {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 1px dashed var(--line, #ccc); border-radius: 8px; background: var(--card-2, #fafafe);
+  color: var(--violet, #2b4c9b); font-weight: 700; font-size: 14px; cursor: pointer;
+}
+.ph-more small { font-size: 11px; font-weight: 500; color: var(--muted, #888); }
+.ph-more:hover { border-color: var(--violet, #2b4c9b); }
+.ph-fold {
+  align-self: flex-start; border: none; background: none; color: var(--violet, #2b4c9b);
+  font-size: 12px; font-weight: 600; cursor: pointer; padding: 2px 0;
+}
+
+/* 원본 라이트박스 */
+.ph-lightbox {
+  position: fixed; inset: 0; z-index: 1200; background: rgba(12, 12, 24, .82);
+  display: flex; flex-direction: column;
+}
+.ph-lbbar {
+  display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #fff; font-size: 13px;
+  background: rgba(0, 0, 0, .35);
+}
+.ph-lbbar b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50vw; }
+.ph-lbbar .sp { flex: 1; }
+.ph-lbbar .btn { color: #fff; }
+.ph-lbname { font-size: 12px; opacity: .75; }
+.ph-lbbody { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; min-height: 0; }
+.ph-lbbody img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 8px 40px rgba(0, 0, 0, .5); }
+.ph-lbmsg { color: #fff; font-size: 14px; }
+.ph-skel-text { opacity: .8; animation: ph-blink 1.2s ease-in-out infinite; }
+@keyframes ph-blink { 50% { opacity: .35 } }

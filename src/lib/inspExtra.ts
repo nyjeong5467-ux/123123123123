@@ -1,8 +1,18 @@
 // 점검표 부가정보(inspection-extras) 공용 모델 + 매칭 로직.
 // Inspection.tsx(상세 모달·보기 양식)와 InspectionForm.tsx(작성/수정 화면)가 같은 폴백 매칭을 쓰도록
 // 단일 소스로 분리 — 앱 파트별 제출로 ids가 조각나도 어느 화면에서든 사진·서명이 숨지 않게 한다.
+import { fetchImageDataUrl } from './media'
 
-export type PhotoSlot = { name: string; dataUrl: string; caption: string }
+// 사진 슬롯 — 전환기 호환 모델.
+//   dataUrl: 구서버/이관 전 base64 본문(있으면 그대로 표시) · 새 슬롯 업로드 시에도 dataUrl 로 전송(업로드 형식 불변)
+//   path·thumb: 신계약(2026-11) 저장 경로 — 바이너리는 GET /files/img?p=<path>[&w=320] 로 인증 헤더 실어 받음
+//   둘 다 없으면 "사진 없음" 자리표시(이름·설명만 있는 슬롯).
+export type PhotoSlot = { name: string; dataUrl?: string; caption: string; path?: string; thumb?: string }
+
+/** 슬롯에 표시할 이미지가 있는가(dataUrl 또는 path). */
+export const slotHasImage = (s: PhotoSlot | null | undefined): boolean => !!(s && (s.dataUrl || s.path))
+/** 슬롯이 비어 있지 않은가(이미지·이름·설명 중 하나라도). */
+export const slotHasAny = (s: PhotoSlot | null | undefined): boolean => !!(s && (s.dataUrl || s.path || s.name || s.caption))
 
 // 점검표 부가정보 — 기본정보·점검대상·기타의견·사진대지·확인자 (/ops/docs/inspection-extras) [057]
 export type InspExtra = {
@@ -17,6 +27,25 @@ export type InspExtra = {
   approval_lines?: { title: string; signer: string; image_ref?: string | null; image_data?: string | null }[]
   // 서명 원본 스트로크 JSON 저장 참조(sign_<iid>.strokes.json) — 교육청 봇이 획 재생. 앱/웹 서명패드 공통 [G-6]
   sign_strokes_ref?: string
+}
+
+/**
+ * [사진 분리] PDF 캡처·메일 첨부 어댑터 — path 만 있는 슬롯의 원본을 GET /files/img 로 받아 dataUrl 로 채운다.
+ * 기존 dataUrl 기반 렌더(InspectionSheetBody → html2canvas)를 그대로 쓰기 위한 변환. 실패한 슬롯은 자리표시로 남긴다.
+ */
+export async function resolvePhotoDataUrls(photos: Record<string, PhotoSlot[]> | undefined): Promise<Record<string, PhotoSlot[]>> {
+  const out: Record<string, PhotoSlot[]> = {}
+  const jobs: Promise<void>[] = []
+  for (const [label, slots] of Object.entries(photos ?? {})) {
+    const arr = (slots ?? []).map((s) => ({ ...s }))
+    out[label] = arr
+    arr.forEach((s, i) => {
+      if (s.dataUrl || !s.path) return
+      jobs.push(fetchImageDataUrl(s.path).then((d) => { arr[i] = { ...s, dataUrl: d } }).catch(() => { /* 자리표시 유지 */ }))
+    })
+  }
+  await Promise.all(jobs)
+  return out
 }
 
 export const EMPTY_INFO: InspExtra['info'] = {
@@ -40,7 +69,7 @@ export function resolveExtra(entries: InspExtra[] | undefined, idSet: Set<string
     const acc: InspExtra['photos'] = {}
     for (const e of pool) {
       for (const [label, slots] of Object.entries(e.photos ?? {})) {
-        const real = (slots ?? []).filter((s) => s && (s.name || s.dataUrl || s.caption))
+        const real = (slots ?? []).filter((s) => slotHasAny(s))
         if (real.length > 0 && !acc[label]?.length) acc[label] = real
       }
     }

@@ -4,6 +4,7 @@ import {
   type LucideIcon,
   Activity,
   Bell,
+  BellRing,
   Building2,
   CalendarRange,
   ChevronDown,
@@ -11,6 +12,7 @@ import {
   CloudUpload,
   FileCheck2,
   FolderOpen,
+  Footprints,
   Globe,
   GraduationCap,
   Home,
@@ -20,8 +22,8 @@ import {
   Moon,
   Receipt,
   ReceiptText,
-  ScrollText,
   Scale,
+  ScrollText,
   Search,
   Settings,
   Settings2,
@@ -67,8 +69,8 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { Icon: ReceiptText, label: '세금계산서', to: '/billing', module: 'billing' },
       // 세션코드 발급 nav 숨김(2026-09-18) — 점검자 앱 로그인 전환. 비상용은 /sessions 직접 접근.
       { Icon: FolderOpen, label: '자료실', to: '/resources', module: 'resources' },
-    ],
       { Icon: Scale, label: '법령 검색', to: '/law' },
+    ],
   },
   {
     // 본사 관리 기능은 경영 대시보드(회사 관리자 콘솔) 한 곳으로 통합 —
@@ -77,6 +79,8 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { Icon: LayoutDashboard, label: '경영 대시보드', to: '/ledger', hqOnly: true },
       { Icon: Mail, label: '메일함', to: '/mail', hqOnly: true },
+      // 활동 현황(점검 증빙·근무 기록 참고) — hqOnly = HQ_ROLES(hq_admin·executive) 만 통과하므로 일반 직원에겐 메뉴 자체가 숨겨짐
+      { Icon: Footprints, label: '활동 현황', to: '/activity', hqOnly: true },
     ],
   },
   {
@@ -98,6 +102,7 @@ const CONSOLE_SUBS: { key: string; label: string; Icon: LucideIcon }[] = [
   { key: 'app', label: '현장 앱 관리', Icon: TabletSmartphone },
   { key: 'eduoffice', label: '교육청 전송', Icon: CloudUpload },
   { key: 'content', label: '홈페이지·콘텐츠', Icon: Globe },
+  { key: 'popup', label: '팝업 공지', Icon: BellRing },
   { key: 'system', label: '시스템', Icon: Settings2 },
 ]
 
