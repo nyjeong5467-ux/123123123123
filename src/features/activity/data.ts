@@ -316,6 +316,12 @@ export const fetchRange = (from: string, to: string) =>
 export const fetchConsents = () =>
   cached<ConsentsRes | ConsentRow[]>('/ops/activity/consents').then((r): ConsentRow[] => (Array.isArray(r) ? r : Array.isArray(r?.consents) ? r.consents : []))
 // 그날 사용자별 마지막 위치(미니맵). 라벨 캐시에도 반영.
+export type Track = { login_id: string; name: string; points: [number, number, string][] }
+/** 사용자별 이동 경로(좌표·시각) — 지도 선. 실시간 갱신용이라 캐시하지 않는다. */
+export const fetchTracks = (date: string) =>
+  api<{ date: string; tracks: Track[] }>(`/ops/activity/tracks?${qs({ date })}`).then((r) => (Array.isArray(r?.tracks) ? r.tracks : []))
+export const fetchPositionsLive = (date: string) =>
+  api<PositionsRes>(`/ops/activity/positions?${qs({ date })}`).then((r) => ({ date: r?.date || date, positions: Array.isArray(r?.positions) ? r.positions : [] }))
 export const fetchPositions = (date: string) =>
   cached<PositionsRes>(`/ops/activity/positions?${qs({ date })}`).then((r) => {
     const positions = Array.isArray(r?.positions) ? r.positions : []

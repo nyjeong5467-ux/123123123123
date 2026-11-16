@@ -7,7 +7,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { AlertTriangle, Map as MapIcon, Maximize2, Minimize2, RefreshCw } from 'lucide-react'
 import {
-  type Position, describeError, deviceLabelOf, fetchConsents, fetchPositions, fmtDist, fmtMDw, hm, isNotFound, kindLabel, shortDevice,
+  type Position, type Track, describeError, deviceLabelOf, fetchConsents, fetchPositionsLive, fetchTracks, fmtDist, fmtMDw, hm, isNotFound, kindLabel, shortDevice,
   todayKst, useAsync, useDeviceLabels,
 } from './data'
 
@@ -31,7 +31,18 @@ export type MiniMapProps = {
 
 export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
   const [expanded, setExpanded] = useState(false)
-  const { data, loading, error, reload } = useAsync(() => fetchPositions(date), [date])
+  // 실시간: 오늘이면 30초마다 위치·경로를 다시 받는다(캐시 없음). 지도 맞춤은 날짜가 바뀔 때 한 번만.
+  const [tick, setTick] = useState(0)
+  const { data, loading, error, reload } = useAsync(() => fetchPositionsLive(date), [date, tick])
+  const trackQ = useAsync(() => fetchTracks(date).catch(() => [] as Track[]), [date, tick])
+  const fittedRef = useRef('')
+  useEffect(() => {
+    if (date !== todayKst()) return
+    const t = setInterval(() => setTick((x) => x + 1), 30000)
+    return () => clearInterval(t)
+  }, [date])
+  const [updatedAt, setUpdatedAt] = useState('')
+  useEffect(() => { if (data) setUpdatedAt(new Date().toTimeString().slice(0, 8)) }, [data])
   const consQ = useAsync(() => fetchConsents().catch(() => null), [])
   const labelVer = useDeviceLabels()
   const positions = useMemo(() => (data?.positions || []).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng)), [data])
@@ -60,7 +71,15 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
     const map = mapRef.current, layer = layerRef.current
     if (!map || !layer) return
     layer.clearLayers()
-    if (positions.length === 0) { map.setView(DEFAULT_CENTER, DEFAULT_ZOOM); return }
+    // 이동 경로(선) — 접속 중이면 파랑, 아니면 회색
+    const live = new Set(positions.filter((p) => p.status === 'online').map((p) => p.login_id))
+    for (const t of trackQ.data || []) {
+      if (t.points.length < 2) continue
+      L.polyline(t.points.map((q) => [q[0], q[1]] as L.LatLngExpression), {
+        color: live.has(t.login_id) ? '#2f6bf2' : '#9aa3b2', weight: 3, opacity: 0.6,
+      }).bindTooltip(`${t.name} 이동 경로 · ${t.points[0][2]} → ${t.points[t.points.length - 1][2]}`).addTo(layer)
+    }
+    if (positions.length === 0) { if (fittedRef.current !== date) { map.setView(DEFAULT_CENTER, DEFAULT_ZOOM); fittedRef.current = date } return }
     const pts: L.LatLngExpression[] = []
     for (const p of positions) {
       const label = pinLabel(p)
@@ -96,8 +115,8 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
       m.addTo(layer)
       pts.push([p.lat, p.lng])
     }
-    map.fitBounds(L.latLngBounds(pts), { padding: [36, 36], maxZoom: 14 })
-  }, [positions, labelVer])
+    if (fittedRef.current !== date) { map.fitBounds(L.latLngBounds(pts), { padding: [36, 36], maxZoom: 14 }); fittedRef.current = date }
+  }, [positions, labelVer, trackQ.data, date])
 
   // 접힘/펼침 → 크기 재계산 후 다시 맞춤(CSS 전환 뒤)
   useEffect(() => {
@@ -117,7 +136,8 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
   return (
     <div className={'act-card act-map-card' + (expanded ? ' expanded' : '')}>
       <div className="act-map-head">
-        <b><MapIcon size={14} /> {isToday ? '오늘' : fmtMDw(date)} 위치</b>
+        <b><MapIcon size={14} /> {isToday ? '실시간 위치' : `${fmtMDw(date)} 위치`}</b>
+        {isToday && updatedAt && <span className="muted" title="30초마다 자동 갱신">● {updatedAt} 갱신</span>}
         {!loading && !error && <span className="muted">핀 {positions.length}개{missing != null && missing > 0 ? ` · 위치 기록 없음 ${missing}명` : ''}</span>}
         {loading && <span className="muted act-msg spin" style={{ padding: 0 }}><RefreshCw size={12} /> 불러오는 중…</span>}
         <span className="act-map-legend"><i className="live" /> 접속 중 {positions.filter((p) => p.status === 'online').length} <i className="off" /> 종료 {positions.filter((p) => p.status !== 'online').length}</span>
@@ -141,7 +161,7 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
           </div>
         )}
         {!loading && !error && positions.length === 0 && (
-          <div className="act-map-overlay">{isToday ? '오늘 위치 기록이 없습니다' : '이 날짜에는 위치 기록이 없습니다'} — 위치는 동의한 사용자의 앱을 켜 둔 동안 10분마다, 그리고 실행·종료·저장·제출 때 기록됩니다(15분 넘게 소식이 없으면 종료로 표시).</div>
+          <div className="act-map-overlay">{isToday ? '오늘 위치 기록이 없습니다' : '이 날짜에는 위치 기록이 없습니다'} — 위치는 동의한 사용자의 앱을 켜 둔 동안 1분마다(100m 이동 시 즉시) 기록됩니다. 3분 넘게 소식이 없으면 종료(회색)로 표시합니다.</div>
         )}
       </div>
     </div>
