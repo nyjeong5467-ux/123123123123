@@ -23,6 +23,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { Accounts } from './pages/Accounts'
 import { Mail } from './pages/Mail'
 import { Resources } from './pages/Resources'
+import { LawSearch } from './pages/LawSearch'
 import { Schedule } from './pages/Schedule'
 import { useAuth } from './lib/auth'
 
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/billing" element={<Billing />} />
           <Route path="/sessions" element={<Sessions />} />
           <Route path="/resources" element={<Resources />} />
+          <Route path="/law" element={<LawSearch />} />
           <Route path="/mypage" element={<MyPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/accounts" element={<Accounts />} />

@@ -21,6 +21,7 @@ import {
   Receipt,
   ReceiptText,
   ScrollText,
+  Scale,
   Search,
   Settings,
   Settings2,
@@ -67,6 +68,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       // 세션코드 발급 nav 숨김(2026-09-18) — 점검자 앱 로그인 전환. 비상용은 /sessions 직접 접근.
       { Icon: FolderOpen, label: '자료실', to: '/resources', module: 'resources' },
     ],
+      { Icon: Scale, label: '법령 검색', to: '/law' },
   },
   {
     // 본사 관리 기능은 경영 대시보드(회사 관리자 콘솔) 한 곳으로 통합 —

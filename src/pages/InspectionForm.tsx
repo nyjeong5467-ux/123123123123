@@ -8,6 +8,8 @@ import { api } from '../lib/api'
 import { InspectionMailModal } from '../components/InspectionMailModal'
 import { SignImage } from '../components/SignImage'
 import { InfoTip } from '../components/InfoTip'
+import { LawHint, appendCitation } from '../components/LawHint' // 비고 법령 근거 추천(법제처 코퍼스)
+import '../styles/law.css'
 import { SignaturePadModal, type SignStrokes } from '../components/SignaturePadModal'
 import { InspectionSheetView, type SheetData } from '../components/InspectionSheetView'
 import { resolveExtra, type InspExtra } from '../lib/inspExtra'
@@ -1045,6 +1047,8 @@ export function InspectionForm() {
         </div>
         {/* 선택 공정 + (앱 수신 등으로) 사진이 실려 있는 공정 — 라벨이 달라도 사진이 숨지 않게 [서명·사진 출력 수정] */}
         {PARTDEF.filter((d) => enabled[d.label] || (photos[d.label] ?? []).some((s) => s.dataUrl || s.name || s.caption)).map((d) => {
+                            {/* 법령 근거 추천 — 누른 조문만 비고 끝에 '(「법령」 제N조 의거)'로 붙는다(자동 삽입 없음) */}
+                            <LawHint code={code} query={remarks[code] ?? ''} onPick={(pk) => setRemarks((p) => ({ ...p, [code]: appendCitation(p[code] ?? '', pk) }))} />
           const n = counts[d.key] ?? 0
           const slots = slotsFor(d.label)
           return (

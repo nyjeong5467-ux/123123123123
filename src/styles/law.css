@@ -1,0 +1,57 @@
+/* 법령 검색 페이지 + 점검표 비고 '법령' 힌트 */
+.law-page { display: flex; flex-direction: column; gap: 14px; }
+.law-head h1 { display: flex; align-items: center; gap: 8px; font-size: 22px; margin: 0 0 4px; }
+.law-sub { color: var(--ink-2, #5a5670); font-size: 13.5px; margin: 0; }
+.law-card { background: var(--card, #fff); border: 1px solid var(--line, #ededf4); border-radius: 14px; padding: 14px 16px; }
+.law-searchrow { display: flex; align-items: center; gap: 10px; }
+.law-searchrow .law-ico { color: var(--ink-3, #9a96ad); flex: none; }
+.law-searchrow input[type="text"], .law-searchrow input:not([type]) { flex: 1; min-width: 0; font-size: 15px; padding: 10px 12px; border: 1px solid var(--line, #ededf4); border-radius: 10px; background: var(--card-2, #fafafe); }
+.law-searchrow select { padding: 9px 10px; border: 1px solid var(--line, #ededf4); border-radius: 10px; background: var(--card-2, #fafafe); max-width: 260px; }
+.law-chk { display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
+.law-examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.law-examples button { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line, #ededf4); background: var(--card-2, #fafafe); cursor: pointer; }
+.law-examples button:hover { background: color-mix(in srgb, var(--violet, #7c5cfb) 12%, var(--card, #fff)); }
+.law-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .law-body { grid-template-columns: 1fr; } }
+.law-results { display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow: auto; }
+.law-count { font-size: 12px; color: var(--ink-3, #9a96ad); }
+.law-hit { text-align: left; border: 1px solid var(--line, #ededf4); border-radius: 10px; padding: 10px 12px; background: var(--card, #fff); cursor: pointer; }
+.law-hit:hover { border-color: var(--violet, #7c5cfb); }
+.law-hit.on { border-color: var(--violet, #7c5cfb); background: color-mix(in srgb, var(--violet, #7c5cfb) 8%, var(--card, #fff)); }
+.law-hit-top { display: flex; align-items: center; gap: 8px; }
+.law-kind { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--violet, #7c5cfb); color: #fff; }
+.law-kind.k-annex { background: var(--amber, #ea9a1c); }
+.law-hit-title { font-weight: 700; font-size: 14px; }
+.law-hit-law { font-size: 12px; color: var(--ink-2, #5a5670); margin-top: 2px; }
+.law-hit-snip { font-size: 12.5px; color: var(--ink-2, #5a5670); margin-top: 4px; line-height: 1.45; }
+.law-doc { position: sticky; top: 12px; max-height: 70vh; overflow: auto; }
+.law-doc-cite { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.law-doc-cite strong { font-size: 15px; }
+.law-doc-meta { font-size: 12px; color: var(--ink-2, #5a5670); margin: 4px 0 10px; }
+.law-doc-text { white-space: pre-wrap; font-family: inherit; font-size: 13.5px; line-height: 1.65; margin: 0; }
+.law-doc-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 12px; color: var(--ink-3, #9a96ad); }
+.law-copy { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line, #ededf4); background: var(--card-2, #fafafe); cursor: pointer; white-space: nowrap; }
+.law-copy:hover { border-color: var(--violet, #7c5cfb); }
+.law-copy:disabled { opacity: .5; cursor: default; }
+.law-msg { font-size: 13px; color: var(--ink-2, #5a5670); padding: 8px 2px; }
+.law-err { color: var(--red-ink, #d63a42); }
+.law-admin h2 { font-size: 15px; margin: 0; }
+.law-admin-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.law-admin-meta { flex: 1; font-size: 12.5px; color: var(--ink-2, #5a5670); }
+.law-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.law-table th, .law-table td { padding: 6px 8px; border-bottom: 1px solid var(--line, #ededf4); text-align: left; }
+.law-table td.r { text-align: right; }
+
+/* 점검표 비고 힌트 */
+.insf-law { position: relative; display: inline-block; margin-left: 6px; vertical-align: middle; }
+.insf-lawbtn { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line, #ededf4); background: var(--card-2, #fafafe); color: var(--ink-2, #5a5670); cursor: pointer; }
+.insf-lawbtn:hover, .insf-lawbtn.on { border-color: var(--violet, #7c5cfb); color: var(--violet, #7c5cfb); }
+.insf-lawpop { position: absolute; z-index: 20; left: 0; top: calc(100% + 4px); min-width: 320px; max-width: 460px; background: var(--card, #fff); border: 1px solid var(--line, #ededf4); border-radius: 10px; box-shadow: 0 8px 24px rgba(20, 20, 40, .12); padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+.insf-lawchip { text-align: left; font-size: 12.5px; padding: 6px 8px; border-radius: 8px; border: 1px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.insf-lawchip:hover { background: color-mix(in srgb, var(--violet, #7c5cfb) 10%, var(--card, #fff)); border-color: var(--violet, #7c5cfb); }
+.insf-lawwhy { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--ok-soft, #e4f7f0); color: var(--ok-ink, #22996c); }
+.insf-lawwhy.w-query { background: var(--info-soft, #e9f6fc); color: var(--info-ink, #1e91be); }
+.insf-lawwhy.w-item_text { background: var(--line, #ededf4); color: var(--ink-2, #5a5670); }
+.insf-lawlaw { font-size: 11px; color: var(--ink-3, #9a96ad); width: 100%; padding-left: 2px; }
+.insf-lawmsg { font-size: 12px; color: var(--ink-3, #9a96ad); padding: 4px 6px; }
+.insf-lawsrc { font-size: 10.5px; color: var(--ink-3, #9a96ad); padding: 2px 6px 0; }
