@@ -20,7 +20,7 @@ const esc = (s: string | null | undefined) => String(s ?? '').replace(/[&<>"']/g
 
 // 핀 라벨: 기기 라벨이 있으면 라벨(예: "홍길동 태블릿"), 없으면 사용자 이름
 function pinLabel(p: Position): string {
-  return deviceLabelOf(p.device_id, p.device_label) || p.name || p.login_id
+  return p.name || p.login_id // 기기 라벨 제거(11-16)
 }
 
 export type MiniMapProps = {

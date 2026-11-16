@@ -129,6 +129,7 @@ export type PositionsRes = { date: string; positions: Position[] }
 // ── 라벨 ──
 export const KIND_LABEL: Record<string, string> = {
   app_open: '앱 실행',
+  app_close: '앱 종료',
   school_select: '학교 선택',
   module_open: '업무 열기',
   inspection_open: '점검표 열기',
@@ -138,7 +139,7 @@ export const KIND_LABEL: Record<string, string> = {
   photo_add: '사진 추가',
   sign: '서명',
   memo_add: '메모',
-  logout: '로그아웃',
+  logout: '앱 종료(로그아웃)',
   custom: '기타',
 }
 export const KIND_ORDER = Object.keys(KIND_LABEL)
@@ -372,11 +373,8 @@ export function deviceText(device_id: string | null | undefined, device_label?: 
   return device_label || shortDevice(device_id)
 }
 // 저장된(또는 응답에 실린) 라벨만 — 없으면 null
-export function deviceLabelOf(device_id: string | null | undefined, device_label?: string | null): string | null {
-  if (!device_id) return device_label || null
-  const s = deviceLabels.get(device_id)
-  if (s !== undefined) return s || null
-  return device_label || null
+export function deviceLabelOf(_id?: string | null, _label?: string | null): string | null {
+  return null // 기기 라벨 기능 제거(11-16) — 사용자 이름으로 표시
 }
 
 // 여러 날짜의 daily 를 병렬로 — 개별 실패는 빈 결과로 흡수(첫 오류는 errors 로 전달)
@@ -433,4 +431,37 @@ export function userOnsite(u: UserDay): { mark: 'yes' | 'no' | 'na'; yes: number
 export function sumSaves(u: UserDay): number {
   if (typeof u.saves === 'number') return u.saves
   return (u.schools || []).reduce((a, s) => a + (s.saves || 0), 0)
+}
+
+
+// ── 요약 보기(11-16): 앱 실행 · 앱 종료 · 학교 완료(저장 / 교육청 전송 요청)만 ──
+const LEDGER_DETAIL_KEY = 'activity.ledger.detail'
+export function getLedgerDetail(): boolean {
+  try { return localStorage.getItem(LEDGER_DETAIL_KEY) === '1' } catch { return false }
+}
+export function setLedgerDetail(v: boolean): void {
+  try { localStorage.setItem(LEDGER_DETAIL_KEY, v ? '1' : '0') } catch { /* 무시 */ }
+}
+const OPEN_CLOSE = new Set(['app_open', 'app_close', 'logout'])
+/** 요약 규칙: 앱 실행·종료는 그대로, 저장·교육청 전송 요청은 (사용자·학교·날짜·종류)별 마지막 1건 + 건수. 나머지는 제외. */
+export function summarizeEvents(events: ActEvent[]): ActEvent[] {
+  const out: ActEvent[] = []
+  const done = new Map<string, { e: ActEvent; n: number }>()
+  for (const e of events) {
+    if (OPEN_CLOSE.has(e.kind)) { out.push(e); continue }
+    if (e.kind !== 'save' && e.kind !== 'eduoffice_request') continue
+    const day = (e.device_date || (e.device_at || '').slice(0, 10))
+    const key = `${e.actor_login_id}|${e.school_id || ''}|${day}|${e.kind}`
+    const cur = done.get(key)
+    if (!cur) done.set(key, { e, n: 1 })
+    else {
+      cur.n += 1
+      if ((e.device_at || '') > (cur.e.device_at || '')) cur.e = e
+    }
+  }
+  for (const { e, n } of done.values()) {
+    const label = e.kind === 'save' ? '학교 완료(저장)' : '학교 완료(교육청 전송 요청)'
+    out.push({ ...e, note: n > 1 ? `${label} · ${n}건` : label })
+  }
+  return out
 }

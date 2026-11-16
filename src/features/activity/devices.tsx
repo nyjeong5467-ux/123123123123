@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { Check, Copy, MapPin, MapPinOff, Pencil, Smartphone, X } from 'lucide-react'
 import {
-  type DeviceRow, describeError, fetchDevices, fmtDateTime, isNotFound, kindLabel, n0, shortDevice, updateDevice, useAsync,
+  type DeviceRow, describeError, fetchDevices, fmtDateTime, isNotFound, kindLabel, n0, shortDevice, useAsync,
 } from './data'
 import { type Acc, type PanelProps, Head, KindChip, Msg, Reload, RowCount, SearchBox, Th, Who, useSort } from './panels'
 
@@ -48,36 +48,10 @@ export function ConsentChip({ v }: { v: boolean | null | undefined }) {
   return <span className="act-onsite na sm">미응답</span>
 }
 
-// 한 행: 라벨·메모 인라인 편집. Enter 저장 · Esc 되돌리기 · 변경 시 저장 버튼 노출.
-function DeviceTr({ d, onSaved, openUser }: { d: DeviceRow; onSaved: (row: Partial<DeviceRow>) => void; openUser: (login_id: string, name: string) => void }) {
-  const [label, setLabel] = useState(d.label || '')
-  const [note, setNote] = useState(d.note || '')
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  useEffect(() => { setLabel(d.label || ''); setNote(d.note || '') }, [d.label, d.note])
-  const dirty = label.trim() !== (d.label || '') || note.trim() !== (d.note || '')
-
-  async function save() {
-    if (!dirty || saving) return
-    setSaving(true); setErr(null)
-    try {
-      const row = await updateDevice(d.device_id, { label: label.trim(), note: note.trim() })
-      onSaved(row)
-    } catch (e) { setErr(describeError(e)) } finally { setSaving(false) }
-  }
-  function revert() { setLabel(d.label || ''); setNote(d.note || ''); setErr(null) }
-  const onKey = (e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); void save() } else if (e.key === 'Escape') revert() }
-
+// 한 행(읽기 전용) — 기기 라벨·메모 기능은 제거(11-16, 사용자 이름으로 충분).
+function DeviceTr({ d, openUser }: { d: DeviceRow; onSaved?: (row: Partial<DeviceRow>) => void; openUser: (login_id: string, name: string) => void }) {
   return (
-    <tr className={dirty ? 'act-dev-dirty' : ''}>
-      <td>
-        <div className="act-dev-edit">
-          <input className="act-dev-input" value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={onKey} placeholder="라벨 없음 — 입력 후 Enter" maxLength={40} disabled={saving} />
-          {dirty && <button type="button" className="act-detail" onClick={save} disabled={saving} title="저장(Enter)"><Check size={12} /> {saving ? '저장 중' : '저장'}</button>}
-          {dirty && !saving && <button type="button" className="act-ibtn sm" onClick={revert} title="되돌리기(Esc)"><X size={12} /></button>}
-        </div>
-        {err && <div className="act-dev-err">{err}</div>}
-      </td>
+    <tr>
       <td><CopyId id={d.device_id} /></td>
       <td>{d.last_login_id ? <Who name={d.last_name || d.last_login_id} sub={d.last_login_id} onClick={() => openUser(d.last_login_id as string, d.last_name || d.last_login_id || '')} /> : <span className="muted">—</span>}</td>
       <td className="act-last">
@@ -87,9 +61,6 @@ function DeviceTr({ d, onSaved, openUser }: { d: DeviceRow; onSaved: (row: Parti
       <td className="act-time"><span className="muted">첫</span> {fmtDateTime(d.first_seen)}<br /><span className="muted">끝</span> {fmtDateTime(d.last_seen)}</td>
       <td className="num">{n0(d.events_total || 0)}</td>
       <td className="c"><ConsentChip v={d.consent_agreed} /></td>
-      <td>
-        <input className="act-dev-input note" value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={onKey} placeholder="메모" maxLength={200} disabled={saving} />
-      </td>
     </tr>
   )
 }
@@ -111,29 +82,27 @@ export function DevicesPanel({ st, setSt, open }: PanelProps) {
 
   return (
     <div>
-      <Head icon={<Smartphone size={17} />} title="기기 목록"><span className="muted" style={{ fontSize: 12 }}>앱이 설치된 단말 · 라벨을 붙이면 모든 표와 미니맵에 그 이름으로 보입니다</span></Head>
+      <Head icon={<Smartphone size={17} />} title="기기 목록"><span className="muted" style={{ fontSize: 12 }}>앱을 쓴 단말 목록 · 마지막 사용자·활동·위치 동의</span></Head>
       <div className="act-tools">
         <div className="bws-tools" style={{ margin: 0 }}><Reload onClick={reload} loading={loading} /></div>
-        <span className="muted" style={{ fontSize: 12 }}><Pencil size={12} style={{ verticalAlign: '-2px' }} /> 라벨·메모 칸에 바로 입력 → Enter 또는 저장. 라벨을 지우고 저장하면 삭제됩니다.</span>
-        <SearchBox value={q} onChange={(v) => setSt({ q: v })} placeholder="라벨·기기 ID·사용자·메모 검색" />
+        <SearchBox value={q} onChange={(v) => setSt({ q: v })} placeholder="기기 ID·사용자 검색" />
       </div>
       {loading && <Msg kind="load">불러오는 중…</Msg>}
       {!loading && error != null && <Msg kind="err">{notReady ? '기기 목록 API(/ops/devices)가 아직 준비되지 않았습니다(404). 백엔드 배포 후 다시 확인해 주세요.' : describeError(error)}</Msg>}
       {!loading && !error && rowsAll.length === 0 && <Msg kind="empty">{q ? '검색 결과가 없습니다.' : '등록된 기기가 없습니다. 현장 앱이 활동을 보내면 자동으로 쌓입니다.'}</Msg>}
       {!loading && !error && rowsAll.length > 0 && (
         <div className="act-card" style={{ padding: 0 }}>
-          <div className="act-tablebar"><RowCount n={rows.length} unit="대" extra={`라벨 지정 ${labeled}대`} /><span className="muted" style={{ fontSize: 12 }}>사용자 이름을 누르면 사용자 탭이 열립니다</span></div>
+          <div className="act-tablebar"><RowCount n={rows.length} unit="대"  /><span className="muted" style={{ fontSize: 12 }}>사용자 이름을 누르면 사용자 탭이 열립니다</span></div>
           <div className="twrap">
             <table className="tbl act-table act-devtable">
               <thead><tr>
-                <Th k="label" label="라벨" s={s} />
                 <Th k="id" label="기기 ID" s={s} />
                 <Th k="user" label="마지막 사용자" s={s} />
                 <Th k="last" label="마지막 활동" s={s} />
                 <Th k="first" label="첫 / 마지막 사용" s={s} />
                 <Th k="events" label="이벤트" s={s} num />
                 <Th k="consent" label="위치 동의" s={s} c />
-                <th>메모</th>
+
               </tr></thead>
               <tbody>
                 {rows.map((d) => <DeviceTr key={d.device_id} d={d} openUser={openUser} onSaved={(row) => setPatch((p) => ({ ...p, [d.device_id]: { ...(p[d.device_id] || {}), ...row } }))} />)}

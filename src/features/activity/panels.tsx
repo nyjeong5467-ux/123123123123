@@ -12,7 +12,7 @@ import {
   ADMIN_ROLES, KIND_ORDER, SAVE_KINDS, addDays, addMonths, cached, dateOfIso, daysBetween, describeError, deviceLabelOf, deviceText,
   evDate, evTime, fetchConsents, fetchDaily, fetchDailyMany, fetchEventsRes, fetchEventsMany, fetchRange, fmtDateTime, fmtDist,
   fmtKoDate, fmtMD, fmtMDw, fmtTime, hm, isNotFound, isWeekend, kindLabel, monthDays, monthOf, n0, pct, roleLabel, shortDevice,
-  sumSaves, timeMinutes, todayKst, useAsync, useDeviceLabels, userOnsite, weekDays, DOW,
+  sumSaves, timeMinutes, todayKst, useAsync, useDeviceLabels, userOnsite, weekDays, DOW, summarizeEvents, getLedgerDetail, setLedgerDetail,
 } from './data'
 import { MiniMap } from './MiniMap'
 
@@ -158,6 +158,19 @@ export function Who({ name, sub, onClick }: { name: string; sub?: string; onClic
     </button>
   )
 }
+// 요약/전체 토글 — 기본은 요약(앱 실행·앱 종료·학교 완료). 원장·사용자 탭이 같은 설정을 쓴다.
+function useDetail(): [boolean, (v: boolean) => void] {
+  const [d, setD] = useState<boolean>(() => getLedgerDetail())
+  return [d, (v: boolean) => { setLedgerDetail(v); setD(v) }]
+}
+function DetailToggle({ detail, onChange }: { detail: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="muted" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+      <input type="checkbox" checked={detail} onChange={(e) => onChange(e.target.checked)} />
+      모든 활동 보기 <small>(끄면 앱 실행·앱 종료·학교 완료만)</small>
+    </label>
+  )
+}
 // 기기 표시: 라벨(스토어 → 응답) 있으면 라벨, 없으면 ID 축약. 라벨 저장 시 스토어 구독으로 즉시 갱신.
 export function DeviceCell({ id, label }: { id?: string | null; label?: string | null }) {
   useDeviceLabels()
@@ -265,7 +278,6 @@ export function DailyPanel({ st, setSt, open }: PanelProps) {
             <table className="tbl act-table">
               <thead><tr>
                 <Th k="name" label="이름 · 역할" s={s} />
-                <Th k="device" label="기기" s={s} />
                 <Th k="first" label="첫 활동" s={s} />
                 <Th k="last" label="마지막 활동" s={s} />
                 <Th k="schools" label="학교" s={s} num />
@@ -278,7 +290,6 @@ export function DailyPanel({ st, setSt, open }: PanelProps) {
                 {rows.map((u) => (
                   <tr key={u.login_id} className="act-row" onClick={() => open({ kind: 'user', login_id: u.login_id, name: u.name || u.login_id, date })}>
                     <td className="act-name"><b>{u.name || u.login_id}</b><span className="r">{roleLabel(u.role)} · {u.login_id}</span></td>
-                    <td><DeviceCell id={u.device_id} label={u.device_label} /></td>
                     <td className="act-time">{hm(u.first_hm, u.first_at)}</td>
                     <td className="act-last"><b>{hm(u.last_hm, u.last_at)}</b><span>{kindLabel(u.last_kind)}{u.last_school_name ? ` · ${u.last_school_name}` : ''}</span></td>
                     <td className="num">{(u.schools || []).length}</td>
@@ -540,10 +551,8 @@ function EventsTable({ events, s, open, showActor, showDate }: { events: ActEven
         <thead><tr>
           <Th k="time" label={showDate ? '일시(기기)' : '시각(기기)'} s={s} />
           {showActor && <Th k="actor" label="사용자" s={s} />}
-          <Th k="device" label="기기" s={s} />
           <Th k="kind" label="종류" s={s} />
           <Th k="school" label="학교" s={s} />
-          <th>업무</th>
           <Th k="dist" label="거리" s={s} num />
           <Th k="onsite" label="현장" s={s} />
           <th>비고</th>
@@ -559,10 +568,8 @@ function EventsTable({ events, s, open, showActor, showDate }: { events: ActEven
                   {diff && <small>서버 {sDay && sDay !== dDay ? fmtMD(sDay) + ' ' : ''}{fmtTime(e.server_at)}</small>}
                 </td>
                 {showActor && <td><Who name={e.actor_name || e.actor_login_id} onClick={() => open({ kind: 'user', login_id: e.actor_login_id, name: e.actor_name || e.actor_login_id, date: dDay || undefined })} /></td>}
-                <td className="dv"><DeviceCell id={e.device_id} label={e.device_label} /></td>
                 <td><KindChip k={e.kind} /></td>
                 <td className="sc">{e.school_id ? <Who name={e.school_name || e.school_id} onClick={() => open({ kind: 'school', school_id: e.school_id as string, school_name: e.school_name || e.school_id || '' })} /> : <span className="muted">—</span>}</td>
-                <td className="muted">{e.module || '—'}</td>
                 <td className="num" title={e.accuracy_m != null ? `정확도 ±${Math.round(e.accuracy_m)} m` : undefined}>{fmtDist(e.distance_m)}</td>
                 <td>{e.lat == null ? <span className="act-onsite na sm"><MapPinOff size={11} /> 위치 없음</span> : <OnsiteChip v={e.onsite} small />}</td>
                 <td className="note" title={e.note || undefined}>{e.note || (e.inspection_id ? `점검 #${e.inspection_id}` : '')}</td>
@@ -589,7 +596,8 @@ export function UserPanel({ st, setSt, open, login_id, name }: PanelProps & { lo
   const dayQ = useAsync(() => fetchDaily(date), [date])
   const me = useMemo(() => (dayQ.data?.users || []).find((u) => u.login_id === login_id) || null, [dayQ.data, login_id])
   const evQ = useAsync(() => fetchEventsRes({ date, login_id }), [date, login_id])
-  const events = useMemo(() => evQ.data?.events || [], [evQ.data])
+  const [detail, setDetail] = useDetail()
+  const events = useMemo(() => { const all = evQ.data?.events || []; return detail ? all : summarizeEvents(all) }, [evQ.data, detail])
   const schools = useMemo(() => me?.schools || [], [me])
   const sch = useSort(schools, SCH_ACC, { key: 'first', dir: 'asc' })
   const ev = useSort(events, EV_ACC, { key: 'time', dir: 'desc' })
@@ -671,7 +679,7 @@ export function UserPanel({ st, setSt, open, login_id, name }: PanelProps & { lo
               </div>
 
               <div className="act-sub-card">
-                <h4><Footprints size={14} /> 이벤트 <small>{events.length}건 · 기기 작성 시각 기준{evQ.data?.truncated ? ` · 하루 ${evQ.data.total}건 중 최신 ${events.length}건만 표시` : ''}</small></h4>
+                <h4><Footprints size={14} /> 이벤트 <DetailToggle detail={detail} onChange={setDetail} /> <small>{events.length}건 · 기기 작성 시각 기준{evQ.data?.truncated ? ` · 하루 ${evQ.data.total}건 중 최신 ${events.length}건만 표시` : ''}</small></h4>
                 {events.length === 0 ? <Msg kind="empty">이벤트가 없습니다.</Msg> : <EventsTable events={ev.rows} s={ev.s} open={open} />}
               </div>
             </>
@@ -1088,21 +1096,23 @@ export function LedgerPanel({ st, setSt, open }: PanelProps) {
   const { from, to, days, setRange } = useRangeSt(st, setSt, 1, 31)
   const user = st.user || '', school = st.school || '', kind = st.kind || '', onsite = st.onsite || ''
   const { data, loading, error, reload } = useAsync(() => fetchEventsMany(days), [from, to])
+  const [detail, setDetail] = useDetail()
   const filtered = useMemo(() => {
     const u = user.trim().toLowerCase(), sc = school.trim().toLowerCase()
-    return (data?.events || []).filter((e) =>
+    const base = detail ? (data?.events || []) : summarizeEvents(data?.events || [])
+    return base.filter((e) =>
       (!u || (e.actor_name || '').toLowerCase().includes(u) || (e.actor_login_id || '').toLowerCase().includes(u)) &&
       (!sc || (e.school_name || '').toLowerCase().includes(sc)) &&
       (!kind || (kind === '_save' ? SAVE_KINDS.includes(e.kind) : e.kind === kind)) &&
       (!onsite || (onsite === 'yes' ? e.onsite === true : onsite === 'no' ? e.onsite === false : e.lat == null)))
-  }, [data, user, school, kind, onsite])
+  }, [data, user, school, kind, onsite, detail])
   const { rows, s } = useSort(filtered, EV_ACC, { key: 'time', dir: 'desc' })
   const users = useMemo(() => [...new Set((data?.events || []).map((e) => e.actor_name || e.actor_login_id))].sort((a, b) => a.localeCompare(b, 'ko')), [data])
 
   function exportCsv() {
     downloadCsv(`활동원장_${from}_${to}`,
-      ['일자', '기기시각', '서버시각', '사용자', '아이디', '기기라벨', '기기ID', '종류', '종류코드', '학교', '학교ID', '업무', '점검ID', '위도', '경도', '정확도m', '거리m', '현장', '비고'],
-      rows.map((e) => [evDate(e) || '', evTime(e, true), e.server_at ? `${dateOfIso(e.server_at) || ''} ${fmtTime(e.server_at, true)}` : '', e.actor_name || '', e.actor_login_id || '', deviceLabelOf(e.device_id, e.device_label) || '', e.device_id || '', kindLabel(e.kind), e.kind, e.school_name || '', e.school_id || '', e.module || '', e.inspection_id || '', e.lat ?? '', e.lng ?? '', e.accuracy_m ?? '', e.distance_m ?? '', e.onsite === true ? '현장' : e.onsite === false ? '현장외' : (e.lat == null ? '위치없음' : '미판정'), e.note || '']))
+      ['일자', '기기시각', '서버시각', '사용자', '아이디', '기기ID', '종류', '종류코드', '학교', '학교ID', '업무', '점검ID', '위도', '경도', '정확도m', '거리m', '현장', '비고'],
+      rows.map((e) => [evDate(e) || '', evTime(e, true), e.server_at ? `${dateOfIso(e.server_at) || ''} ${fmtTime(e.server_at, true)}` : '', e.actor_name || '', e.actor_login_id || '', e.device_id || '', kindLabel(e.kind), e.kind, e.school_name || '', e.school_id || '', e.module || '', e.inspection_id || '', e.lat ?? '', e.lng ?? '', e.accuracy_m ?? '', e.distance_m ?? '', e.onsite === true ? '현장' : e.onsite === false ? '현장외' : (e.lat == null ? '위치없음' : '미판정'), e.note || '']))
   }
   return (
     <div>
@@ -1133,6 +1143,7 @@ export function LedgerPanel({ st, setSt, open }: PanelProps) {
           </select>
         </label>
         {(user || school || kind || onsite) && <button type="button" className="act-today" onClick={() => setSt({ user: '', school: '', kind: '', onsite: '' })}>필터 지우기</button>}
+        <DetailToggle detail={detail} onChange={setDetail} />
       </div>
       {loading && <Msg kind="load">불러오는 중… ({days.length}일)</Msg>}
       {!loading && error != null && <Msg kind="err">{describeError(error)}</Msg>}
