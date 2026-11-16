@@ -123,6 +123,8 @@ export type Position = {
   school_name: string | null
   onsite: boolean | null
   distance_m?: number | null      // 계약에 없음 — 서버가 주면 핀 상세에 표시
+  status?: 'online' | 'closed'    // 접속 중(마지막 활동 60분 이내·종료 아님) / 종료
+  last_at?: string; last_hm?: string; last_kind?: string
 }
 export type PositionsRes = { date: string; positions: Position[] }
 

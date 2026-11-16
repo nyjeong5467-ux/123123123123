@@ -7,7 +7,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { AlertTriangle, Map as MapIcon, Maximize2, Minimize2, RefreshCw } from 'lucide-react'
 import {
-  type Position, describeError, deviceLabelOf, fetchPositions, fmtDist, fmtMDw, hm, isNotFound, kindLabel, shortDevice,
+  type Position, describeError, deviceLabelOf, fetchConsents, fetchPositions, fmtDist, fmtMDw, hm, isNotFound, kindLabel, shortDevice,
   todayKst, useAsync, useDeviceLabels,
 } from './data'
 
@@ -32,6 +32,7 @@ export type MiniMapProps = {
 export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
   const [expanded, setExpanded] = useState(false)
   const { data, loading, error, reload } = useAsync(() => fetchPositions(date), [date])
+  const consQ = useAsync(() => fetchConsents().catch(() => null), [])
   const labelVer = useDeviceLabels()
   const positions = useMemo(() => (data?.positions || []).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng)), [data])
 
@@ -63,7 +64,7 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
     const pts: L.LatLngExpression[] = []
     for (const p of positions) {
       const label = pinLabel(p)
-      const cls = p.onsite === true ? 'yes' : p.onsite === false ? 'no' : 'na'
+      const cls = p.status === 'online' ? 'live' : 'off' // 접속 중=파랑, 종료=회색
       const icon = L.divIcon({
         className: 'act-pin-wrap',
         html: `<span class="act-pin"><span class="act-pin-dot ${cls}"></span><span class="act-pin-tag">${esc(label)}</span></span>`,
@@ -75,7 +76,8 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
       const el = document.createElement('div')
       el.className = 'act-pop'
       const dist = p.distance_m != null ? `거리 ${fmtDist(p.distance_m)}` : p.accuracy_m != null ? `정확도 ±${Math.round(p.accuracy_m)} m` : ''
-      const onsite = p.onsite === true ? '<span class="act-onsite yes sm">현장</span>' : p.onsite === false ? '<span class="act-onsite no sm">현장 외</span>' : '<span class="act-onsite na sm">미판정</span>'
+      const st = p.status === 'online' ? `<span class="act-onsite yes sm" style="background:#e8f0ff;color:#2f6bf2">접속 중</span>` : `<span class="act-onsite na sm">종료${p.last_hm ? ' ' + esc(p.last_hm) : ''}</span>`
+      const onsite = st + ' ' + (p.onsite === true ? '<span class="act-onsite yes sm">현장</span>' : p.onsite === false ? '<span class="act-onsite no sm">현장 외</span>' : '<span class="act-onsite na sm">미판정</span>')
       el.innerHTML =
         `<b>${esc(label)}</b>` +
         `<small>${esc(p.name || p.login_id)} · ${esc(p.login_id)}${p.device_id ? ` · 기기 ${esc(shortDevice(p.device_id))}` : ''}</small>` +
@@ -115,10 +117,17 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
   return (
     <div className={'act-card act-map-card' + (expanded ? ' expanded' : '')}>
       <div className="act-map-head">
-        <b><MapIcon size={14} /> {isToday ? '오늘' : fmtMDw(date)} 마지막 위치</b>
+        <b><MapIcon size={14} /> {isToday ? '오늘' : fmtMDw(date)} 위치</b>
         {!loading && !error && <span className="muted">핀 {positions.length}개{missing != null && missing > 0 ? ` · 위치 기록 없음 ${missing}명` : ''}</span>}
         {loading && <span className="muted act-msg spin" style={{ padding: 0 }}><RefreshCw size={12} /> 불러오는 중…</span>}
-        <span className="act-map-legend"><i className="yes" /> 현장 <i className="no" /> 현장 외 <i className="na" /> 미판정</span>
+        <span className="act-map-legend"><i className="live" /> 접속 중 {positions.filter((p) => p.status === 'online').length} <i className="off" /> 종료 {positions.filter((p) => p.status !== 'online').length}</span>
+        {(() => {
+          const raw = consQ.data as unknown
+          const rows = Array.isArray(raw) ? raw : ((raw as { consents?: { name?: string; login_id: string; agreed: boolean }[] } | null)?.consents || [])
+          if (!rows.length) return null
+          const yes = rows.filter((r) => r.agreed), no = rows.filter((r) => !r.agreed)
+          return <span className="muted" title={`미동의: ${no.map((r) => r.name || r.login_id).join(', ')}`}>위치 동의 <b style={{ color: 'var(--ok-ink)' }}>{yes.length}명</b>{yes.length ? ` (${yes.map((r) => r.name || r.login_id).join(', ')})` : ''} · 미동의 {no.length}명</span>
+        })()}
         <div className="sp" />
         <button type="button" className="act-ibtn" onClick={reload} disabled={loading} title="다시 불러오기"><RefreshCw size={14} className={loading ? 'act-spin' : ''} /></button>
         <button type="button" className="act-ibtn" onClick={() => setExpanded((e) => !e)} title={expanded ? '접기' : '펼치기'}>{expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
@@ -132,7 +141,7 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
           </div>
         )}
         {!loading && !error && positions.length === 0 && (
-          <div className="act-map-overlay">{isToday ? '오늘 위치 기록이 없습니다' : '이 날짜에는 위치 기록이 없습니다'} — 위치는 동의한 사용자의 저장·제출 시점에만 기록됩니다.</div>
+          <div className="act-map-overlay">{isToday ? '오늘 위치 기록이 없습니다' : '이 날짜에는 위치 기록이 없습니다'} — 위치는 동의한 사용자의 앱 실행·종료·저장·제출 시점에만 기록됩니다.</div>
         )}
       </div>
     </div>

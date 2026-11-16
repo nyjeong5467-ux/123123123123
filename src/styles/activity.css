@@ -237,3 +237,9 @@
 /* 위치 동의: 미동의 행 강조 */
 .act-table tbody tr.act-row-bad td { background: var(--red-soft); }
 .act-table tbody tr.act-row-bad:hover td { filter: brightness(.97); }
+
+/* 접속 상태 핀(11-16): 접속 중=파랑, 종료=회색 */
+.act-pin-dot.live { background: #2f6bf2; box-shadow: 0 0 0 4px rgba(47,107,242,.25), 0 1px 4px rgba(0,0,0,.35); }
+.act-pin-dot.off { background: #9aa3b2; }
+.act-map-legend i.live { background: #2f6bf2; }
+.act-map-legend i.off { background: #9aa3b2; }
