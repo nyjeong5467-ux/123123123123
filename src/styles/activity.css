@@ -243,3 +243,14 @@
 .act-pin-dot.off { background: #9aa3b2; }
 .act-map-legend i.live { background: #2f6bf2; }
 .act-map-legend i.off { background: #9aa3b2; }
+
+/* 학교 완료 핀(11-16): 초록 ✓ + 이름·학교·시각 */
+.act-pin-dot.done { background: #22a06b; color: #fff; font: 800 10px/1 var(--font); display: inline-flex; align-items: center; justify-content: center; }
+.act-pin-tag.done { border-color: #bfe6d3; background: rgba(230,246,238,.95); }
+.act-map-legend i.done { background: #22a06b; }
+.act-hist { display: grid; grid-template-columns: 220px 1fr; gap: 12px; }
+.act-hist-days { max-height: 640px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.act-hist-days button { display: flex; width: 100%; justify-content: space-between; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--line); background: var(--card); cursor: pointer; font: 600 13px var(--font); color: var(--ink); }
+.act-hist-days button.on { background: color-mix(in srgb, #2f6bf2 10%, var(--card)); color: #1d4ed8; }
+.act-hist-map { height: 460px; border-radius: 10px; border: 1px solid var(--line); }
+@media (max-width: 900px) { .act-hist { grid-template-columns: 1fr; } }

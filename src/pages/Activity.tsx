@@ -5,7 +5,7 @@
 // 접근: executive·hq_admin 만(사이드바 메뉴도 hqOnly 로 같은 역할에만 노출). 그 외 역할은 안내만 보인다.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
+import { History,
   type LucideIcon, CalendarDays, CalendarRange, Footprints, HelpCircle, Info, ListOrdered, Lock, MapPin, MapPinCheck,
   Plus, School, ShieldAlert, Smartphone, UserRoundCheck, Users, X,
 } from 'lucide-react'
@@ -16,11 +16,12 @@ import {
   UserPanel, UsersPanel, WeekPanel, isAdminRole,
 } from '../features/activity/panels'
 import { DevicesPanel } from '../features/activity/devices'
+import { HistoryPanel } from '../features/activity/history'
 import '../styles/billingws.css'
 import '../styles/activity.css'
 
 // ── 워크스페이스 탭 모델 ──
-type FixedKind = 'daily' | 'week' | 'month' | 'users' | 'schools' | 'onsite' | 'consent' | 'devices' | 'ledger'
+type FixedKind = 'daily' | 'week' | 'month' | 'history' | 'users' | 'schools' | 'onsite' | 'consent' | 'devices' | 'ledger'
 type TabKind = FixedKind | 'user' | 'school'
 type Tab = { id: string; kind: TabKind; p?: Record<string, string> }   // p: 인스턴스 매개변수(login_id·name / school_id·school_name)
 type Ws = { tabs: Tab[]; active: string | null; st: Record<string, St> }
@@ -29,6 +30,7 @@ const FIXED: Record<FixedKind, { label: string; Icon: LucideIcon; desc: string }
   daily: { label: '일일 현황', Icon: CalendarDays, desc: '요약 카드 · 사용자별 표 · 날짜 이동' },
   week: { label: '주간 격자', Icon: CalendarRange, desc: '날짜 × 사용자 첫/마지막 활동' },
   month: { label: '월간 요약', Icon: CalendarDays, desc: '활동일 · 학교 수 · 저장 수 · 마지막 활동' },
+  history: { label: '지도 이력', Icon: History, desc: '날짜별 학교 완료 지점 지도 · 지난 날짜 보관' },
   users: { label: '사용자별', Icon: Users, desc: '사용자 선택 → 날짜별 타임라인·학교·이벤트' },
   schools: { label: '학교별', Icon: School, desc: '학교 검색 → 누가 언제 다녀갔는지' },
   onsite: { label: '현장 작성 증빙', Icon: MapPinCheck, desc: '현장/현장 외/미판정 집계 · 거리 이상치' },
@@ -37,7 +39,7 @@ const FIXED: Record<FixedKind, { label: string; Icon: LucideIcon; desc: string }
   ledger: { label: '이벤트 원장', Icon: ListOrdered, desc: '필터 · CSV 내려받기' },
 }
 const MENU: { title: string; keys: FixedKind[] }[] = [
-  { title: '현황', keys: ['daily', 'week', 'month'] },
+  { title: '현황', keys: ['daily', 'history', 'week', 'month'] },
   { title: '드릴다운', keys: ['users', 'schools'] },
   { title: '증빙', keys: ['onsite', 'consent', 'devices'] },
   { title: '원장', keys: ['ledger'] },
@@ -161,6 +163,7 @@ export function Activity() {
       case 'onsite': return <OnsitePanel {...props} />
       case 'consent': return <ConsentPanel {...props} />
       case 'devices': return <DevicesPanel {...props} />
+      case 'history': return <HistoryPanel {...props} />
       case 'ledger': return <LedgerPanel {...props} />
       case 'user': return <UserPanel {...props} login_id={t.p?.login_id || ''} name={t.p?.name || t.p?.login_id || ''} />
       case 'school': return <SchoolPanel {...props} school_id={t.p?.school_id || ''} school_name={t.p?.school_name || ''} />

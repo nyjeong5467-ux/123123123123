@@ -7,7 +7,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { AlertTriangle, Map as MapIcon, Maximize2, Minimize2, RefreshCw } from 'lucide-react'
 import {
-  type Position, type Track, describeError, deviceLabelOf, fetchConsents, fetchPositionsLive, fetchTracks, fmtDist, fmtMDw, hm, isNotFound, kindLabel, shortDevice,
+  type Completion, type Position, type Track, describeError, deviceLabelOf, fetchCompletions, fetchConsents, fetchPositionsLive, fetchTracks, fmtDist, fmtMDw, hm, isNotFound, kindLabel, shortDevice,
   todayKst, useAsync, useDeviceLabels,
 } from './data'
 
@@ -35,6 +35,7 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
   const [tick, setTick] = useState(0)
   const { data, loading, error, reload } = useAsync(() => fetchPositionsLive(date), [date, tick])
   const trackQ = useAsync(() => fetchTracks(date).catch(() => [] as Track[]), [date, tick])
+  const doneQ = useAsync(() => fetchCompletions(date, date).catch(() => [] as Completion[]), [date, tick])
   const fittedRef = useRef('')
   useEffect(() => {
     if (date !== todayKst()) return
@@ -79,6 +80,15 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
         color: live.has(t.login_id) ? '#2f6bf2' : '#9aa3b2', weight: 3, opacity: 0.6,
       }).bindTooltip(`${t.name} 이동 경로 · ${t.points[0][2]} → ${t.points[t.points.length - 1][2]}`).addTo(layer)
     }
+    // 학교 완료 핀(초록 ✓) — 이름 · 학교 · 시각
+    for (const c of doneQ.data || []) {
+      if (c.lat == null || c.lng == null) continue
+      const ic = L.divIcon({ className: 'act-pin-wrap', iconSize: [0, 0], iconAnchor: [9, 9],
+        html: `<span class="act-pin"><span class="act-pin-dot done">✓</span><span class="act-pin-tag done">${esc(c.name)} · ${esc(c.school_name || '학교')} ${esc(c.at_hm || '')}</span></span>` })
+      L.marker([c.lat, c.lng], { icon: ic, zIndexOffset: -100 })
+        .bindPopup(`<b>${esc(c.school_name || '')}</b><br/>${esc(c.name)} · ${c.kind === 'eduoffice_request' ? '교육청 전송 요청' : '저장'} ${esc(c.at_hm || '')}${c.count > 1 ? ` (${c.count}건)` : ''}`)
+        .addTo(layer)
+    }
     if (positions.length === 0) { if (fittedRef.current !== date) { map.setView(DEFAULT_CENTER, DEFAULT_ZOOM); fittedRef.current = date } return }
     const pts: L.LatLngExpression[] = []
     for (const p of positions) {
@@ -116,7 +126,7 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
       pts.push([p.lat, p.lng])
     }
     if (fittedRef.current !== date) { map.fitBounds(L.latLngBounds(pts), { padding: [36, 36], maxZoom: 14 }); fittedRef.current = date }
-  }, [positions, labelVer, trackQ.data, date])
+  }, [positions, labelVer, trackQ.data, doneQ.data, date])
 
   // 접힘/펼침 → 크기 재계산 후 다시 맞춤(CSS 전환 뒤)
   useEffect(() => {
@@ -140,7 +150,7 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
         {isToday && updatedAt && <span className="muted" title="30초마다 자동 갱신">● {updatedAt} 갱신</span>}
         {!loading && !error && <span className="muted">핀 {positions.length}개{missing != null && missing > 0 ? ` · 위치 기록 없음 ${missing}명` : ''}</span>}
         {loading && <span className="muted act-msg spin" style={{ padding: 0 }}><RefreshCw size={12} /> 불러오는 중…</span>}
-        <span className="act-map-legend"><i className="live" /> 접속 중 {positions.filter((p) => p.status === 'online').length} <i className="off" /> 종료 {positions.filter((p) => p.status !== 'online').length}</span>
+        <span className="act-map-legend"><i className="live" /> 접속 중 {positions.filter((p) => p.status === 'online').length} <i className="off" /> 종료 {positions.filter((p) => p.status !== 'online').length} <i className="done" /> 학교 완료 {(doneQ.data || []).filter((c) => c.lat != null).length}</span>
         {(() => {
           const raw = consQ.data as unknown
           const rows = Array.isArray(raw) ? raw : ((raw as { consents?: { name?: string; login_id: string; agreed: boolean }[] } | null)?.consents || [])

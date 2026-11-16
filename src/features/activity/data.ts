@@ -316,6 +316,14 @@ export const fetchRange = (from: string, to: string) =>
 export const fetchConsents = () =>
   cached<ConsentsRes | ConsentRow[]>('/ops/activity/consents').then((r): ConsentRow[] => (Array.isArray(r) ? r : Array.isArray(r?.consents) ? r.consents : []))
 // 그날 사용자별 마지막 위치(미니맵). 라벨 캐시에도 반영.
+export type Completion = {
+  date: string; login_id: string; name: string; school_id?: string | null; school_name?: string | null
+  kind: string; at?: string; at_hm?: string; lat?: number | null; lng?: number | null
+  accuracy_m?: number | null; distance_m?: number | null; onsite?: boolean | null; count: number
+}
+/** 학교 완료 지점(기간) — 지도 완료 핀·지도 이력 탭. */
+export const fetchCompletions = (from: string, to: string) =>
+  api<{ completions: Completion[] }>(`/ops/activity/completions?${qs({ from, to })}`).then((r) => (Array.isArray(r?.completions) ? r.completions : []))
 export type Track = { login_id: string; name: string; points: [number, number, string][] }
 /** 사용자별 이동 경로(좌표·시각) — 지도 선. 실시간 갱신용이라 캐시하지 않는다. */
 export const fetchTracks = (date: string) =>
