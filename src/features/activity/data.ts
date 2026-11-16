@@ -143,6 +143,7 @@ export const KIND_LABEL: Record<string, string> = {
   memo_add: '메모',
   logout: '앱 종료(로그아웃)',
   custom: '기타',
+  heartbeat: '접속 확인',
 }
 export const KIND_ORDER = Object.keys(KIND_LABEL)
 export const kindLabel = (k: string | null | undefined) => (k ? KIND_LABEL[k] || k : '—')

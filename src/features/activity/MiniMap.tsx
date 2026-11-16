@@ -141,7 +141,7 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
           </div>
         )}
         {!loading && !error && positions.length === 0 && (
-          <div className="act-map-overlay">{isToday ? '오늘 위치 기록이 없습니다' : '이 날짜에는 위치 기록이 없습니다'} — 위치는 동의한 사용자의 앱 실행·종료·저장·제출 시점에만 기록됩니다.</div>
+          <div className="act-map-overlay">{isToday ? '오늘 위치 기록이 없습니다' : '이 날짜에는 위치 기록이 없습니다'} — 위치는 동의한 사용자의 앱을 켜 둔 동안 10분마다, 그리고 실행·종료·저장·제출 때 기록됩니다(15분 넘게 소식이 없으면 종료로 표시).</div>
         )}
       </div>
     </div>
