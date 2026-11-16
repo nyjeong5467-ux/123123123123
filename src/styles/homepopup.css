@@ -1,0 +1,58 @@
+/* 홈 팝업 공지 (components/HomePopup.tsx) */
+.hpop-backdrop {
+  position: fixed; inset: 0; z-index: 1200;
+  background: rgba(15, 18, 30, .55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.hpop {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 32px);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.hpop-preview {
+  align-self: center;
+  background: var(--amber-soft); color: var(--amber-ink);
+  font-size: 12.5px; font-weight: 700;
+  padding: 4px 12px; border-radius: 999px;
+}
+.hpop-card {
+  position: relative;
+  background: var(--card); color: var(--ink);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-pop);
+  overflow: auto;
+  min-height: 120px;
+}
+.hpop-img { display: block; width: 100%; height: auto; }
+.hpop-img.link { cursor: pointer; }
+.hpop-text { padding: 20px 24px 22px; }
+.hpop-text h3 { margin: 0 0 8px; font-size: 19px; font-weight: 800; line-height: 1.35; }
+.hpop-text p { margin: 0; white-space: pre-wrap; font-size: 14.5px; line-height: 1.65; color: var(--ink-2); }
+.hpop-link { margin-top: 16px; }
+.hpop-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 0; cursor: pointer;
+  background: rgba(0, 0, 0, .38); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.hpop-nav:hover { background: rgba(0, 0, 0, .55); }
+.hpop-nav.prev { left: 10px; }
+.hpop-nav.next { right: 10px; }
+.hpop-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hpop-bar .sp { flex: 1; }
+.hpop-count {
+  color: #fff; font-weight: 700; font-size: 13.5px;
+  border: 1.5px solid rgba(255, 255, 255, .8); border-radius: 999px;
+  padding: 5px 14px;
+}
+.hpop-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 38px; padding: 0 16px; border-radius: 999px;
+  border: 0; cursor: pointer;
+  background: rgba(255, 255, 255, .92); color: #1b1d29;
+  font-weight: 700; font-size: 13.5px;
+}
+.hpop-btn.strong { background: #1b1d29; color: #fff; }
+.hpop-btn:hover { filter: brightness(.95); }

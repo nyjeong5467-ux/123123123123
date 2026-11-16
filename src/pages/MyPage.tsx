@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { CircleUser, KeyRound, Bell } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { TelegramLinkCard } from '../components/TelegramLinkCard'
 
 type NotifPrefs = { headcount: boolean; accident: boolean; review: boolean }
 
@@ -179,6 +180,8 @@ export function MyPage() {
               </div>
             </div>
           </div>
+
+          <TelegramLinkCard />
         </div>
       </div>
     </div>

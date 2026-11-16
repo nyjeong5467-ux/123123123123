@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   type LucideIcon,
+  BellRing,
   CalendarRange,
   CloudUpload,
   Globe,
@@ -18,6 +19,7 @@ import { Accounts } from './Accounts'
 import ConsoleOverview from '../features/console/ConsoleOverview'
 import ConsoleApp from '../features/console/ConsoleApp'
 import ConsoleContent from '../features/console/ConsoleContent'
+import ConsolePopup from '../features/console/ConsolePopup'
 import ConsoleSystem from '../features/console/ConsoleSystem'
 import ConsoleEduoffice from '../features/console/ConsoleEduoffice'
 import ConsoleSchedule from '../features/console/ConsoleSchedule'
@@ -29,7 +31,7 @@ import '../styles/console.css'
 // 기존 /ops·/billing·/accounts·/sessions 라우트는 딥링크 호환을 위해 유지되며,
 // 이 콘솔이 회사 관리자(hq_admin·executive)의 기본 진입점이다. ?tab= 쿼리로 딥링크 가능.
 
-type TabKey = 'overview' | 'billing' | 'accounts' | 'history' | 'schedule' | 'app' | 'eduoffice' | 'content' | 'system'
+type TabKey = 'overview' | 'billing' | 'accounts' | 'history' | 'schedule' | 'app' | 'eduoffice' | 'content' | 'popup' | 'system'
 
 const TABS: { key: TabKey; label: string; Icon: LucideIcon }[] = [
   { key: 'overview', label: '경영 현황', Icon: LayoutDashboard },
@@ -40,6 +42,7 @@ const TABS: { key: TabKey; label: string; Icon: LucideIcon }[] = [
   { key: 'app', label: '현장 앱 관리', Icon: TabletSmartphone },
   { key: 'eduoffice', label: '교육청 전송', Icon: CloudUpload },
   { key: 'content', label: '홈페이지·콘텐츠', Icon: Globe },
+  { key: 'popup', label: '팝업 공지', Icon: BellRing },
   { key: 'system', label: '시스템', Icon: Settings2 },
 ]
 
@@ -91,6 +94,7 @@ export function Dashboard() {
       {tab === 'app' && <ConsoleApp />}
       {tab === 'eduoffice' && <ConsoleEduoffice />}
       {tab === 'content' && <ConsoleContent />}
+      {tab === 'popup' && <ConsolePopup />}
       {tab === 'system' && <ConsoleSystem />}
     </div>
   )
