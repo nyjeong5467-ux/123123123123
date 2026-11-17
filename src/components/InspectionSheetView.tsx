@@ -63,7 +63,11 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
 
   // [120] 결재란 — 결재선 전 단계 칸(안전담당자·행정실장·교장). 서명한 확인자는 해당 직책 칸에 서명(손글씨 이미지 우선, 없으면 성명),
   // 미서명 칸은 수기 결재용 공란. 주서명(확인자·담당자)은 기본 확인자 칸(안전담당자)에, 현장앱/웹 추가 확인자(approval_lines)는 직책이 같은 칸에.
-  const line = normalizeApproval(sheet.approval, { name: sheet.schoolName }) // [123] 학교: 담당자·행정실장·교장 / 기관: 담당자·팀장·과장
+  // [178] 이 점검표에서 바꾼 직책이 있으면 그 이름 그대로(학교/기관 직책 자동 변환 없이) 칸 제목으로
+  const customTitles = (extra?.approval_titles ?? []).filter((st) => (st?.title || '').trim())
+  const line = customTitles.length
+    ? customTitles.map((st) => ({ title: st.title.trim(), name: (st.name || '').trim() }))
+    : normalizeApproval(sheet.approval, { name: sheet.schoolName }) // [123] 학교: 담당자·행정실장·교장 / 기관: 담당자·팀장·과장 // [123] 학교: 담당자·행정실장·교장 / 기관: 담당자·팀장·과장
   const primary = primaryIdx(line)
   const mainSig = sheet.parts.flatMap((p) => p.signatures).find((s) => s.signer || s.image_ref || s.image_data)
   type Cell = { title: string; name: string; imageRef?: string | null; imageData?: string | null }
@@ -73,7 +77,7 @@ export function InspectionSheetBody({ sheet }: { sheet: SheetData }) {
   }
   for (const ln0 of approvalLines) {
     if (!ln0.signer && !ln0.image_ref && !ln0.image_data) continue
-    const ln = { ...ln0, title: titleFor({ name: sheet.schoolName }, ln0.title || '') } // [126] 기관: 행정실장→팀장·교장→과장
+    const ln = { ...ln0, title: customTitles.length && line.some((c) => c.title === (ln0.title || '').trim()) ? (ln0.title || '').trim() : titleFor({ name: sheet.schoolName }, ln0.title || '') } // [126] 기관: 행정실장→팀장·교장→과장 ([178] 바꾼 직책은 그대로)
     const cell = { title: ln.title, name: ln.signer || '', imageRef: ln.image_ref || null, imageData: ln.image_data || null }
     // [129] 직책 없이 '확인자'로만 들어온 서명(현장앱 주서명 사본)은 별도 '확인자' 칸을 만들지 않는다 —
     //       담당자(주확인자) 칸이 비어 있을 때만 그 칸에 넣고, 이미 서명이 있으면 중복이므로 버린다.
