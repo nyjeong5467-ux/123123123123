@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { History } from 'lucide-react'
-import { type Completion, addDays, describeError, fetchCompletions, fmtMDw, todayKst, useAsync } from './data'
+import { type Completion, addDays, kindLabel, describeError, fetchCompletions, fmtMDw, todayKst, useAsync } from './data'
 import { Head, Msg, Reload, type PanelProps } from './panels'
 
 const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
@@ -30,6 +30,7 @@ export function HistoryPanel({ st, setSt, open }: PanelProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const layerRef = useRef<L.LayerGroup | null>(null)
+  // 지도 상자는 불러오기가 끝난 뒤에야 그려진다 → loading 이 바뀔 때 다시 시도(11-17: 지도가 안 뜨던 원인)
   useEffect(() => {
     if (!boxRef.current || mapRef.current) return
     const map = L.map(boxRef.current, { center: [34.87, 126.99], zoom: 8, scrollWheelZoom: false })
@@ -37,7 +38,7 @@ export function HistoryPanel({ st, setSt, open }: PanelProps) {
     map.on('focus', () => map.scrollWheelZoom.enable()); map.on('blur', () => map.scrollWheelZoom.disable())
     layerRef.current = L.layerGroup().addTo(map); mapRef.current = map
     return () => { map.remove(); mapRef.current = null; layerRef.current = null }
-  }, [])
+  }, [loading, error])
   useEffect(() => {
     const map = mapRef.current, layer = layerRef.current
     if (!map || !layer) return
@@ -48,14 +49,14 @@ export function HistoryPanel({ st, setSt, open }: PanelProps) {
       const ic = L.divIcon({ className: 'act-pin-wrap', iconSize: [0, 0], iconAnchor: [9, 9],
         html: `<span class="act-pin"><span class="act-pin-dot done">✓</span><span class="act-pin-tag done">${esc(c.name)} · ${esc(c.school_name || '학교')} ${esc(c.at_hm || '')}</span></span>` })
       L.marker([c.lat, c.lng], { icon: ic })
-        .bindPopup(`<b>${esc(c.school_name || '')}</b><br/>${esc(c.name)} · ${c.kind === 'eduoffice_request' ? '교육청 전송 요청' : '저장'} ${esc(c.at_hm || '')}${c.count > 1 ? ` (${c.count}건)` : ''}${c.onsite === true ? '<br/>현장 작성' : c.onsite === false ? '<br/>현장 외' : ''}`)
+        .bindPopup(`<b>${esc(c.school_name || '')}</b><br/>${esc(c.name)} · ${kindLabel(c.kind)} ${esc(c.at_hm || '')}${c.count > 1 ? ` (${c.count}건)` : ''}${c.onsite === true ? '<br/>현장 작성' : c.onsite === false ? '<br/>현장 외' : ''}`)
         .addTo(layer)
       pts.push([c.lat, c.lng])
     }
     if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [36, 36], maxZoom: 14 })
     else map.setView([34.87, 126.99], 8)
     setTimeout(() => map.invalidateSize(), 120)
-  }, [rows])
+  }, [rows, loading])
 
   const noXY = rows.filter((c) => c.lat == null).length
   return (
@@ -85,8 +86,8 @@ export function HistoryPanel({ st, setSt, open }: PanelProps) {
                     <td className="tm">{c.at_hm || '—'}</td>
                     <td><button type="button" className="act-link" onClick={() => open({ kind: 'user', login_id: c.login_id, name: c.name, date: sel })}>{c.name}</button></td>
                     <td>{c.school_name || '—'}</td>
-                    <td>{c.kind === 'eduoffice_request' ? '교육청 전송 요청' : '저장'}{c.count > 1 ? ` (${c.count}건)` : ''}</td>
-                    <td>{c.lat == null ? '위치 없음' : c.onsite === true ? '현장' : c.onsite === false ? '현장 외' : '미판정'}</td>
+                    <td>{kindLabel(c.kind)}{c.count > 1 ? ` (${c.count}건)` : ''}</td>
+                    <td>{c.lat == null ? '위치 없음' : c.loc_src === 'school' ? '학교 위치(앱 위치 없음)' : c.onsite === true ? '현장' : c.onsite === false ? '현장 외' : '미판정'}</td>
                   </tr>
                 ))}
               </tbody>

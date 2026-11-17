@@ -130,6 +130,7 @@ export type PositionsRes = { date: string; positions: Position[] }
 
 // ── 라벨 ──
 export const KIND_LABEL: Record<string, string> = {
+  submit: '제출',
   app_open: '앱 실행',
   app_close: '앱 종료',
   school_select: '학교 선택',
@@ -320,6 +321,7 @@ export type Completion = {
   date: string; login_id: string; name: string; school_id?: string | null; school_name?: string | null
   kind: string; at?: string; at_hm?: string; lat?: number | null; lng?: number | null
   accuracy_m?: number | null; distance_m?: number | null; onsite?: boolean | null; count: number
+  loc_src?: 'near_time' | 'school'
 }
 /** 학교 완료 지점(기간) — 지도 완료 핀·지도 이력 탭. */
 export const fetchCompletions = (from: string, to: string) =>

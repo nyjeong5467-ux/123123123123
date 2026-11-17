@@ -86,7 +86,7 @@ export function MiniMap({ date, peopleCount, onOpenUser }: MiniMapProps) {
       const ic = L.divIcon({ className: 'act-pin-wrap', iconSize: [0, 0], iconAnchor: [9, 9],
         html: `<span class="act-pin"><span class="act-pin-dot done">✓</span><span class="act-pin-tag done">${esc(c.name)} · ${esc(c.school_name || '학교')} ${esc(c.at_hm || '')}</span></span>` })
       L.marker([c.lat, c.lng], { icon: ic, zIndexOffset: -100 })
-        .bindPopup(`<b>${esc(c.school_name || '')}</b><br/>${esc(c.name)} · ${c.kind === 'eduoffice_request' ? '교육청 전송 요청' : '저장'} ${esc(c.at_hm || '')}${c.count > 1 ? ` (${c.count}건)` : ''}`)
+        .bindPopup(`<b>${esc(c.school_name || '')}</b><br/>${esc(c.name)} · ${kindLabel(c.kind)} ${esc(c.at_hm || '')}${c.count > 1 ? ` (${c.count}건)` : ''}`)
         .addTo(layer)
     }
     if (positions.length === 0) { if (fittedRef.current !== date) { map.setView(DEFAULT_CENTER, DEFAULT_ZOOM); fittedRef.current = date } return }
