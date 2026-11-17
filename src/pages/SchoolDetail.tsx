@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ChevronLeft, Trash2 } from 'lucide-react'
+import { ChevronLeft, Pencil, Plus, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { type ApprovalStep, APPROVAL_MAX, APPROVAL_MIN, APPROVAL_TITLE_SUGGEST, approvalLabel, defaultApproval, fetchApproval, normalizeApproval } from '../lib/approval' // [118] [123]
 import { Modal } from '../components/Modal'
@@ -141,7 +141,11 @@ export function SchoolDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
-  const [pageEdit, setPageEdit] = useState(false) // [036] 페이지 전체 편집 모드 — 편집 ↔ 수정 완료
+  // [174] 맨 위 전체 [편집] 대신 칸마다 [편집] — 한 번에 한 칸만 편집(info·staff·feat·notes)
+  type EditSec = 'info' | 'staff' | 'feat' | 'notes'
+  const [editSec, setEditSec] = useState<EditSec | null>(null)
+  const [featDraft, setFeatDraft] = useState<Record<string, boolean>>({})
+  const [featMsg, setFeatMsg] = useState<{ ok: boolean; text: string } | null>(null)
   // [037] 인라인 편집 — 학교 정보·종사자 드래프트 (수정 완료 시 일괄 저장)
   const [info, setInfo] = useState<FullSchool | null>(null)
   const [infoDraft, setInfoDraft] = useState<FullSchool | null>(null)
@@ -390,15 +394,9 @@ export function SchoolDetail() {
     return () => window.clearTimeout(t)
   }, [loc.hash, loading])
 
+  // [174] 학교 특징 — 편집 중에는 초안만 바꾸고 [저장]에서 한꺼번에 저장
   function toggleFeat(k: string) {
-    setFeat((prev) => {
-      const next = { ...prev, [k]: !prev[k] }
-      // 낙관적 갱신 — 실패해도 화면 상태 유지(재로드 시 서버값으로 수렴)
-      void api(`/schools/${id}/features`, {
-        method: 'PUT', body: JSON.stringify({ features: next }),
-      }).catch(() => {})
-      return next
-    })
+    setFeatDraft((prev) => ({ ...prev, [k]: !prev[k] }))
   }
 
   function saveNotes(next: FreeNote[]) {
@@ -525,30 +523,42 @@ export function SchoolDetail() {
     }
   }
 
-  // [037] 편집 진입 — 학교 정보·종사자를 드래프트로 복사해 인라인 편집 시작
-  function enterEdit() {
-    if (!data) return
-    const base: FullSchool = info ?? {
-      id: data.school.id, name: data.school.name, address: data.school.address,
-      is_private: data.school.is_private, education_count: data.school.education_count,
-    }
-    setInfoDraft({ ...base })
-    setWDraft(WPART_ORDER.map((p) => {
-      const f = data.workers.find((w) => w.part === p)
-      return { part: p, count: f?.count ?? 0, contact: f?.contact ?? '', is_nutrition_teacher: f?.is_nutrition_teacher ?? false }
-    }))
-    setSaveErr('')
-    setPageEdit(true)
+  // [174] 칸 편집 — 다른 칸을 편집 중이면 저장하지 않은 변경을 버릴지 확인
+  function isDirty(): boolean {
+    if (editSec === 'feat') return FEAT_KEYS.some((k) => !!featDraft[k] !== !!feat[k])
+    if (editSec === 'info' && infoDraft && info) return JSON.stringify(infoDraft) !== JSON.stringify(info)
+    if (editSec === 'staff') return true
+    return false
   }
+  function openSec(sec: EditSec) {
+    if (!data) return
+    if (editSec && editSec !== sec && isDirty() && !window.confirm('편집 중인 칸에 저장하지 않은 변경이 있습니다. 버리고 이동할까요?')) return
+    setSaveErr(''); setFeatMsg(null)
+    if (sec === 'info') {
+      const base: FullSchool = info ?? {
+        id: data.school.id, name: data.school.name, address: data.school.address,
+        is_private: data.school.is_private, education_count: data.school.education_count,
+      }
+      setInfoDraft({ ...base })
+    }
+    if (sec === 'staff') {
+      setWDraft(WPART_ORDER.map((p) => {
+        const f = data.workers.find((w) => w.part === p)
+        return { part: p, count: f?.count ?? 0, contact: f?.contact ?? '', is_nutrition_teacher: f?.is_nutrition_teacher ?? false }
+      }))
+    }
+    if (sec === 'feat') setFeatDraft(Object.fromEntries(FEAT_KEYS.map((k) => [k, !!feat[k]])))
+    setEditSec(sec)
+  }
+  const closeSec = () => { setEditSec(null); setSaveErr('') }
   const patchW = (part: string, p: Partial<WRow>) =>
     setWDraft((rs) => rs.map((r) => (r.part === part ? { ...r, ...p } : r)))
 
-  // [037] 수정 완료 — 학교 정보 + 종사자 일괄 저장 후 보기 모드 복귀
-  async function finishEdit() {
-    if (!infoDraft) { setPageEdit(false); return }
+  // [174] 학교 정보 저장
+  async function saveInfo() {
+    if (!infoDraft) return
     if (!infoDraft.name?.trim()) { setSaveErr('학교명을 입력하세요.'); return }
-    setSaveBusy(true)
-    setSaveErr('')
+    setSaveBusy(true); setSaveErr('')
     try {
       await api(`/schools/${id}`, {
         method: 'PUT',
@@ -565,6 +575,17 @@ export function SchoolDetail() {
           inspection_agency: infoDraft.inspection_agency ?? '',
         }),
       })
+      setReload((r) => r + 1)
+      setEditSec(null)
+    } catch (e) {
+      setSaveErr(e instanceof Error ? e.message : '저장에 실패했습니다.')
+    }
+    setSaveBusy(false)
+  }
+  // [174] 현업종사자 저장
+  async function saveStaff() {
+    setSaveBusy(true); setSaveErr('')
+    try {
       await api(`/schools/${id}/workers`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -574,9 +595,23 @@ export function SchoolDetail() {
         }),
       })
       setReload((r) => r + 1)
-      setPageEdit(false)
+      setEditSec(null)
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : '저장에 실패했습니다.')
+    }
+    setSaveBusy(false)
+  }
+  // [174] 학교 특징 저장 — 12개 항목 있음/없음을 모두 확정 저장(이때부터 점검표 자동 해당없음 적용)
+  async function saveFeat() {
+    setSaveBusy(true); setFeatMsg(null)
+    const next = Object.fromEntries(FEAT_KEYS.map((k) => [k, !!featDraft[k]]))
+    try {
+      await api(`/schools/${id}/features`, { method: 'PUT', body: JSON.stringify({ features: { ...feat, ...next } }) })
+      setFeat((f) => ({ ...f, ...next }))
+      setEditSec(null)
+      setFeatMsg({ ok: true, text: '저장됨' })
+    } catch (e) {
+      setFeatMsg({ ok: false, text: '저장 실패 — ' + (e instanceof Error ? e.message : '다시 시도하세요') })
     }
     setSaveBusy(false)
   }
@@ -603,15 +638,6 @@ export function SchoolDetail() {
         <h2>{s.name}</h2>
         <span className={'pillx ' + (s.is_private ? 'doing' : 'ok')}>{s.is_private ? '사립' : '국공립'}</span>
         <div className="sp" />
-        {pageEdit ? (
-          <>
-            {saveErr && <span style={{ color: 'var(--red, #e5484d)', fontSize: 12.5, fontWeight: 700 }}>{saveErr}</span>}
-            <button className="btn btn-ghost" onClick={handleDelete} disabled={saveBusy}>학교 삭제</button>
-            <button className="btn btn-primary" onClick={() => { void finishEdit() }} disabled={saveBusy}>{saveBusy ? '저장 중…' : '수정 완료'}</button>
-          </>
-        ) : (
-          <button className="btn btn-primary" onClick={enterEdit}>편집</button>
-        )}
         <Link to="/schools" className="pill"><ChevronLeft size={15} /> 학교 목록으로</Link>
       </div>
 
@@ -635,10 +661,12 @@ export function SchoolDetail() {
         <div className="lh">
           <h2>학교 정보</h2>
           <div className="sp" />
-          {pageEdit && <span className="muted" style={{ fontSize: 12 }}>입력 후 우측 상단 [수정 완료]를 누르면 저장됩니다</span>}
+          <SecBtns on={editSec === 'info'} busy={saveBusy} err={editSec === 'info' ? saveErr : ''}
+            onEdit={() => openSec('info')} onCancel={closeSec} onSave={() => { void saveInfo() }} />
         </div>
         <div className="card-body">
-          {pageEdit && infoDraft ? (
+          {editSec === 'info' && infoDraft ? (
+            <>
             <div className="shub-infogrid">
               <label className="field"><span>학교(기관)명 *</span><input className="input" value={infoDraft.name} onChange={(e) => setInfoDraft({ ...infoDraft, name: e.target.value })} /></label>
               <label className="field"><span>구분</span>
@@ -661,6 +689,11 @@ export function SchoolDetail() {
               <label className="field"><span>이메일</span><input className="input" value={infoDraft.email ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, email: e.target.value })} /></label>
               <label className="field shub-info-wide"><span>주소</span><input className="input" value={infoDraft.address ?? ''} onChange={(e) => setInfoDraft({ ...infoDraft, address: e.target.value })} /></label>
             </div>
+            <div className="sd-danger">
+              <span className="muted">이 학교(기관)와 대장 기록을 삭제합니다. 되돌릴 수 없습니다.</span>
+              <button className="btn btn-ghost sd-del" onClick={handleDelete} disabled={saveBusy}>학교 삭제</button>
+            </div>
+            </>
           ) : (
             <div className="shub-infogrid view">
               <div className="kv"><b>구분</b><span>{info?.school_level || '—'}</span></div>
@@ -789,9 +822,13 @@ export function SchoolDetail() {
             <input type="checkbox" checked={reveal} onChange={(e) => setReveal(e.target.checked)} /> 개인정보 표시
           </label>
           <button className="btn btn-ghost" onClick={() => setStaffModal(true)}>명단 업로드</button>
+          {staff.length === 0 && (
+            <SecBtns on={editSec === 'staff'} busy={saveBusy} err={editSec === 'staff' ? saveErr : ''}
+              onEdit={() => openSec('staff')} onCancel={closeSec} onSave={() => { void saveStaff() }} />
+          )}
         </div>
         <div className="twrap">
-          {staff.length > 0 && !pageEdit ? (
+          {staff.length > 0 ? (
             <table className="tbl">
               <thead><tr>
                 <th className="c" style={{ width: 44 }}>No</th>
@@ -819,9 +856,9 @@ export function SchoolDetail() {
             </table>
           ) : (
           <table className="tbl">
-            <thead><tr><th>파트</th><th className="c">인원</th><th>연락처</th><th className="c">{pageEdit ? '영양교사' : '구분'}</th></tr></thead>
+            <thead><tr><th>파트</th><th className="c">인원</th><th>연락처</th><th className="c">{editSec === 'staff' ? '영양교사' : '구분'}</th></tr></thead>
             <tbody>
-              {pageEdit
+              {editSec === 'staff'
                 ? wDraft.map((r) => (
                   <tr key={r.part}>
                     <td><b>{PART_LABEL[r.part] || r.part}</b></td>
@@ -849,55 +886,60 @@ export function SchoolDetail() {
                         <td className="c">{w.is_nutrition_teacher ? <span className="pillx warn">영양교사</span> : <span className="muted">—</span>}</td>
                       </tr>
                     ))}
-                    {data.workers.length === 0 && <tr><td colSpan={4}><div className="tstate">등록된 종사자가 없습니다. 우측 상단 [편집]에서 바로 입력하세요.</div></td></tr>}
+                    {data.workers.length === 0 && <tr><td colSpan={4}><div className="tstate">등록된 종사자가 없습니다. 이 칸의 [편집]에서 바로 입력하세요.</div></td></tr>}
                   </>
                 )}
             </tbody>
           </table>
           )}
         </div>
-        {staff.length > 0 && pageEdit && (
-          <div className="tstate" style={{ textAlign: 'left', padding: '10px 22px' }}>
-            인원수는 <b>명단 기준 자동 집계</b>입니다 — 인원을 바꾸려면 [명단 업로드]로 명단을 다시 올리세요.
-          </div>
-        )}
       </div>
 
       <div className="grid2" style={{ marginBottom: 24 }}>
         <div className="ledger">
           <div className="lh">
             <h2>학교 특징</h2>
+            <span className="pillx doing">해당 {FEAT_KEYS.filter((k) => (editSec === 'feat' ? featDraft : feat)[k]).length} / {FEAT_KEYS.length}항목</span>
+            {featMsg && editSec !== 'feat' && <span className={'pillx ' + (featMsg.ok ? 'ok' : 'late')}>{featMsg.ok ? '✓ ' : ''}{featMsg.text}</span>}
             <div className="sp" />
-            <span className="pillx doing">해당 {FEAT_KEYS.filter((k) => feat[k]).length} / {FEAT_KEYS.length}항목</span>
+            <SecBtns on={editSec === 'feat'} busy={saveBusy} err={editSec === 'feat' && featMsg && !featMsg.ok ? featMsg.text : ''}
+              onEdit={() => openSec('feat')} onCancel={closeSec} onSave={() => { void saveFeat() }} />
           </div>
           <div className="card-body">
+            {!FEAT_KEYS.some((k) => k in feat) && (
+              <div className="sd-warn">이 학교의 학교 특징은 아직 저장되지 않았습니다 — 점검표 자동 해당없음이 적용되지 않습니다. [편집] → 있음/없음 확인 → [저장]을 누르면 적용됩니다.</div>
+            )}
             {Object.entries(FEAT_GROUPS).map(([g, keys]) => (
               <div className="shub-fg" key={g}>
-                <div className="t">{g} {pageEdit && <span className="auto">클릭하여 있음/없음 전환</span>}</div>
+                <div className="t">{g} {editSec === 'feat' && <span className="auto">클릭하여 있음/없음 전환</span>}</div>
                 <div className="shub-feat">
                   {keys.map((k) => (
                     <button
                       key={k}
                       type="button"
-                      className={'shub-f ' + (feat[k] ? 'yes' : 'no')}
-                      onClick={pageEdit ? () => toggleFeat(k) : undefined}
-                      title={pageEdit ? '클릭하여 있음/없음 전환' : undefined}
-                      style={pageEdit ? undefined : { cursor: 'default' }}
+                      className={'shub-f ' + ((editSec === 'feat' ? featDraft : feat)[k] ? 'yes' : 'no')}
+                      onClick={editSec === 'feat' ? () => toggleFeat(k) : undefined}
+                      title={editSec === 'feat' ? '클릭하여 있음/없음 전환' : undefined}
+                      style={editSec === 'feat' ? undefined : { cursor: 'default' }}
                     >
-                      <i /><span className="fk">{k}</span><b className="fv">{feat[k] ? '있음' : '없음'}</b>
+                      <i /><span className="fk">{k}</span><b className="fv">{(editSec === 'feat' ? featDraft : feat)[k] ? '있음' : '없음'}</b>
                     </button>
                   ))}
                 </div>
               </div>
             ))}
             <div className="shub-fnote">
-              <b>없음 {FEAT_KEYS.filter((k) => !feat[k]).length}항목</b>은 위험성평가·안전점검 체크리스트에서 자동 제외 대상입니다.
+              <b>없음 {FEAT_KEYS.filter((k) => !(editSec === 'feat' ? featDraft : feat)[k]).length}항목</b>은 종사자 안전보건점검표(웹·현장앱)에서 관련 항목이 자동 '해당없음' 처리됩니다.
             </div>
           </div>
         </div>
 
         <div className="ledger">
-          <div className="lh"><h2>특이사항</h2><div className="sp" /><span className="pillx na">{notes.length}건</span></div>
+          <div className="lh"><h2>특이사항</h2><span className="pillx na">{notes.length}건</span><div className="sp" />
+            {editSec === 'notes'
+              ? <button className="btn btn-primary sd-xs" onClick={closeSec}>완료</button>
+              : <button className="btn btn-ghost sd-xs" onClick={() => openSec('notes')}><Pencil size={13} /> 편집</button>}
+          </div>
           <div className="card-body">
             {notes.length
               ? (
@@ -906,13 +948,13 @@ export function SchoolDetail() {
                     <li key={i}>
                       <span className="dt">{n.date}</span>
                       <span className="tx">{n.text}</span>
-                      {pageEdit && <button className="shub-del" title="삭제" onClick={() => saveNotes(notes.filter((_, idx) => idx !== i))}>✕</button>}
+                      {editSec === 'notes' && <button className="shub-del" title="삭제" onClick={() => saveNotes(notes.filter((_, idx) => idx !== i))}>✕</button>}
                     </li>
                   ))}
                 </ul>
               )
               : <div className="tstate">기록된 특이사항이 없습니다.</div>}
-            {pageEdit && (
+            {editSec === 'notes' && (
             <div className="shub-noteform">
               <input className="input dt" type="date" value={noteDate} onChange={(e) => setNoteDate(e.target.value)} />
               <input
@@ -933,17 +975,15 @@ export function SchoolDetail() {
         <div className="lh">
           <h2>확인자</h2>
           <div className="sp" />
-          {(pageEdit || apEdit) && (
+          {apEdit && (
             <button className="btn btn-ghost" onClick={() => { setSteps(defaultApproval(info)); setApMsg(null) }}>
               기본값({approvalLabel(info)})
             </button>
           )}
           {/* [118] 결재선 섹션 단독 [결재선 편집] — 페이지 [편집]을 누르지 않아도 바로 수정 */}
-          {!pageEdit && (
-            <button className={apEdit ? 'btn btn-ghost' : 'btn btn-primary'} onClick={() => { setApEdit((v) => !v); setApMsg(null) }}>
-              {apEdit ? '편집 닫기' : '확인자 편집'}
-            </button>
-          )}
+          <button className={apEdit ? 'btn btn-ghost sd-xs' : 'btn btn-ghost sd-xs'} onClick={() => { setApEdit((v) => !v); setApMsg(null) }}>
+            {apEdit ? '편집 닫기' : <><Pencil size={13} /> 편집</>}
+          </button>
         </div>
         <div className="card-body">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 16 }}>
@@ -957,7 +997,7 @@ export function SchoolDetail() {
               : <span className="muted">등록된 확인자가 없습니다.</span>}
           </div>
           {/* 편집 영역은 적정 폭으로 제한 — 와이드 화면에서 입력칸이 무한정 늘어나지 않게 */}
-          {(pageEdit || apEdit) && (
+          {apEdit && (
           <div style={{ maxWidth: 640 }}>
             {/* [118] 직책(추천 목록 + 직접 입력)·성명·순서 이동·삭제 — 1~3단계 */}
             <datalist id="approval-title-suggest">
@@ -987,7 +1027,7 @@ export function SchoolDetail() {
 
       <div className="grid2">
         <div className="ledger">
-          <div className="lh"><h2>MSDS</h2><div className="sp" />{pageEdit && <button className="btn btn-ghost" onClick={() => setMsdsModal(true)}>추가</button>}</div>
+          <div className="lh"><h2>MSDS</h2><div className="sp" /><button className="btn btn-ghost sd-xs" onClick={() => setMsdsModal(true)}><Plus size={13} /> 추가</button></div>
           <div className="card-body">
             {data.msds.length
               ? data.msds.map((m) => <div className="kv" key={m.id}><b>{m.area}</b><span>{m.substances.join(', ') || '—'}</span></div>)
@@ -995,7 +1035,7 @@ export function SchoolDetail() {
           </div>
         </div>
         <div className="ledger">
-          <div className="lh"><h2>산재 현황</h2><div className="sp" />{pageEdit && <button className="btn btn-ghost" onClick={() => setAccidentModal(true)}>추가</button>}</div>
+          <div className="lh"><h2>산재 현황</h2><div className="sp" /><button className="btn btn-ghost sd-xs" onClick={() => setAccidentModal(true)}><Plus size={13} /> 추가</button></div>
           <div className="card-body">
             {data.accidents.length
               ? data.accidents.map((a) => <div className="kv" key={a.id}><b>{a.date}</b><span>{a.description}{a.part ? ` · ${PART_LABEL[a.part] || a.part}` : ''}</span></div>)
@@ -1010,10 +1050,10 @@ export function SchoolDetail() {
           <span className="pillx na">{mgrRows.length}건</span>
           <div className="sp" />
           <input ref={csvRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onCsvFile} />
-          {pageEdit && (
+          {(
             <>
-              <button className="btn btn-ghost" onClick={() => csvRef.current?.click()} disabled={mgrBusy}>CSV 업로드</button>
-              <button className="btn btn-ghost" onClick={() => { setMgrEdit(mgrRows.length ? mgrRows.map((r) => ({ ...r })) : [{ start: '', end: '', name: '', note: '' }]); setMgrErr(''); setMgrModal(true) }}>편집</button>
+              <button className="btn btn-ghost sd-xs" onClick={() => csvRef.current?.click()} disabled={mgrBusy}>CSV 업로드</button>
+              <button className="btn btn-ghost sd-xs" onClick={() => { setMgrEdit(mgrRows.length ? mgrRows.map((r) => ({ ...r })) : [{ start: '', end: '', name: '', note: '' }]); setMgrErr(''); setMgrModal(true) }}><Pencil size={13} /> 편집</button>
             </>
           )}
         </div>
@@ -1082,7 +1122,7 @@ export function SchoolDetail() {
       </div>
 
       <div className="ledger" style={{ marginTop: 24 }}>
-        <div className="lh"><h2>월별 진행 이력</h2><div className="sp" />{pageEdit && <button className="btn btn-ghost" onClick={() => setHistoryModal(true)}>추가</button>}</div>
+        <div className="lh"><h2>월별 진행 이력</h2><div className="sp" /><button className="btn btn-ghost sd-xs" onClick={() => setHistoryModal(true)}><Plus size={13} /> 추가</button></div>
         <div className="card-body">
           {data.histories.length
             ? (
@@ -1158,5 +1198,19 @@ export function SchoolDetail() {
         </Modal>
       )}
     </div>
+  )
+}
+
+/* [174] 칸 머리 버튼 — 보기: [편집] / 편집 중: [취소] [저장] */
+function SecBtns({ on, busy, err, onEdit, onCancel, onSave }: {
+  on: boolean; busy: boolean; err?: string; onEdit: () => void; onCancel: () => void; onSave: () => void
+}) {
+  if (!on) return <button className="btn btn-ghost sd-xs" onClick={onEdit}><Pencil size={13} /> 편집</button>
+  return (
+    <span className="sd-secbtns">
+      {err && <span className="sd-err">{err}</span>}
+      <button className="btn btn-ghost sd-xs" onClick={onCancel} disabled={busy}>취소</button>
+      <button className="btn btn-primary sd-xs" onClick={onSave} disabled={busy}>{busy ? '저장 중…' : '저장'}</button>
+    </span>
   )
 }

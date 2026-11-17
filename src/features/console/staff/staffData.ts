@@ -104,7 +104,19 @@ export type AttDoc = Record<string, AttPerson>
 export const DEFAULT_ANNUAL_LEAVE = 15
 
 /** 그 달 현장 출석일(점검 등 기록이 있는 날) — /history 의 날짜 */
-export async function loadFieldDates(login: string, from: string, toExclusive: string): Promise<Map<string, number>> {
+//   [170] 점검자·기간별로 1번만 조회(화면 안에서 다시 열면 바로 표시). 지난달 이전은 바뀌지 않으므로 계속 재사용, 이번 달은 1분 뒤 새로 조회
+const fieldCache = new Map<string, { at: number; p: Promise<Map<string, number>> }>()
+export function loadFieldDates(login: string, from: string, toExclusive: string): Promise<Map<string, number>> {
+  const key = `${login}|${from}|${toExclusive}`
+  const hit = fieldCache.get(key)
+  const past = toExclusive <= todayStr().slice(0, 7) + '-01'
+  if (hit && (past || Date.now() - hit.at < 60000)) return hit.p
+  const p = fetchFieldDates(login, from, toExclusive)
+  fieldCache.set(key, { at: Date.now(), p })
+  p.catch(() => fieldCache.delete(key))
+  return p
+}
+async function fetchFieldDates(login: string, from: string, toExclusive: string): Promise<Map<string, number>> {
   const q = new URLSearchParams({ author_id: login, date_from: from, date_to: toExclusive })
   const rows = await api<HistRow[]>(`/history?${q}`).catch(() => [] as HistRow[])
   const m = new Map<string, number>()

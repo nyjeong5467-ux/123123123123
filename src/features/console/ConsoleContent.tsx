@@ -1,10 +1,9 @@
-// 경영 콘솔 — 홈페이지·콘텐츠 탭: 공지 관리(CRUD) + 홈페이지 정보 관리(KV) + 자료실(임베드).
+// 경영 콘솔 — 홈페이지·콘텐츠 탭: 공지 관리(CRUD) + 홈페이지 정보 관리(KV). [171] 자료실 임베드 제거(자료실은 왼쪽 메뉴 '자료실'에서)
 // 공지는 기존 /notices API(백엔드 완비), 홈페이지 정보는 org_docs 'homepage-content' KV.
 import { useEffect, useState } from 'react'
 import { Globe, Megaphone, Pencil, Pin, Plus, Save, Trash2, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Modal } from '../../components/Modal'
-import { Resources } from '../../pages/Resources'
 
 type Notice = {
   id: string
@@ -215,9 +214,6 @@ export default function ConsoleContent() {
           )}
         </div>
       </div>
-
-      {/* ── 자료실 관리(기존 화면 임베드) ── */}
-      <Resources embedded />
 
       {/* ── 공지 등록/수정 모달 ── */}
       {modal && (

@@ -16,7 +16,7 @@ import { resolveExtra, slotHasAny, slotHasImage, type InspExtra, type PhotoSlot 
 import { PhotoLightbox, SlotImage, THUMB_W } from '../components/InspectionPhotos' // [사진 분리] 수신 사진(path) 썸네일·원본
 import '../styles/inspectform.css'
 import { type ApprovalStep, defaultApproval, fetchApproval, primaryIdx, titleFor } from '../lib/approval' // [118] [123]
-import { useMyProfile } from '../lib/myProfile'
+import { useMyProfile, useStaffProfiles } from '../lib/myProfile'
 
 // 기존 사용처 호환 재수출 — InspExtra 본체는 lib/inspExtra.ts로 이동(공용 매칭 로직과 함께).
 export type { InspExtra } from '../lib/inspExtra'
@@ -174,8 +174,31 @@ export function InspectionForm() {
     if (!me.ready) return
     setOrg((v) => v || me.affiliation)
     setDept((v) => v || me.department)
+    setRole((v) => v || me.position) // [173] 계정·권한의 직급 → 직책
     setWriter((v) => v || me.name)
   }, [me])
+  // [173] 작성자 이름을 직원 이름으로 바꾸면(예: 관리자가 대신 작성) 그 직원의 소속·부서·직책으로 채운다.
+  //       직접 입력한 값은 덮어쓰지 않는다 — 비어 있거나 직전에 자동으로 채운 값일 때만 교체.
+  const staffProfiles = useStaffProfiles()
+  const [autoInfo, setAutoInfo] = useState<{ org: string; dept: string; role: string } | null>(null)
+  // 로그인 정보에 이름이 없을 때(서버마다 다름) — 계정 목록의 내 이름으로 작성자 채움
+  useEffect(() => {
+    if (!me.ready || !me.login) return
+    const mine = staffProfiles.find((x) => x.login === me.login)
+    if (mine?.name) setWriter((v) => v || mine.name)
+  }, [me, staffProfiles])
+  useEffect(() => {
+    const w = writer.trim()
+    const p = w ? staffProfiles.find((x) => x.name === w || x.login === w) : undefined
+    if (!p) return
+    const prev = autoInfo ?? { org: me.affiliation, dept: me.department, role: me.position }
+    const swap = (cur: string, old: string, next: string) => (!cur || cur === old ? next : cur)
+    setOrg((v) => swap(v, prev.org, p.affiliation))
+    setDept((v) => swap(v, prev.dept, p.department))
+    setRole((v) => swap(v, prev.role, p.position))
+    setAutoInfo({ org: p.affiliation, dept: p.department, role: p.position })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [writer, staffProfiles])
   const [place, setPlace] = useState('')
   const [accType, setAccType] = useState(ACC_TYPES[0])
   const [inspectDate, setInspectDate] = useState(today)
@@ -192,6 +215,9 @@ export function InspectionForm() {
   // [119] 추가 확인자(행정실장·교장 등) — padTarget: 서명패드 대상(-1 = 주확인자, n = extraConf 인덱스)
   const [extraConf, setExtraConf] = useState<ExtraConf[]>([])
   const [padTarget, setPadTarget] = useState(-1)
+  // [178] 확인자 직책 이름 수정(이 점검표) — 결재선 단계 index → 바꾼 직책. 체크 시 학교 기본값(확인자)에도 저장
+  const [titleEdits, setTitleEdits] = useState<Record<number, string>>({})
+  const [titleSaveDefault, setTitleSaveDefault] = useState(false)
   function patchExtra(i: number, patch: Partial<ExtraConf>) {
     setExtraConf((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)))
   }
@@ -327,6 +353,11 @@ export function InspectionForm() {
               if (extra.info?.accType) setAccType((v) => (v === ACC_TYPES[0] ? extra.info.accType : v))
               if (extra.info?.inspectDate) setInspectDate(extra.info.inspectDate)
               if (extra.info?.writeDate) setOrigWriteDate(extra.info.writeDate) // [162]
+              if (Array.isArray(extra.approval_titles)) { // [178] 저장된 직책 이름 복원
+                const t: Record<number, string> = {}
+                extra.approval_titles.forEach((st, i) => { if (st?.title) t[i] = st.title })
+                setTitleEdits(t)
+              }
               if (extra.signer) { setSignerName((v) => v || extra.signer); setSigned(true) }
             })
             .catch(() => { /* 부가정보 없으면 기본 폼 */ })
@@ -568,19 +599,22 @@ export function InspectionForm() {
   /* [119] 결재란 서명 병합 — 현장앱 수신 결재선(recvLines) + 웹에서 추가·서명한 확인자(같은 직책은 웹 서명 우선) */
   const webLines = extraConf
     .filter((c) => c.signed && c.name.trim())
-    .map((c) => ({ title: c.title, signer: c.name.trim(), image_ref: '', image_data: c.image || null }))
+    .map((c) => ({ title: ((titleEdits[c.step] ?? '').trim() || c.title), signer: c.name.trim(), image_ref: '', image_data: c.image || null }))
   // [126] 수신 확인자 직책도 학교/기관 규칙으로 표시(기관: 행정실장→팀장·교장→과장)
   const recvShown = recvLines.map((l) => ({ ...l, title: titleFor({ name: schoolName }, l.title || '') }))
   const mergedLines = [...recvShown.filter((l) => !webLines.some((w) => w.title === l.title)), ...webLines]
-  const confLine = approval.length ? approval : defaultApproval({ name: schoolName }) // [123]
-  const confPrimary = primaryStep(confLine)
+  const baseLine = approval.length ? approval : defaultApproval({ name: schoolName }) // [123]
+  // [178] 이 점검표에서 바꾼 직책을 반영한 확인자 줄 — 화면·보기·PDF 결재란 칸 제목에 사용(교육청 서명 전송은 그대로)
+  const confLine = baseLine.map((st, i) => ({ ...st, title: (titleEdits[i] ?? '').trim() || st.title }))
+  const titlesChanged = baseLine.some((st, i) => confLine[i].title !== st.title)
+  const confPrimary = primaryStep(baseLine)
 
   /* [062] 메일 첨부 PDF용 — 현재 입력 상태를 양식 데이터(SheetData)로 조립 */
   function buildSheet(): SheetData {
     return {
       schoolName,
       date: inspectDate,
-      approval: approval.length ? approval : undefined, // [104] 대장 결재선 → 메일 PDF 결재란
+      approval: titlesChanged ? confLine : approval.length ? approval : undefined, // [104] 대장 결재선 → 메일 PDF 결재란 ([178] 바꾼 직책 반영)
       parts: activeDefs.map((d) => ({
         part: d.key,
         items: d.q!.map((question, i) => {
@@ -606,6 +640,7 @@ export function InspectionForm() {
         photos,
         signer: signed ? signerName.trim() : '',
         approval_lines: mergedLines.length ? mergedLines : undefined, // 현장앱 결재선 + 웹 추가 확인자 서명 → 메일 PDF 결재란 [119]
+        ...(titlesChanged ? { approval_titles: confLine } : {}), // [178] 이 점검표에서 바꾼 확인자 직책
       },
     }
   }
@@ -638,6 +673,7 @@ export function InspectionForm() {
         signer: signed ? signerName.trim() : '',
         // 현장앱 결재선(서명 이미지 경로) 보존 — 웹에서 재저장해도 수신 서명이 유실되지 않게 [서명·사진 출력 수정]
         ...(mergedLines.length ? { approval_lines: mergedLines } : {}), // [119] 웹 추가 확인자 서명 포함
+        ...(titlesChanged ? { approval_titles: confLine.map((st) => ({ title: st.title, name: st.name })) } : {}), // [178] 바꾼 확인자 직책
         // 서명 원본 스트로크 참조 보존/기록 — 교육청 봇이 웹 서명도 획 재생 [G-6]
         ...(keepStrokesRef ? { sign_strokes_ref: keepStrokesRef } : {}),
       }
@@ -806,6 +842,14 @@ export function InspectionForm() {
     await saveExtras(usedIds, strokesRefOut) // 기타의견·사진대지·확인자 등 부가정보 함께 저장 [057]
     setBusy(false)
     if (okAll) {
+      // [178] 바꾼 직책을 이 학교 기본 확인자로도 저장(성명은 학교 값 유지) — 실패해도 점검표 저장은 완료
+      if (titleSaveDefault && titlesChanged && sid) {
+        try {
+          await api(`/schools/${sid}/approval-line`, { method: 'PUT', body: JSON.stringify({ steps: baseLine.map((st, i) => ({ title: confLine[i].title, name: st.name })) }) })
+          setApproval(baseLine.map((st, i) => ({ ...st, title: confLine[i].title })))
+          setTitleEdits({})
+        } catch { /* 학교 기본값 저장 실패는 무시 */ }
+      }
       // 전송완료(success) 건이 포함된 수정 저장 — 교육청 재전송(기존 건 수정) 여부 확인 [F-2]
       const affected = usedIds.filter((id) => eduSuccessIds.includes(id))
       let resent = false
@@ -1157,7 +1201,8 @@ export function InspectionForm() {
         <div className="insf-ch"><i className="insf-sq" /><h3>확인자</h3><div className="r">서명 후 제출할 수 있습니다</div></div>
         <div className="insf-sign">
           <label className="field">
-            <span>{confLine[confPrimary]?.title || '담당자'}</span>
+            <TitleEdit value={confLine[confPrimary]?.title || '담당자'} orig={baseLine[confPrimary]?.title || '담당자'}
+              onChange={(v) => setTitleEdits((t) => ({ ...t, [confPrimary]: v }))} />
             <input className="input" placeholder="성명 (학교 대장 확인자 연동)" value={signerName}
               onChange={(e) => { setSignerName(e.target.value); setSigned(false); setSignImage(''); setSignStrokes(null); setSigTouched(true) }} />
           </label>
@@ -1190,7 +1235,8 @@ export function InspectionForm() {
           <div className="insf-sign" key={c.step} style={{ marginTop: 12 }}>
             <label className="field">
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {c.title}
+                <TitleEdit value={confLine[c.step]?.title || c.title} orig={baseLine[c.step]?.title || c.title}
+                  onChange={(v) => setTitleEdits((t) => ({ ...t, [c.step]: v }))} />
                 <button type="button" className="btn btn-ghost" title="확인자 삭제" style={{ padding: '0 8px', height: 22, fontSize: 12 }}
                   onClick={() => setExtraConf((prev) => prev.filter((_, idx) => idx !== i))}>✕</button>
               </span>
@@ -1228,6 +1274,12 @@ export function InspectionForm() {
                   const st = confLine[next]
                   setExtraConf((prev) => [...prev, { step: next, title: st.title, name: st.name, signed: false, image: '' }].sort((a, b) => a.step - b.step))
                 }}>＋ 확인자 추가</button>
+              {titlesChanged && (
+                <label className="insf-tsave">
+                  <input type="checkbox" checked={titleSaveDefault} onChange={(e) => setTitleSaveDefault(e.target.checked)} />
+                  바꾼 직책을 <b>이 학교 기본값</b>으로도 저장 (저장 시 반영 · 다음 점검표와 학교 상세 › 확인자에 적용)
+                </label>
+              )}
             </div>
           )
         })()}
@@ -1409,5 +1461,36 @@ export function InspectionForm() {
       )}
 
     </div>
+  )
+}
+
+/* [178] 확인자 직책 이름 — ✎ 누르면 입력(추천 칩·직접 입력), 바뀐 경우 '변경됨 · 원래 ○○' 표시 */
+const TITLE_SUGGEST = ['담당자', '행정실장', '행정주무관', '교감', '교장', '팀장', '과장', '원감', '원장']
+function TitleEdit({ value, orig, onChange }: { value: string; orig: string; onChange: (v: string) => void }) {
+  const [edit, setEdit] = useState(false)
+  const [v, setV] = useState(value)
+  if (!edit) {
+    return (
+      <span className="insf-title">
+        {value}
+        {value !== orig && <span className="insf-tchg">변경됨 · 원래 {orig}</span>}
+        <button type="button" className="insf-tpen" title="직책 이름 바꾸기" onClick={() => { setV(value); setEdit(true) }}>✎</button>
+      </span>
+    )
+  }
+  const done = () => { onChange(v.trim() || orig); setEdit(false) }
+  return (
+    <span className="insf-title edit">
+      <span className="row1">
+        <input className="input" autoFocus value={v} maxLength={20} onChange={(e) => setV(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); done() } if (e.key === 'Escape') setEdit(false) }} />
+        <button type="button" className="btn btn-primary insf-tbtn" onClick={done}>확인</button>
+        <button type="button" className="btn btn-ghost insf-tbtn" onClick={() => setEdit(false)}>취소</button>
+        {value !== orig && <button type="button" className="btn btn-ghost insf-tbtn" onClick={() => { onChange(orig); setEdit(false) }}>원래대로</button>}
+      </span>
+      <span className="insf-tsug">
+        {TITLE_SUGGEST.map((t) => <button key={t} type="button" className={v === t ? 'on' : ''} onClick={() => setV(t)}>{t}</button>)}
+      </span>
+    </span>
   )
 }

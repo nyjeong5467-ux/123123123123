@@ -29,6 +29,7 @@ import { HqInboxList, HqPastModal, useHqInbox } from '../features/contact/HqInbo
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
 import { FilterBar, Pagination, SortableTh } from '../components/table'
 import { Modal } from '../components/Modal'
+import { NoticeAllModal, NoticeDetailModal, noticePreview } from '../features/notice/NoticeModals'
 import { FilePicker } from '../components/FilePicker'
 import { SchoolFormModal } from '../components/SchoolFormModal'
 import { SchoolScopePicker, type PickSchool } from '../components/SchoolScopePicker'
@@ -719,8 +720,6 @@ export function Home() {
 
   /* ---- 공지 등록 모달 (본사 관리자) ---- */
   const [noticeOpen, setNoticeOpen] = useState(false)
-  // 공지 본문 보기 — 제목을 누르면 본문·첨부를 모달로(11-16: 제목만 보이고 내용이 안 열리던 문제)
-  const [noticeView, setNoticeView] = useState<Notice | null>(null)
   const [nTitle, setNTitle] = useState('')
   const [nBody, setNBody] = useState('')
   const [nFiles, setNFiles] = useState<NoticeFile[]>([])
@@ -757,6 +756,27 @@ export function Home() {
     } finally {
       setNSaving(false)
     }
+  }
+
+  // [172] 공지 상세·전체 보기. 등록·필독·삭제는 본사 관리자·경영진(isHqUser)만
+  const [noticeView, setNoticeView] = useState<Notice | null>(null)
+  const [noticeAll, setNoticeAll] = useState(false)
+  const [nvBusy, setNvBusy] = useState(false)
+  async function toggleNoticePin(n: Notice) {
+    setNvBusy(true)
+    try {
+      await api(`/notices/${n.id}`, { method: 'PUT', body: JSON.stringify({ title: n.title, body: n.body || '', files: n.files ?? [], pinned: !n.pinned }) })
+      setNoticeView({ ...n, pinned: !n.pinned })
+      setNoticeReload((x) => x + 1)
+    } catch { window.alert('필독 변경에 실패했습니다.') } finally { setNvBusy(false) }
+  }
+  async function deleteNotice(n: Notice) {
+    setNvBusy(true)
+    try {
+      await api(`/notices/${n.id}`, { method: 'DELETE' })
+      setNoticeView(null)
+      setNoticeReload((x) => x + 1)
+    } catch { window.alert('삭제에 실패했습니다.') } finally { setNvBusy(false) }
   }
 
   const sortedNotices = useMemo(
@@ -916,9 +936,11 @@ export function Home() {
               <span className="hm-ic v"><Megaphone size={16} /></span>
               <h3>공지사항</h3>
               <div className="hm-r">
-                <button className="hm-qbtn" onClick={() => setNoticeOpen(true)}>
-                  <Plus size={13} /> 공지 등록
-                </button>
+                {isHqUser && (
+                  <button className="hm-qbtn" onClick={() => setNoticeOpen(true)}>
+                    <Plus size={13} /> 공지 등록
+                  </button>
+                )}
               </div>
             </div>
             <div className="hm-nlist">
@@ -926,13 +948,12 @@ export function Home() {
                 <div className="hm-empty">{loading ? '불러오는 중…' : '등록된 공지가 없습니다.'}</div>
               )}
               {sortedNotices.slice(0, 6).map((n) => (
-                <div className="hm-n" key={n.id}>
+                <div className="hm-n hm-clickable" key={n.id} role="button" tabIndex={0}
+                  onClick={() => setNoticeView(n)} onKeyDown={(e) => { if (e.key === 'Enter') setNoticeView(n) }}>
                   <span className={'hm-pin' + (n.pinned ? '' : ' g')}>{n.pinned ? '필독' : '안내'}</span>
-                  <div className="hm-nbody" role="button" tabIndex={0} style={{ cursor: 'pointer' }}
-                    title="눌러서 내용 보기"
-                    onClick={() => setNoticeView(n)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setNoticeView(n) } }}>
+                  <div className="hm-nbody" style={{ flex: 1 }}>
                     <div className="b">{n.title}</div>
+                    {noticePreview(n) && <div className="hm-npv">{noticePreview(n)}</div>}
                     <div className="m">
                       {n.created_at && <span className="dt">{n.created_at.slice(0, 10)}</span>}
                       {(n.files ?? []).length > 0 && (
@@ -943,34 +964,13 @@ export function Home() {
                       )}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    title={n.pinned ? '필독 해제' : '필독 고정'}
-                    style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--muted)', fontSize: 11.5, fontWeight: 700 }}
-                    onClick={() => {
-                      void api(`/notices/${n.id}`, {
-                        method: 'PUT',
-                        body: JSON.stringify({ title: n.title, body: n.body || '', files: n.files ?? [], pinned: !n.pinned }),
-                      }).then(() => setNoticeReload((x) => x + 1)).catch(() => {})
-                    }}
-                  >
-                    {n.pinned ? '해제' : '고정'}
-                  </button>
-                  <button
-                    type="button"
-                    title="공지 삭제"
-                    style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, lineHeight: 1 }}
-                    onClick={() => {
-                      if (!window.confirm(`공지 "${n.title}"을(를) 삭제할까요?`)) return
-                      void api(`/notices/${n.id}`, { method: 'DELETE' })
-                        .then(() => setNoticeReload((x) => x + 1)).catch(() => {})
-                    }}
-                  >
-                    ✕
-                  </button>
+                  <span className="hm-ngo">›</span>
                 </div>
               ))}
             </div>
+            {sortedNotices.length > 6 && (
+              <button className="hm-nall" onClick={() => setNoticeAll(true)}>전체 공지 보기 ({sortedNotices.length}건) ›</button>
+            )}
           </div>
         )
       case 'accidents':
@@ -1416,28 +1416,17 @@ export function Home() {
         </div>
       </div>
 
-      {/* ===== 공지 등록 모달 ===== */}
+      {/* ===== [172] 공지 상세 · 전체 보기 ===== */}
       {noticeView && (
-        <Modal
-          title={<><span className={'hm-pin' + (noticeView.pinned ? '' : ' g')} style={{ marginRight: 8 }}>{noticeView.pinned ? '필독' : '안내'}</span>{noticeView.title}</>}
-          onClose={() => setNoticeView(null)}
-          wide
-          footer={<button className="btn" type="button" onClick={() => setNoticeView(null)}>닫기</button>}
-        >
-          <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 10 }}>
-            {noticeView.created_at ? noticeView.created_at.slice(0, 10) : ''}
-          </div>
-          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: 14.5 }}>
-            {(noticeView.body || '').trim() ? noticeView.body : '본문이 없는 공지입니다.'}
-          </div>
-          {(noticeView.files ?? []).length > 0 && (
-            <div style={{ marginTop: 14, fontSize: 13, color: 'var(--muted)' }}>
-              <Paperclip size={12} /> 첨부: {(noticeView.files ?? []).map((f) => f.name).join(' · ')}
-            </div>
-          )}
-        </Modal>
+        <NoticeDetailModal notice={noticeView} canManage={isHqUser} busy={nvBusy} onClose={() => setNoticeView(null)}
+          onTogglePin={() => void toggleNoticePin(noticeView)} onDelete={() => void deleteNotice(noticeView)} />
       )}
-      {noticeOpen && (
+      {noticeAll && !noticeView && (
+        <NoticeAllModal notices={sortedNotices} onClose={() => setNoticeAll(false)} onOpen={(n) => setNoticeView(n as Notice)} />
+      )}
+
+      {/* ===== 공지 등록 모달 ===== */}
+      {noticeOpen && isHqUser && (
         <Modal
           title="공지 등록"
           onClose={() => {
@@ -1480,6 +1469,7 @@ export function Home() {
               onChange={(e) => setNBody(e.target.value)}
               placeholder="공지 내용을 입력하세요"
             />
+            <small className="hm-nhint">번호마다 Enter로 줄을 바꾸면 홈에서도 그대로 줄이 나뉘어 보입니다.</small>
           </label>
           <label className="field">
             <span>파일 첨부 (파일명만 전송)</span>

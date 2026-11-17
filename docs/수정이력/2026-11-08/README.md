@@ -6,7 +6,7 @@
 
 ## 19:29 — [169] 경영 현황 — 상단 지표 카드 6개(계약 학교·세금계산서 발행액·발행 실패·불만 접수·산재 이력·시스템 계정) 삭제, 카드 전용 조회(/invoices·/accidents·/ops/dashboard) 제거
 
-- 커밋: `(이번 업로드)` · 작성: nabong
+- 커밋: `27f7f02` · 작성: nabong
 - 바뀐 파일 1개:
   - (수정) `src/features/console/ConsoleOverview.tsx`
 

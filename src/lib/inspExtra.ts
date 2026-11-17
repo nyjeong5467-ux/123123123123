@@ -27,6 +27,8 @@ export type InspExtra = {
   approval_lines?: { title: string; signer: string; image_ref?: string | null; image_data?: string | null }[]
   // 서명 원본 스트로크 JSON 저장 참조(sign_<iid>.strokes.json) — 교육청 봇이 획 재생. 앱/웹 서명패드 공통 [G-6]
   sign_strokes_ref?: string
+  // [178] 이 점검표에서 바꾼 확인자 직책(결재선 단계 순서) — 보기·PDF 결재란 칸 제목. 교육청 서명 전송과는 무관
+  approval_titles?: { title: string; name: string }[]
 }
 
 /**

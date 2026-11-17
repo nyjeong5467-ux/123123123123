@@ -683,7 +683,7 @@ export function Musculo() {
       {!sel && !error && (
         <>
           {/* [066] 내 보고서 작업 스트립 */}
-          <MyWorkStrip title="내 보고서 작업" items={myWorkItems} mineOnly={!!myIds} />
+          <MyWorkStrip title="내 보고서 작업" items={myWorkItems} mineOnly={!!myIds} hideKey={`mus-mywork-hidden-${user?.login ?? 'anon'}`} hideNote="이 목록에서 숨기기 — 보고서 초안은 삭제되지 않으며 학교를 다시 열면 이어서 작성할 수 있습니다" />
 
           {/* [063] 학교 탭과 동일한 검색 패널 */}
           <WorkSearchPanel onSearch={doPanelSearch} onClear={(f) => setApplied((a) => ({ ...a, [f]: '' }))} />

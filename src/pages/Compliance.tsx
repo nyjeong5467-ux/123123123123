@@ -276,7 +276,7 @@ export function Compliance() {
       {!sel && (
         <>
         {/* [066] 내 조사지 작업 스트립 */}
-        <MyWorkStrip title="내 조사지 작업" items={myWorkItems} mineOnly={!!myIds} />
+        <MyWorkStrip title="내 조사지 작업" items={myWorkItems} mineOnly={!!myIds} hideKey={`comp-mywork-hidden-${user?.login ?? 'anon'}`} hideNote="이 목록에서 숨기기 — 조사지는 삭제되지 않으며 아래 목록에서 계속 열 수 있습니다" />
 
         {/* [063] 학교 탭과 동일한 검색 패널 */}
         <WorkSearchPanel onSearch={doPanelSearch} onClear={(f) => setApplied((a) => ({ ...a, [f]: '' }))} />
