@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import {
   type LucideIcon,
   BellRing,
@@ -14,7 +14,6 @@ import {
   TabletSmartphone,
   Users,
 } from 'lucide-react'
-import { Billing } from './Billing'
 import { Accounts } from './Accounts'
 import ConsoleOverview from '../features/console/ConsoleOverview'
 import ConsoleApp from '../features/console/ConsoleApp'
@@ -48,6 +47,20 @@ const TABS: { key: TabKey; label: string; Icon: LucideIcon }[] = [
 
 const TAB_KEYS = TABS.map((t) => t.key) as string[]
 
+// 11-17 메뉴 재구성: 탭 줄 대신 사이드바 메뉴로 바로 진입 — 화면 제목·경로 표시용 (그룹, 메뉴 이름)
+const TAB_META: Record<TabKey, { group: string; label: string }> = {
+  overview: { group: '운영', label: '경영 현황' },
+  billing: { group: '운영', label: '세금계산서' },
+  content: { group: '운영', label: '홈페이지 콘텐츠' },
+  history: { group: '인사·근무', label: '직원 이력' },
+  schedule: { group: '인사·근무', label: '근무 종합관리표' },
+  app: { group: '시스템 관리', label: '현장 앱 관리' },
+  eduoffice: { group: '시스템 관리', label: '교육청 전송' },
+  system: { group: '시스템 관리', label: '시스템' },
+  accounts: { group: '시스템 관리', label: '계정·권한' },
+  popup: { group: '시스템 관리', label: '팝업 공지' },
+}
+
 export function Dashboard() {
   const [sp, setSp] = useSearchParams()
 
@@ -56,38 +69,21 @@ export function Dashboard() {
     return (TAB_KEYS.includes(t) ? t : 'overview') as TabKey
   }, [sp])
 
-  function switchTab(next: TabKey) {
-    setSp(next === 'overview' ? {} : { tab: next }, { replace: false })
-  }
+  // 예전 '청구·정산' 탭 주소는 세금계산서 메뉴로(같은 화면)
+  if (tab === 'billing') return <Navigate to="/billing" replace />
+  const meta = TAB_META[tab]
 
   return (
     <div className="page rv">
-      <div className="breadcrumb"><Link to="/">홈</Link> / <b>경영 대시보드</b></div>
+      <div className="breadcrumb"><Link to="/">홈</Link> / {meta.group} / <b>{meta.label}</b></div>
       <div className="bar">
-        <h2>경영 대시보드</h2>
+        <h2>{meta.label}</h2>
         <span className="pillx warn">
           <ShieldAlert size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />관리자 전용
         </span>
-        <div className="sp" />
-        <span className="muted" style={{ fontSize: 12.5 }}>
-          회사 관리자 콘솔 — 경영·관리 기능 통합
-        </span>
-      </div>
-
-      <div className="console-tabs">
-        {TABS.map(({ key, label, Icon }) => (
-          <button
-            key={key}
-            className={'console-tab' + (tab === key ? ' active' : '')}
-            onClick={() => switchTab(key)}
-          >
-            <Icon size={15} strokeWidth={2} /> {label}
-          </button>
-        ))}
       </div>
 
       {tab === 'overview' && <ConsoleOverview />}
-      {tab === 'billing' && <div className="console-embed"><Billing embedded /></div>}
       {tab === 'accounts' && <div className="console-embed"><Accounts embedded /></div>}
       {tab === 'history' && <ConsoleStaffHistory />}
       {tab === 'schedule' && <ConsoleSchedule />}

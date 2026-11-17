@@ -2015,3 +2015,10 @@ textarea.input {
   opacity: 0.4;
   cursor: default;
 }
+
+/* 11-17 메뉴 재구성: 그룹 제목 = 접기/펼치기 버튼 */
+.sb-grp-btn { display: flex; align-items: center; justify-content: space-between; width: calc(100% - 40px); border: 0; background: transparent; padding: 0; cursor: pointer; font-family: inherit; text-align: left; }
+.sb-grp-btn:hover { color: rgba(255, 255, 255, 0.8); }
+.sb-grp-btn svg { transition: transform 0.18s; }
+.sb-grp-btn.closed svg { transform: rotate(-90deg); }
+.sb-bottom { border-top: 1px solid rgba(255, 255, 255, 0.16); margin-top: 10px; padding-top: 8px; }

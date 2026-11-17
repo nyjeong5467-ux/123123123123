@@ -48,62 +48,58 @@ const KIND_ACCENT: Record<string, string> = {
 }
 
 type NavItem = {
-  Icon: LucideIcon; label: string; to: string; end?: boolean; sub?: boolean
+  Icon: LucideIcon; label: string; to: string; end?: boolean
   module?: string    // 계정별 모듈 권한 키(미지정=항상 표시)
   hqOnly?: boolean   // 본사 관리자/경영진 전용 메뉴
+  kids?: NavItem[]   // 하위 메뉴(학교 → 5대 업무, 자료실 → 산업재해·법령 검색)
 }
 
-// 위계: 업무(홈/학교+5대 업무 서브/산업재해) · 본사 · 시스템 — 0709 회의 반영
-const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
+// 11-17 메뉴 재구성: 업무(전원) · 운영 · 인사·근무 · 시스템 관리(관리자 전용).
+// 경영 대시보드의 탭 줄 대신 각 탭이 사이드바 메뉴로 바로 연결된다(/ledger?tab= 주소는 그대로 유지).
+const NAV_GROUPS: { title: string; hqOnly?: boolean; items: NavItem[] }[] = [
   {
     title: '업무',
     items: [
-      { Icon: Home, label: '홈', to: '/', end: true },
-      { Icon: Building2, label: '학교', to: '/schools' },
-      { Icon: ClipboardCheck, label: '안전점검', to: '/inspection', sub: true, module: 'inspection' },
-      { Icon: TriangleAlert, label: '위험성평가', to: '/risk', sub: true, module: 'risk' },
-      { Icon: Activity, label: '근골격계', to: '/musculo', sub: true, module: 'musculo' },
-      { Icon: GraduationCap, label: '교육 진도표', to: '/education', sub: true, module: 'education' },
-      { Icon: FileCheck2, label: '이행점검', to: '/compliance', sub: true, module: 'compliance' },
-      { Icon: Siren, label: '산업재해', to: '/accidents', module: 'accidents' },
-      { Icon: ReceiptText, label: '세금계산서', to: '/billing', module: 'billing' },
-      // 세션코드 발급 nav 숨김(2026-09-18) — 점검자 앱 로그인 전환. 비상용은 /sessions 직접 접근.
-      { Icon: FolderOpen, label: '자료실', to: '/resources', module: 'resources' },
-      { Icon: Scale, label: '법령 검색', to: '/law' },
-    ],
-  },
-  {
-    // 본사 관리 기능은 경영 대시보드(회사 관리자 콘솔) 한 곳으로 통합 —
-    // 종합관리·세금계산서·세션코드·계정 등은 콘솔 탭으로 이동(기존 라우트는 딥링크 호환 유지).
-    title: '본사',
-    items: [
-      { Icon: LayoutDashboard, label: '경영 대시보드', to: '/ledger', hqOnly: true },
+      { Icon: Building2, label: '학교', to: '/schools', kids: [
+        { Icon: ClipboardCheck, label: '안전점검', to: '/inspection', module: 'inspection' },
+        { Icon: TriangleAlert, label: '위험성평가', to: '/risk', module: 'risk' },
+        { Icon: Activity, label: '근골격계', to: '/musculo', module: 'musculo' },
+        { Icon: GraduationCap, label: '교육 진도표', to: '/education', module: 'education' },
+        { Icon: FileCheck2, label: '이행점검', to: '/compliance', module: 'compliance' },
+      ] },
+      { Icon: FolderOpen, label: '자료실', to: '/resources', module: 'resources', kids: [
+        { Icon: Siren, label: '산업재해', to: '/accidents', module: 'accidents' },
+        { Icon: Scale, label: '법령 검색', to: '/law' },
+      ] },
       { Icon: Mail, label: '메일함', to: '/mail', hqOnly: true },
-      // 활동 현황(점검 증빙·근무 기록 참고) — hqOnly = HQ_ROLES(hq_admin·executive) 만 통과하므로 일반 직원에겐 메뉴 자체가 숨겨짐
-      { Icon: Footprints, label: '활동 현황', to: '/activity', hqOnly: true },
     ],
   },
   {
-    title: '시스템',
+    title: '운영', hqOnly: true,
     items: [
-      { Icon: Settings, label: '설정', to: '/settings' },
+      { Icon: LayoutDashboard, label: '경영 현황', to: '/ledger' },
+      { Icon: ReceiptText, label: '세금계산서', to: '/billing' },
+      { Icon: Globe, label: '홈페이지 콘텐츠', to: '/ledger?tab=content' },
     ],
   },
-]
-
-// 경영 대시보드(회사 관리자 콘솔) 하위 탭 — 학교의 5대 업무 서브메뉴처럼 사이드바에 나열.
-// Dashboard.tsx의 TABS와 key·label을 맞춘다(?tab= 딥링크).
-const CONSOLE_SUBS: { key: string; label: string; Icon: LucideIcon }[] = [
-  { key: 'overview', label: '경영 현황', Icon: LayoutDashboard },
-  { key: 'billing', label: '청구·정산', Icon: Receipt },
-  { key: 'accounts', label: '계정·권한', Icon: Users },
-  { key: 'history', label: '직원 이력', Icon: ScrollText },
-  { key: 'schedule', label: '근무 종합관리표', Icon: CalendarRange },
-  { key: 'app', label: '현장 앱 관리', Icon: TabletSmartphone },
-  { key: 'eduoffice', label: '교육청 전송', Icon: CloudUpload },
-  { key: 'content', label: '홈페이지·콘텐츠', Icon: Globe },
-  { key: 'popup', label: '팝업 공지', Icon: BellRing },
-  { key: 'system', label: '시스템', Icon: Settings2 },
+  {
+    title: '인사·근무', hqOnly: true,
+    items: [
+      { Icon: ScrollText, label: '직원 이력', to: '/ledger?tab=history' },
+      { Icon: CalendarRange, label: '근무 종합관리표', to: '/ledger?tab=schedule' },
+      { Icon: Footprints, label: '활동 현황', to: '/activity' },
+    ],
+  },
+  {
+    title: '시스템 관리', hqOnly: true,
+    items: [
+      { Icon: TabletSmartphone, label: '현장 앱 관리', to: '/ledger?tab=app' },
+      { Icon: CloudUpload, label: '교육청 전송', to: '/ledger?tab=eduoffice' },
+      { Icon: Settings2, label: '시스템', to: '/ledger?tab=system' },
+      { Icon: Users, label: '계정·권한', to: '/ledger?tab=accounts' },
+      { Icon: BellRing, label: '팝업 공지', to: '/ledger?tab=popup' },
+    ],
+  },
 ]
 
 type Me = { role: string; modules: string[] }
@@ -123,20 +119,42 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nav = useNavigate()
   const loc = useLocation()
 
-  // 경영 대시보드 하위 탭 메뉴 접기/펼치기(기본 펼침, localStorage 유지)
-  const [consoleOpen, setConsoleOpen] = useState<boolean>(() => {
-    try { return localStorage.getItem('sb-console-open') !== '0' } catch { return true }
+  // 그룹(업무·운영·인사·근무·시스템 관리) 접기/펼치기 — 계정 브라우저에 기억
+  const [closedGroups, setClosedGroups] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('sb-groups-closed') || '[]') } catch { return [] }
   })
-  function toggleConsole(e: ReactMouseEvent) {
-    e.preventDefault()
-    e.stopPropagation()
-    setConsoleOpen((o) => {
-      try { localStorage.setItem('sb-console-open', o ? '0' : '1') } catch { /* 무시 */ }
-      return !o
+  function toggleGroup(title: string) {
+    setClosedGroups((cur) => {
+      const next = cur.includes(title) ? cur.filter((t) => t !== title) : [...cur, title]
+      try { localStorage.setItem('sb-groups-closed', JSON.stringify(next)) } catch { /* 무시 */ }
+      return next
     })
   }
-  const onLedger = loc.pathname === '/ledger'
-  const ledgerTab = new URLSearchParams(loc.search).get('tab') ?? 'overview'
+  // 쿼리(?tab=)까지 비교하는 활성 판정 — /ledger?tab=… 메뉴가 서로 겹쳐 켜지지 않게
+  const curTab = loc.pathname === '/ledger' ? (new URLSearchParams(loc.search).get('tab') ?? 'overview') : ''
+  function isActive(to: string, end?: boolean): boolean {
+    const [path, q] = to.split('?')
+    if (path === '/ledger') {
+      const t = q ? new URLSearchParams(q).get('tab') : 'overview'
+      return loc.pathname === '/ledger' && curTab === t
+    }
+    if (end) return loc.pathname === path
+    return loc.pathname === path || loc.pathname.startsWith(path + '/')
+  }
+  function renderItem(it: NavItem, sub = false): ReactNode {
+    const active = isActive(it.to, it.end)
+    const kids = (it.kids ?? []).filter((k) => navVisible(k, me))
+    return (
+      <div key={it.label} style={{ display: 'contents' }}>
+        <Link to={it.to} className={'sbi' + (sub ? ' sub' : '') + (active ? ' active' : '')}
+          aria-current={active ? 'page' : undefined} title={it.label}>
+          <it.Icon size={sub ? 17 : 19} strokeWidth={1.9} />
+          <span>{it.label}</span>
+        </Link>
+        {kids.map((k) => renderItem(k, true))}
+      </div>
+    )
+  }
 
   const [notifOpen, setNotifOpen] = useState(false)
   const [profOpen, setProfOpen] = useState(false)
@@ -225,70 +243,32 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="lg-name" style={{ display: 'block' }}>안전보건 통합 플랫폼</span>
           </span>
         </NavLink>
+        <nav className="sbnav">{renderItem({ Icon: Home, label: '홈', to: '/', end: true })}</nav>
         {NAV_GROUPS.map((grp) => {
-          const items = grp.items.filter((it) => navVisible(it, me))
+          if (grp.hqOnly && !(me && HQ_ROLES.includes(me.role))) return null
+          // 상위가 권한 밖이어도 볼 수 있는 하위 메뉴는 그대로 꺼내 보여 준다(예: 자료실 없이 산업재해만 허용)
+          const items: NavItem[] = []
+          for (const it of grp.items) {
+            if (navVisible(it, me)) items.push(it)
+            else for (const k of it.kids ?? []) if (navVisible(k, me)) items.push(k)
+          }
           if (items.length === 0) return null
+          const closed = closedGroups.includes(grp.title)
           return (
             <div key={grp.title}>
-              <div className="sb-grp-title">{grp.title}</div>
-              <nav className="sbnav">
-                {items.map(({ Icon, label, to, end, sub }) => {
-                  // 경영 대시보드: 학교의 5대 업무처럼 하위 탭을 나열하고, 셰브론으로 접기/펼치기
-                  if (to === '/ledger') {
-                    // NavLink는 경로만 보고 ?tab= 8개 링크를 전부 active 처리하므로
-                    // 쿼리 탭 링크는 Link + 수동 active 클래스로 구성한다.
-                    return (
-                      <div key={label} style={{ display: 'contents' }}>
-                        <Link
-                          to={to}
-                          className={'sbi' + (onLedger && !consoleOpen ? ' active' : '')}
-                          title={label}
-                        >
-                          <Icon size={19} strokeWidth={1.9} />
-                          <span>{label}</span>
-                          <button
-                            className={'sb-caret' + (consoleOpen ? '' : ' closed')}
-                            onClick={toggleConsole}
-                            title={consoleOpen ? '하위 메뉴 접기' : '하위 메뉴 펼치기'}
-                            aria-label={consoleOpen ? '하위 메뉴 접기' : '하위 메뉴 펼치기'}
-                          >
-                            <ChevronDown size={15} strokeWidth={2.2} />
-                          </button>
-                        </Link>
-                        {consoleOpen && CONSOLE_SUBS.map(({ key, label: sl, Icon: SIcon }) => (
-                          <Link
-                            key={key}
-                            to={key === 'overview' ? '/ledger' : '/ledger?tab=' + key}
-                            className={'sbi sub' + (onLedger && ledgerTab === key ? ' active' : '')}
-                            aria-current={onLedger && ledgerTab === key ? 'page' : undefined}
-                            title={sl}
-                          >
-                            <SIcon size={17} strokeWidth={1.9} />
-                            <span>{sl}</span>
-                          </Link>
-                        ))}
-                      </div>
-                    )
-                  }
-                  return (
-                    <NavLink
-                      key={label}
-                      to={to}
-                      end={end}
-                      className={({ isActive }) => 'sbi' + (sub ? ' sub' : '') + (isActive ? ' active' : '')}
-                      title={label}
-                    >
-                      <Icon size={sub ? 17 : 19} strokeWidth={1.9} />
-                      <span>{label}</span>
-                    </NavLink>
-                  )
-                })}
-              </nav>
+              <button type="button" className={'sb-grp-title sb-grp-btn' + (closed ? ' closed' : '')}
+                onClick={() => toggleGroup(grp.title)} aria-expanded={!closed}
+                title={closed ? '펼치기' : '접기'}>
+                <span>{grp.title}</span>
+                <ChevronDown size={13} strokeWidth={2.4} />
+              </button>
+              {!closed && <nav className="sbnav">{items.map((it) => renderItem(it))}</nav>}
             </div>
           )
         })}
         <div className="sb-sp" />
-        <div className="sbnav">
+        <div className="sbnav sb-bottom">
+          {renderItem({ Icon: Settings, label: '설정', to: '/settings' })}
           <div className="sbi" onClick={() => { logout(); nav('/login') }}>
             <LogOut size={19} strokeWidth={1.9} />
             <span>로그아웃</span>
