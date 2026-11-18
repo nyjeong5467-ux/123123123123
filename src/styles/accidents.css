@@ -361,3 +361,12 @@
 .acc-ktag.t-elec { background: var(--info-soft); color: var(--info-ink); }
 .acc-ktag.t-gas { background: #efe7fb; color: #7a4bd1; }
 .acc-ktag.t-msd { background: var(--ok-soft); color: var(--ok-ink); }
+
+/* [181] 산재내역 검색 */
+.acc-sbox { display: flex; align-items: center; gap: 6px; margin-right: 8px; }
+.acc-sin { display: flex; align-items: center; gap: 6px; width: 300px; height: 38px; border: 1.5px solid var(--line); border-radius: 10px; padding: 0 10px; color: var(--muted); background: var(--card); transition: 0.15s; }
+.acc-sin:focus-within { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-soft); }
+.acc-sin input { flex: 1; min-width: 0; border: 0; outline: none; font-size: 13px; background: transparent; color: var(--ink); font-family: inherit; }
+.acc-sclear { border: 0; background: none; color: var(--muted); cursor: pointer; display: inline-flex; padding: 2px; }
+.btn.acc-sbtn { height: 38px; padding: 0 14px; }
+.acc-sres { font-size: 12.5px; color: var(--ink-2); margin-left: 10px; font-weight: 500; }

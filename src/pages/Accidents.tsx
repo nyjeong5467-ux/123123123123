@@ -26,7 +26,7 @@ import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
 import { useTableQuery, type FilterDef } from '../lib/useTableQuery'
-import { ExportButton, FilterBar, Pagination, SortableTh, type ExportColumn } from '../components/table'
+import { Pagination, SortableTh } from '../components/table'
 import { ACC_TYPES, JOBS, accTypeOf, jobOf, dedupeStories, groupByIssue, scoreRelevance, withinRetention, type RelevanceTag, type StoryRef } from '../lib/accidentRelevance'
 import '../styles/accidents.css'
 
@@ -112,16 +112,6 @@ const ACC_SORTS = {
   school: (r: Accident) => r.school_name || '',
   kind: (r: Accident) => r.kind,
 }
-const ACC_EXPORT: ExportColumn<Accident>[] = [
-  { header: '발생일', value: (r) => r.date || '' },
-  { header: '학교', value: (r) => r.school_name || '' },
-  { header: '익명표시', value: (r) => r.school_masked || '' },
-  { header: '구분', value: (r) => KIND_LABEL[r.kind] ?? r.kind },
-  { header: '개요', value: (r) => r.summary || '' },
-  { header: '연동상태', value: (r) => (r.links?.risk_id ? '수시 위험성평가' : r.links?.musculo_id ? '수시 근골격계 조사' : '미연동') },
-  { header: '첨부', value: (r) => (r.files?.length ?? 0) },
-  { header: '작성일', value: (r) => (r.created_at || '').slice(0, 10) },
-]
 
 // ── 등록 폼 모달 ─────────────────────────────────────────────
 function AccRegisterModal({
@@ -334,6 +324,7 @@ export function Accidents() {
   const [genBusy, setGenBusy] = useState('') // 생성 중인 accident id
   const [genErr, setGenErr] = useState('')
 
+  const [accKw, setAccKw] = useState('') // [181] 산재 검색어(입력 중)
   const q = useTableQuery(accidents, {
     searchFields: ACC_SEARCH,
     filters: ACC_FILTERS,
@@ -364,18 +355,6 @@ export function Accidents() {
     return () => { alive = false }
   }, [])
 
-  // KPI — 올해 / 사고성 / 질병성 / 연동 완료
-  const kpi = useMemo(() => {
-    const year = String(new Date().getFullYear())
-    const thisYear = accidents.filter((a) => (a.date || '').startsWith(year))
-    return {
-      year,
-      total: thisYear.length,
-      accident: thisYear.filter((a) => a.kind === 'accident').length,
-      disease: thisYear.filter((a) => a.kind === 'disease').length,
-      linked: accidents.filter(isLinked).length,
-    }
-  }, [accidents])
 
   // 수시 위험성평가/근골 조사 연동 생성
   async function generate(a: Accident) {
@@ -404,99 +383,6 @@ export function Accidents() {
   function onSaved(created: Accident | null) {
     setReload((n) => n + 1)
     if (created) setBanner(created)
-  }
-
-  // ── 외부 산재 데이터 연동(공공데이터 API + CSV 일괄 인입) ──
-  type FeedSettings = { endpoint: string; items_path: string; map: Record<string, string>; has_service_key: boolean }
-  type ImportResult = { created: number; duplicates: number; unmatched: string[]; fetched?: number }
-  const [feedOpen, setFeedOpen] = useState(false)
-  const [feed, setFeed] = useState<FeedSettings | null>(null)
-  const [feedKey, setFeedKey] = useState('')
-  const [feedBusy, setFeedBusy] = useState('')
-  const [feedMsg, setFeedMsg] = useState<{ ok: boolean; text: string } | null>(null)
-
-  function openFeed() {
-    setFeedOpen(true)
-    setFeedMsg(null)
-    setFeedKey('')
-    api<{ settings: FeedSettings }>('/accidents/feed-settings')
-      .then((d) => setFeed(d.settings))
-      .catch(() => setFeed(null))
-  }
-
-  async function saveFeed() {
-    if (!feed) return
-    setFeedBusy('save')
-    setFeedMsg(null)
-    try {
-      const d = await api<{ settings: FeedSettings }>('/accidents/feed-settings', {
-        method: 'PUT',
-        body: JSON.stringify({ settings: { endpoint: feed.endpoint, items_path: feed.items_path, service_key: feedKey } }),
-      })
-      setFeed(d.settings)
-      setFeedKey('')
-      setFeedMsg({ ok: true, text: '연동 설정을 저장했습니다.' })
-    } catch (e) {
-      setFeedMsg({ ok: false, text: e instanceof Error ? e.message : '저장 실패' })
-    } finally {
-      setFeedBusy('')
-    }
-  }
-
-  function fmtImport(r: ImportResult): string {
-    const parts = [
-      r.fetched != null ? `조회 ${r.fetched}건` : null,
-      `신규 ${r.created}건`, `중복 제외 ${r.duplicates}건`,
-      r.unmatched.length ? `학교 미매칭 ${r.unmatched.length}건(${r.unmatched.slice(0, 3).join(', ')}${r.unmatched.length > 3 ? '…' : ''})` : null,
-    ]
-    return parts.filter(Boolean).join(' · ')
-  }
-
-  async function syncFeed() {
-    setFeedBusy('sync')
-    setFeedMsg(null)
-    try {
-      const r = await api<ImportResult>('/accidents/feed-sync', { method: 'POST' })
-      setFeedMsg({ ok: true, text: fmtImport(r) })
-      if (r.created > 0) setReload((n) => n + 1)
-    } catch (e) {
-      setFeedMsg({ ok: false, text: e instanceof Error ? e.message : '동기화 실패' })
-    } finally {
-      setFeedBusy('')
-    }
-  }
-
-  // CSV 일괄 인입: 학교명,발생일,구분(사고/질병),재해개요[,접수번호]
-  async function importCsv(files: FileList | null) {
-    const f = files?.[0]
-    if (!f) return
-    setFeedBusy('csv')
-    setFeedMsg(null)
-    try {
-      const rows = (await f.text())
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .map((l) => {
-          const [school = '', date = '', kind = '', summary = '', ref = ''] = l.split(',')
-          return {
-            school: school.trim(), date: date.trim(),
-            kind: kind.includes('질병') || kind.includes('근골') ? 'disease' : kind.includes('사고') ? 'accident' : '',
-            summary: summary.trim(), ref: ref.trim(),
-          }
-        })
-        .filter((r) => r.school && !/^(학교|사업장)/.test(r.school))
-      if (!rows.length) { setFeedMsg({ ok: false, text: 'CSV에서 행을 찾지 못했습니다. 형식: 학교명,발생일,구분,재해개요[,접수번호]' }); return }
-      const r = await api<ImportResult>('/accidents/import', {
-        method: 'POST', body: JSON.stringify({ rows }),
-      })
-      setFeedMsg({ ok: true, text: fmtImport(r) })
-      if (r.created > 0) setReload((n) => n + 1)
-    } catch (e) {
-      setFeedMsg({ ok: false, text: e instanceof Error ? e.message : 'CSV 인입 실패' })
-    } finally {
-      setFeedBusy('')
-    }
   }
 
   // ── 국내재해사례(KOSHA) 조회 상태 ──────────────────────────
@@ -629,16 +515,6 @@ export function Accidents() {
       <div className="bar">
         <h2><AlertTriangle size={20} /> 산업재해 관리</h2>
         <div className="sp" />
-        {tab === 'records' && (
-          <>
-            <button className="btn btn-ghost" onClick={openFeed}>
-              <ExternalLink size={14} /> 외부 데이터 연동
-            </button>
-            <button className="btn btn-primary" onClick={() => setFormOpen(true)}>
-              <Plus size={15} /> 산재 등록
-            </button>
-          </>
-        )}
       </div>
 
       {/* 서브탭: 산재내역(실제 학교·기관 발생 산재) ↔ 국내재해사례(뉴스 기사 + KOSHA) [140] */}
@@ -696,29 +572,6 @@ export function Accidents() {
         <div className="ledger"><div className="tstate">연동 생성 오류: {genErr}</div></div>
       )}
 
-      {/* KPI */}
-      <div className="kpis">
-        <div className="kpi">
-          <div className="l">{kpi.year}년 산재 건수</div>
-          <div className="v">{kpi.total}<small>건</small></div>
-        </div>
-        <div className="kpi red">
-          <div className="l">사고성</div>
-          <div className="v">{kpi.accident}<small>건</small></div>
-          <div className="d">수시 위험성평가 대상</div>
-        </div>
-        <div className="kpi warn">
-          <div className="l">질병성</div>
-          <div className="v">{kpi.disease}<small>건</small></div>
-          <div className="d">수시 근골격계 조사 대상</div>
-        </div>
-        <div className="kpi">
-          <div className="l">연동 완료</div>
-          <div className="v">{kpi.linked}<small>건</small></div>
-          <div className="d">수시평가·조사 생성됨</div>
-        </div>
-      </div>
-
       {/* 목록 */}
       <div className="ledger">
         <div className="lh">
@@ -727,9 +580,21 @@ export function Accidents() {
               사고성 재해는 수시 위험성평가, 질병성(근골격계) 재해는 수시 유해요인조사와 연동됩니다.
               홈 등 공용 화면에는 학교명이 익명(예: OOO초등학교)으로 표시됩니다.
             </InfoTip></h2>
+          {q.search && <span className="acc-sres">'<b>{q.search}</b>' 검색 결과 {q.total}건</span>}
           <div className="sp" />
-          <FilterBar q={q} />
-          <ExportButton q={q} columns={ACC_EXPORT} filename="산업재해" />
+          {/* [181] 산재 검색 — 산재 등록 버튼 옆, 학교명·사고 개요 */}
+          <form className="acc-sbox" onSubmit={(e) => { e.preventDefault(); q.setSearch(accKw.trim()) }}>
+            <div className="acc-sin">
+              <Search size={15} />
+              <input value={accKw} onChange={(e) => { setAccKw(e.target.value); if (!e.target.value) q.setSearch('') }}
+                placeholder="학교명·사고 개요 (예: 급식실, 화상)" />
+              {accKw && <button type="button" className="acc-sclear" aria-label="검색어 지우기" onClick={() => { setAccKw(''); q.setSearch('') }}><X size={14} /></button>}
+            </div>
+            <button type="submit" className="btn btn-ghost acc-sbtn"><Search size={15} /> 검색</button>
+          </form>
+          <button className="btn btn-primary" onClick={() => setFormOpen(true)}>
+            <Plus size={15} /> 산재 등록
+          </button>
         </div>
         <div className="twrap">
           <table className="tbl">
@@ -1119,71 +984,6 @@ export function Accidents() {
         />
       )}
 
-      {/* ── 외부 산재 데이터 연동 모달 ── */}
-      {feedOpen && (
-        <Modal
-          title="외부 산재 데이터 연동"
-          onClose={() => { if (!feedBusy) setFeedOpen(false) }}
-          footer={<button className="btn btn-primary" onClick={() => setFeedOpen(false)}>닫기</button>}
-        >
-          <b style={{ fontSize: 13 }}>공공데이터 API (근로복지공단·고용노동부)</b>
-          {feed === null && <div className="tstate" style={{ marginTop: 8 }}>설정을 불러오는 중이거나 권한이 없습니다.</div>}
-          {feed && (
-            <>
-              <div className="formrow" style={{ marginTop: 10 }}>
-                <label className="field" style={{ flex: 1, minWidth: 260 }}>
-                  <span>API 엔드포인트</span>
-                  <input className="input" value={feed.endpoint} placeholder="https://apis.data.go.kr/…"
-                    onChange={(e) => setFeed({ ...feed, endpoint: e.target.value })} />
-                </label>
-                <label className="field" style={{ minWidth: 180 }}>
-                  <span>서비스 키 {feed.has_service_key && <span className="muted" style={{ fontWeight: 500 }}>(저장됨)</span>}</span>
-                  <input className="input" type="password" value={feedKey} autoComplete="new-password"
-                    placeholder={feed.has_service_key ? '●●●●●●' : '공공데이터포털 인증키'}
-                    onChange={(e) => setFeedKey(e.target.value)} />
-                </label>
-              </div>
-              <div className="formrow" style={{ marginTop: 8 }}>
-                <label className="field" style={{ flex: 1 }}>
-                  <span>응답 items 경로 <span className="muted" style={{ fontWeight: 500 }}>(공공데이터포털 표준)</span></span>
-                  <input className="input" value={feed.items_path}
-                    onChange={(e) => setFeed({ ...feed, items_path: e.target.value })} />
-                </label>
-              </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => void saveFeed()} disabled={feedBusy !== ''}>
-                  {feedBusy === 'save' ? '저장 중…' : '설정 저장'}
-                </button>
-                <button className="btn btn-ghost" onClick={() => void syncFeed()} disabled={feedBusy !== '' || !feed.has_service_key}>
-                  {feedBusy === 'sync' ? '동기화 중…' : '지금 동기화'}
-                </button>
-              </div>
-            </>
-          )}
-
-          <div style={{ borderTop: '1px solid var(--line)', margin: '16px 0 12px' }} />
-          <b style={{ fontSize: 13 }}>엑셀/CSV 일괄 인입 (공단 제공분·협회 정리분)</b>
-          <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <label className="btn btn-ghost" htmlFor="acc-import-csv" style={{ cursor: 'pointer' }}>
-              <Upload size={14} /> {feedBusy === 'csv' ? '인입 중…' : 'CSV 파일 선택'}
-            </label>
-            <input id="acc-import-csv" type="file" accept=".csv,text/csv" style={{ display: 'none' }}
-              onChange={(e) => { void importCsv(e.target.files); e.target.value = '' }} />
-            <span className="muted" style={{ fontSize: 11.5 }}>형식: 학교명,발생일,구분(사고/질병),재해개요[,접수번호]</span>
-          </div>
-
-          {feedMsg && (
-            <div className="tstate" style={{ marginTop: 14, color: feedMsg.ok ? 'var(--ink-2)' : 'var(--red-ink)' }}>
-              {feedMsg.ok ? '✓ ' : '✕ '}{feedMsg.text}
-            </div>
-          )}
-          <div className="muted" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.7 }}>
-            학교(사업장)명이 등록 학교와 일치하거나 이름을 포함하면 자동 매칭되고, 접수번호 기준으로 중복이 걸러집니다(재실행 안전).
-            질병/근골 키워드는 질병성으로 분류돼 수시 근골격계 조사 연동 대상이 됩니다.
-            사업장별 산재 '건' 단위 공개 API는 없어(개인정보) 공단·고용노동부 API 활용 승인 또는 공단 제공 자료를 받으면 키만 넣어 연결하세요.
-          </div>
-        </Modal>
-      )}
 
       {/* ── 국내재해사례 상세(내용) 모달 ── */}
       {kExpanded && (

@@ -5,6 +5,7 @@ import { Database, HardDrive, Inbox, Mail as MailIcon, Server, Settings } from '
 import { api } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { InfoTip } from '../../components/InfoTip'
+import AccidentFeedPanel from './AccidentFeedPanel'
 
 type MailSettings = { address: string; has_password: boolean }
 type MailRow = { uid: string; subject: string; sender: string; date: string }
@@ -124,6 +125,9 @@ export default function ConsoleSystem() {
       </div>
 
       {/* ── 시스템 정보 ── */}
+      {/* [181] 산업재해 화면에서 이동 */}
+      <AccidentFeedPanel />
+
       <div className="ledger">
         <div className="lh"><h2><Server size={18} /> 시스템 정보</h2></div>
         <div className="card-body" style={{ padding: '20px 26px' }}>
