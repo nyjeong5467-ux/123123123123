@@ -1,7 +1,7 @@
 import { type CSSProperties, type ReactNode, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ChevronDown, ChevronsDownUp, ChevronsUpDown, Eraser, Eye, FolderTree,
+  ChevronDown, ChevronsDownUp, ChevronsUpDown, Eraser, Eye,
   SlidersHorizontal, Moon, Sun, Monitor, Mail, PenLine, Save, Check, Sparkles,
   KeyRound, Send, FileText, Plus, Trash2,
 } from 'lucide-react'
@@ -24,19 +24,6 @@ type MyMailSettings = {
   has_password: boolean
 }
 
-// 문서 저장소(NAS 대비) — GET /files/info
-type StorageInfo = {
-  root: string
-  modules: Record<string, { dir: string; files: number; bytes: number }>
-}
-const MODULE_LABEL: Record<string, string> = {
-  inspection: '안전점검', risk: '위험성평가', musculo: '근골격계', education: '교육', compliance: '이행점검',
-}
-function fmtBytes(n: number): string {
-  if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB'
-  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB'
-  return n + ' B'
-}
 
 type PageSize = '10' | '20' | '50'
 type Density = 'normal' | 'compact'
@@ -205,9 +192,6 @@ export function SettingsPage() {
   const [myBusy, setMyBusy] = useState('')
   const [myMsg, setMyMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  // 문서 저장소(NAS 대비)
-  const [storage, setStorage] = useState<StorageInfo | null>(null)
-
   useEffect(() => {
     let alive = true
     api<{ defaults: MailDefaults }>('/mail/defaults')
@@ -222,9 +206,6 @@ export function SettingsPage() {
     api<{ role: string }>('/auth/me')
       .then((d) => { if (alive) setRole(d.role) })
       .catch(() => { if (alive) setRole(null) })
-    api<StorageInfo>('/files/info')
-      .then((d) => { if (alive) setStorage(d) })
-      .catch(() => { if (alive) setStorage(null) })
     return () => { alive = false }
   }, [])
 
@@ -808,40 +789,6 @@ export function SettingsPage() {
               {myTplMsg && <span className={'pillx ' + (myTplMsg.ok ? 'ok' : 'late')}>{myTplMsg.text}</span>}
             </div>
           </div>
-        </div>
-      </Sec>
-
-      {/* 문서 저장소 — NAS 이관 대비 */}
-      <Sec id="storage" title="문서 저장소" icon={<FolderTree size={18} />}
-        info={<InfoTip>
-          업무별 산출물(점검표·평가서·조사표·교육·이행점검)이 위 5개 폴더에 월별로 자동 정리됩니다.
-          <b> NAS 설치 후에는 서버 환경변수 STORAGE_ROOT를 NAS 경로로 바꾸면</b> 같은 폴더 구조 그대로
-          NAS에 저장됩니다(화면·데이터 변경 없음).
-        </InfoTip>}
-        pill={<span className="pillx doing">로컬 저장 중</span>}
-        open={!!openMap.storage} onToggle={toggleSec} style={{ marginTop: 24 }}>
-        <div className="card-body" style={{ padding: '20px 26px' }}>
-          {storage === null && <div className="tstate">저장소 정보를 불러오지 못했습니다.</div>}
-          {storage && (
-            <>
-              <div className="kv"><b>저장 위치</b><span style={{ wordBreak: 'break-all' }}>{storage.root}</span></div>
-              <div className="twrap" style={{ marginTop: 10 }}>
-                <table className="tbl">
-                  <thead><tr><th>업무</th><th>폴더</th><th className="c">파일 수</th><th className="c">용량</th></tr></thead>
-                  <tbody>
-                    {Object.entries(storage.modules).map(([k, m]) => (
-                      <tr key={k}>
-                        <td><b>{MODULE_LABEL[k] || k}</b></td>
-                        <td>{m.dir}/</td>
-                        <td className="c">{m.files}</td>
-                        <td className="c">{fmtBytes(m.bytes)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
         </div>
       </Sec>
 
