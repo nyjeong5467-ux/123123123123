@@ -6,6 +6,7 @@ import { api } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { InfoTip } from '../../components/InfoTip'
 import AccidentFeedPanel from './AccidentFeedPanel'
+import ReleasePanel from './ReleasePanel'
 
 type MailSettings = { address: string; has_password: boolean }
 type MailRow = { uid: string; subject: string; sender: string; date: string }
@@ -60,6 +61,9 @@ export default function ConsoleSystem() {
 
   return (
     <div>
+      {/* [182] 프로그램 다운로드 — 경영 현황에서 이동 */}
+      <ReleasePanel />
+
       {/* ── 메일 연동 요약 ── */}
       <div className="ledger" style={{ marginBottom: 24 }}>
         <div className="lh">

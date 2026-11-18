@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, Footprints, Megaphone, MessageSquare, Monitor, PhoneCall, Plus, Send, ShieldCheck, TabletSmartphone } from 'lucide-react'
+import { Footprints, PhoneCall, Plus, Send } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useTableQuery, type FilterDef } from '../../lib/useTableQuery'
 import { Pagination, SortableTh } from '../../components/table'
 import { InfoTip } from '../../components/InfoTip'
+import { Modal } from '../../components/Modal'
 import { useAuth } from '../../lib/auth'
 import {
   type AckDoc, type ContactMeta, type MetaDoc, type Options, type Status, META_KEY, OPTIONS_KEY, STATUS_LABEL, STATUS_PILL, kindLabel,
@@ -19,32 +20,6 @@ import '../../styles/contact.css'
 
 // ── 경영 현황 탭 — 회사 관리자용 경영 지표·이력·편집형 경영 콘텐츠만.
 //    (학교별 업무 진행률·학교 대장은 홈/학교 탭 담당 — 중복 제거. 집계 API 1회씩만 호출.)
-
-// 대시보드 편집 콘텐츠(관리체계·주요일정·지시/요청) — /ops/docs/dashboard-content 서버 저장.
-type DashContent = {
-  ms: { rev: string; doc_no: string; rev_no: string; dept: string; approver: string }
-  schedule: { mo: string; text: string }[]
-  directives: string[]
-  requests: string[]
-}
-const DASH_DEFAULT: DashContent = {
-  ms: { rev: '2026-03-02 제정', doc_no: 'SHM-2026-001', rev_no: 'Rev.2', dept: '안전관리부', approver: '안전보건관리책임자' },
-  schedule: [
-    { mo: '05월', text: '정기 안전점검 실시' },
-    { mo: '06월', text: '근골격계 유해요인조사 (상반기)' },
-    { mo: '10월', text: '이행점검 마감 · 결과 송부' },
-    { mo: '11월', text: '근골격계 유해요인조사 (하반기)' },
-    { mo: '연 2회', text: '정기 위험성평가 갱신' },
-  ],
-  directives: ['급식실 미이행 학교 5월 내 점검 완료', '고위험(9점↑) 공정 개선계획 제출'],
-  requests: ['당직실 노후 소화기 교체 요청', '통학차량 승하차 안전요원 배치'],
-}
-
-// 프로그램 다운로드 — GET /release (무인증). url은 캐시버스팅 쿼리 포함 — 항상 그대로 사용.
-type ReleaseFile = { name: string; size: number; modified: string; url: string }
-const releaseLabel = (name: string) =>
-  name.endsWith('.exe') ? '서버 설치본(PC)' : name.endsWith('.apk') ? '현장앱(태블릿 APK)' : name
-const fmtMB = (bytes: number) => `${(bytes / 1048576).toFixed(1)} MB`
 
 type School = SchoolLite
 type Complaint = { id: string; school_id: string; date: string; content: string; status: string }
@@ -75,21 +50,13 @@ export default function ConsoleOverview() {
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [visits, setVisits] = useState<Visit[]>([])
   const [loading, setLoading] = useState(true)
-  const [releases, setReleases] = useState<ReleaseFile[] | null>(null) // null = 조회 실패(fail-soft)
-
-  // 편집형 경영 콘텐츠 — 인플레이스 편집(기존 대시보드 UX 유지)
-  const [dContent, setDContent] = useState<DashContent>(DASH_DEFAULT)
-  const [dEdit, setDEdit] = useState(false)
-  const [dDraft, setDDraft] = useState<DashContent>(DASH_DEFAULT)
-  const [dBusy, setDBusy] = useState(false)
-  const [dErr, setDErr] = useState('')
-  const dView = dEdit ? dDraft : dContent
 
   // 불만/방문 등록 폼(종합관리 통합)
   const [regOpen, setRegOpen] = useState(false) // [168] 등록 창
   const [ctOpt, setCtOpt] = useState<Options>({}) // [168] 직접 추가한 구분·유형
   const [sendId, setSendId] = useState<string | null>(null) // [169] 보내기 창
   const [phones, setPhones] = useState<Record<string, string>>({}) // [169] 보낸 사람 연락처(login → 전화)
+  const [vOpen, setVOpen] = useState(false) // [184] 방문 등록 창
   const [vSid, setVSid] = useState('')
   const [vDate, setVDate] = useState('')
   const [vVisitor, setVVisitor] = useState('')
@@ -104,13 +71,11 @@ export default function ConsoleOverview() {
       api<UserAcc[]>('/users').catch(() => null),
       api<Complaint[]>('/complaints').catch(() => [] as Complaint[]),
       api<Visit[]>('/visits').catch(() => [] as Visit[]),
-      api<{ doc: Partial<DashContent> }>('/ops/docs/dashboard-content').catch(() => ({ doc: {} as Partial<DashContent> })),
-      api<ReleaseFile[]>('/release').catch(() => null),
       getDoc<MetaDoc>(META_KEY).catch(() => ({} as MetaDoc)),
       getDoc<Options>(OPTIONS_KEY).catch(() => ({} as Options)),
       getDoc<Record<string, { phone?: string }>>('staff-registry').catch(() => ({} as Record<string, { phone?: string }>)),
       getDoc<Record<string, { phone?: string }>>('staff-resumes').catch(() => ({} as Record<string, { phone?: string }>)),
-    ]).then(([s, usr, cmp, vis, doc, rel, md, opt, reg, rsm]) => {
+    ]).then(([s, usr, cmp, vis, md, opt, reg, rsm]) => {
       if (!alive) return
       const list = Array.isArray(s) ? s : []
       setSchools(list)
@@ -124,42 +89,10 @@ export default function ConsoleOverview() {
       setPhones(ph)
       setComplaints(Array.isArray(cmp) ? cmp : [])
       setVisits(Array.isArray(vis) ? vis : [])
-      const d = doc?.doc || {}
-      if (Object.keys(d).length) setDContent({ ...DASH_DEFAULT, ...d, ms: { ...DASH_DEFAULT.ms, ...(d.ms || {}) } })
-      setReleases(Array.isArray(rel) ? rel : null)
       setLoading(false)
     })
     return () => { alive = false }
   }, [])
-
-  // ── 편집 콘텐츠 저장 ──
-  function startEdit() { setDDraft(structuredClone(dContent)); setDErr(''); setDEdit(true) }
-  function patchMs(patch: Partial<DashContent['ms']>) { setDDraft((d) => ({ ...d, ms: { ...d.ms, ...patch } })) }
-  function patchList(key: 'directives' | 'requests', i: number, v: string) {
-    setDDraft((d) => ({ ...d, [key]: d[key].map((x, idx) => (idx === i ? v : x)) }))
-  }
-  function removeAt(key: 'directives' | 'requests' | 'schedule', i: number) {
-    setDDraft((d) => ({ ...d, [key]: (d[key] as unknown[]).filter((_, idx) => idx !== i) } as DashContent))
-  }
-  async function saveEdit() {
-    setDBusy(true)
-    setDErr('')
-    const next: DashContent = {
-      ms: dDraft.ms,
-      schedule: dDraft.schedule.filter((s) => s.mo.trim() || s.text.trim()),
-      directives: dDraft.directives.filter((t) => t.trim()),
-      requests: dDraft.requests.filter((t) => t.trim()),
-    }
-    try {
-      await api('/ops/docs/dashboard-content', { method: 'PUT', body: JSON.stringify({ doc: next }) })
-      setDContent(next)
-      setDEdit(false)
-    } catch (e) {
-      setDErr(e instanceof Error ? e.message : '저장에 실패했습니다.')
-    } finally {
-      setDBusy(false)
-    }
-  }
 
   // [167] 보낸 건의 점검자 확인 문서(contact-acks-{login}) — 받는 사람별 1회씩
   const ackLogins = useMemo(() => [...new Set(Object.values(meta).map((m) => m.send?.to_login).filter(Boolean) as string[])].sort().join(','), [meta])
@@ -175,6 +108,7 @@ export default function ConsoleOverview() {
     .map((u) => ({ login: u.login_id, name: u.name || u.login_id })).sort((a, b) => a.name.localeCompare(b.name, 'ko')), [users])
   const me = useMemo(() => users.find((u) => u.login_id === user?.login)?.name || user?.login || '관리자', [users, user])
 
+  function openVisit() { setVDate(new Date().toLocaleDateString('sv-SE')); setVVisitor(''); setVPurpose(''); setVErr(''); setVOpen(true) }
   async function submitVisit() {
     if (!vSid || !vDate || !vVisitor.trim()) { setVErr('학교·날짜·방문자를 모두 입력하세요.'); return }
     setVBusy(true)
@@ -183,6 +117,7 @@ export default function ConsoleOverview() {
       await api('/visits', { method: 'POST', body: JSON.stringify({ school_id: vSid, date: vDate, visitor: vVisitor.trim(), purpose: vPurpose.trim() }) })
       setVVisitor('')
       setVPurpose('')
+      setVOpen(false)
       setVisits(await api<Visit[]>('/visits'))
     } catch (e) {
       setVErr(e instanceof Error ? e.message : '등록 실패')
@@ -211,23 +146,12 @@ export default function ConsoleOverview() {
   const unacked = rows.filter((r) => r.st === 'sent').length
   const schoolName = (id: string) => schools.find((s) => s.id === id)?.name || id
 
-  const cardBox: CSSProperties = {
-    background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 'var(--r)',
-    boxShadow: 'var(--sh-soft)', padding: '18px 22px',
-  }
-  const editOutline = dEdit ? { outline: '2px dashed var(--violet)', outlineOffset: -2 } : undefined
-  const tinyBtn: CSSProperties = {
-    border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--muted)',
-    borderRadius: 7, width: 22, height: 22, display: 'inline-flex',
-    alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: 'none',
-  }
-
   if (loading) return <div className="tstate">불러오는 중…</div>
 
   return (
     <>
-      <div className="console-grid">
-        {/* ── 좌: 불만/방문 이력(종합관리 통합) ── */}
+      {/* [183] 우측 편집형 경영 콘텐츠(관리체계·주요일정·지시/요청) 삭제 — 연락 이력·임원 방문 이력만 전체 폭 */}
+      <div>
         <div style={{ display: 'grid', gap: 18, minWidth: 0 }}>
           <div className="ledger">
             <div className="lh">
@@ -240,7 +164,7 @@ export default function ConsoleOverview() {
               <div className="sp" />
               {assignMsg && <span className="pillx ok">{assignMsg}</span>}
               <span className="pillx warn">관리자 전용</span>
-              <button className="btn btn-primary" onClick={() => setRegOpen(true)} disabled={schools.length === 0}><Plus size={15} /> 등록</button>
+              <button className="btn btn-primary" onClick={() => setRegOpen(true)} disabled={schools.length === 0}><Plus size={15} /> 이력 등록</button>
             </div>
             <div className="twrap">
               <table className="tbl">
@@ -306,33 +230,7 @@ export default function ConsoleOverview() {
               <h2><Footprints size={18} /> 임원 방문 이력</h2>
               <div className="sp" />
               <span className="pillx warn">관리자 전용</span>
-            </div>
-            <div className="card-body" style={{ padding: '18px 26px', borderBottom: '1px solid var(--line)' }}>
-              <div className="formrow">
-                <label className="field">
-                  <span>학교</span>
-                  <select className="select" value={vSid} onChange={(e) => setVSid(e.target.value)}>
-                    {schools.length === 0 && <option value="">학교 없음</option>}
-                    {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>날짜</span>
-                  <input className="input" type="date" value={vDate} onChange={(e) => setVDate(e.target.value)} />
-                </label>
-                <label className="field">
-                  <span>방문자</span>
-                  <input className="input" type="text" placeholder="직책/이름" value={vVisitor} onChange={(e) => setVVisitor(e.target.value)} />
-                </label>
-                <label className="field" style={{ flex: 1, minWidth: 200 }}>
-                  <span>목적</span>
-                  <input className="input" type="text" placeholder="방문 목적" value={vPurpose} onChange={(e) => setVPurpose(e.target.value)} />
-                </label>
-                <button className="btn btn-primary" onClick={() => void submitVisit()} disabled={vBusy || schools.length === 0}>
-                  <Plus size={15} /> 방문 등록
-                </button>
-              </div>
-              {vErr && <div className="muted" style={{ color: 'var(--red-ink)', marginTop: 10, fontSize: 12.5, fontWeight: 600 }}>{vErr}</div>}
+              <button className="btn btn-primary" onClick={openVisit} disabled={schools.length === 0}><Plus size={15} /> 방문 등록</button>
             </div>
             <div className="twrap">
               <table className="tbl">
@@ -358,162 +256,40 @@ export default function ConsoleOverview() {
           </div>
         </div>
 
-        {/* ── 우: 편집형 경영 콘텐츠(관리체계·주요일정·지시/요청) ── */}
-        <div className="console-side">
-          {/* 프로그램 다운로드 — /release 배포 파일(서버 설치본 exe · 현장앱 apk). url 필드 그대로 사용(캐시버스팅). */}
-          <div style={cardBox}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <Download size={18} strokeWidth={1.9} style={{ color: 'var(--violet)' }} />
-              <b style={{ fontSize: 14 }}>프로그램 다운로드</b>
-            </div>
-            {releases === null ? (
-              <div className="muted" style={{ fontSize: 12.5 }}>배포 파일 목록을 불러오지 못했습니다.</div>
-            ) : releases.length === 0 ? (
-              <div className="muted" style={{ fontSize: 12.5 }}>배포 파일 없음</div>
-            ) : (
-              <div style={{ display: 'grid', gap: 10 }}>
-                {releases.map((f) => (
-                  <div key={f.name} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                    {f.name.endsWith('.apk')
-                      ? <TabletSmartphone size={16} strokeWidth={1.9} style={{ color: 'var(--muted)', flex: 'none' }} />
-                      : <Monitor size={16} strokeWidth={1.9} style={{ color: 'var(--muted)', flex: 'none' }} />}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {releaseLabel(f.name)}
-                      </div>
-                      <div className="muted" style={{ fontSize: 11 }}>
-                        {fmtMB(f.size)} · 갱신 {(f.modified || '').slice(0, 10)}
-                      </div>
-                    </div>
-                    <a className="btn btn-primary" style={{ flex: 'none', fontSize: 12, padding: '5px 12px' }} href={f.url} download>
-                      <Download size={13} /> 다운로드
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{ ...cardBox, ...editOutline }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-              <ShieldCheck size={18} strokeWidth={1.9} style={{ color: 'var(--violet)' }} />
-              <b style={{ fontSize: 14 }}>안전보건관리체계 구축현황</b>
-              <div style={{ flex: 1 }} />
-              {dEdit ? (
-                <>
-                  {dErr && <span style={{ color: 'var(--red-ink)', fontSize: 11.5, fontWeight: 600 }}>{dErr}</span>}
-                  <button className="btn btn-ghost" disabled={dBusy} onClick={() => setDEdit(false)}>취소</button>
-                  <button className="btn btn-primary" disabled={dBusy} onClick={() => void saveEdit()}>
-                    {dBusy ? '저장 중…' : '저장'}
-                  </button>
-                </>
-              ) : (
-                <button className="btn btn-ghost" onClick={startEdit}>편집</button>
-              )}
-            </div>
-            {dEdit && (
-              <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
-                주요일정·지시/요청사항 카드도 함께 편집 상태입니다 — 저장은 여기서 한 번에.
-              </div>
-            )}
-            {([
-              ['제·개정일자', 'rev'], ['문서번호', 'doc_no'], ['개정번호', 'rev_no'],
-              ['주관부서', 'dept'], ['승인권자', 'approver'],
-            ] as const).map(([label, key]) => (
-              <div className="kv" key={key}>
-                <b>{label}</b>
-                {dEdit
-                  ? <input className="input" style={{ width: 190, padding: '3px 9px', fontSize: 12 }}
-                      value={dDraft.ms[key]} onChange={(e) => patchMs({ [key]: e.target.value })} />
-                  : <span>{dView.ms[key]}</span>}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ ...cardBox, ...editOutline }}>
-            <b style={{ fontSize: 14, display: 'block', marginBottom: 10 }}>안전보건 주요일정</b>
-            <div className="tl">
-              {dEdit && dDraft.schedule.map((s, i) => (
-                <div className="row" key={i} style={{ gap: 8 }}>
-                  <input className="input" style={{ width: 64, padding: '3px 7px', fontSize: 11.5, flex: 'none' }}
-                    value={s.mo} placeholder="월"
-                    onChange={(e) => setDDraft((d) => ({ ...d, schedule: d.schedule.map((x, idx) => idx === i ? { ...x, mo: e.target.value } : x) }))} />
-                  <input className="input" style={{ flex: 1, minWidth: 0, padding: '3px 9px', fontSize: 12 }}
-                    value={s.text} placeholder="일정 내용"
-                    onChange={(e) => setDDraft((d) => ({ ...d, schedule: d.schedule.map((x, idx) => idx === i ? { ...x, text: e.target.value } : x) }))} />
-                  <button style={tinyBtn} title="삭제" onClick={() => removeAt('schedule', i)}>✕</button>
-                </div>
-              ))}
-              {!dEdit && dView.schedule.map((s, i) => (
-                <div className="row" key={i}><span className="mo">{s.mo}</span><span>{s.text}</span></div>
-              ))}
-              {!dEdit && dView.schedule.length === 0 && (
-                <div className="muted" style={{ fontSize: 12.5 }}>등록된 일정이 없습니다. 「편집」에서 입력하세요.</div>
-              )}
-              {dEdit && (
-                <button className="btn btn-ghost" style={{ marginTop: 8, fontSize: 11.5, padding: '4px 10px' }}
-                  onClick={() => setDDraft((d) => ({ ...d, schedule: [...d.schedule, { mo: '', text: '' }] }))}>
-                  ＋ 일정 추가
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div style={{ ...cardBox, ...editOutline }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-              <Megaphone size={16} strokeWidth={2} style={{ color: 'var(--violet)' }} />
-              <b style={{ fontSize: 13 }}>관리책임자 지시사항</b>
-            </div>
-            {dEdit ? (
-              <div style={{ display: 'grid', gap: 6, marginBottom: 2 }}>
-                {dDraft.directives.map((t, i) => (
-                  <div className="row" key={i} style={{ gap: 8 }}>
-                    <input className="input" style={{ flex: 1, minWidth: 0, padding: '3px 9px', fontSize: 12 }}
-                      value={t} placeholder="지시사항"
-                      onChange={(e) => patchList('directives', i, e.target.value)} />
-                    <button style={tinyBtn} title="삭제" onClick={() => removeAt('directives', i)}>✕</button>
-                  </div>
-                ))}
-                <button className="btn btn-ghost" style={{ justifySelf: 'start', fontSize: 11.5, padding: '4px 10px' }}
-                  onClick={() => setDDraft((d) => ({ ...d, directives: [...d.directives, ''] }))}>
-                  ＋ 지시사항 추가
-                </button>
-              </div>
-            ) : (
-              <ul style={{ margin: '0 0 2px', paddingLeft: 18, fontSize: 12.5, lineHeight: 1.9, color: 'var(--ink-2)' }}>
-                {dView.directives.map((t, i) => <li key={i}>{t}</li>)}
-                {dView.directives.length === 0 && <li style={{ color: 'var(--muted)' }}>등록된 지시사항이 없습니다.</li>}
-              </ul>
-            )}
-            <div style={{ borderTop: '1px solid var(--line)', margin: '12px 0' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-              <MessageSquare size={16} strokeWidth={2} style={{ color: 'var(--violet)' }} />
-              <b style={{ fontSize: 13 }}>구성원 요청사항</b>
-            </div>
-            {dEdit ? (
-              <div style={{ display: 'grid', gap: 6 }}>
-                {dDraft.requests.map((t, i) => (
-                  <div className="row" key={i} style={{ gap: 8 }}>
-                    <input className="input" style={{ flex: 1, minWidth: 0, padding: '3px 9px', fontSize: 12 }}
-                      value={t} placeholder="요청사항"
-                      onChange={(e) => patchList('requests', i, e.target.value)} />
-                    <button style={tinyBtn} title="삭제" onClick={() => removeAt('requests', i)}>✕</button>
-                  </div>
-                ))}
-                <button className="btn btn-ghost" style={{ justifySelf: 'start', fontSize: 11.5, padding: '4px 10px' }}
-                  onClick={() => setDDraft((d) => ({ ...d, requests: [...d.requests, ''] }))}>
-                  ＋ 요청사항 추가
-                </button>
-              </div>
-            ) : (
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, lineHeight: 1.9, color: 'var(--ink-2)' }}>
-                {dView.requests.map((t, i) => <li key={i}>{t}</li>)}
-                {dView.requests.length === 0 && <li style={{ color: 'var(--muted)' }}>등록된 요청사항이 없습니다.</li>}
-              </ul>
-            )}
-          </div>
-        </div>
       </div>
+      {/* [184] 임원 방문 등록 — [방문 등록] 버튼을 누르면 창에서 작성 */}
+      {vOpen && (
+        <Modal title="임원 방문 등록" width={520} onClose={() => !vBusy && setVOpen(false)}
+          footer={<>
+            <button className="btn btn-ghost" disabled={vBusy} onClick={() => setVOpen(false)}>취소</button>
+            <button className="btn btn-primary" disabled={vBusy} onClick={() => void submitVisit()}>{vBusy ? '등록 중…' : '등록'}</button>
+          </>}>
+          <div style={{ display: 'grid', gap: 14 }}>
+            <label className="field">
+              <span>학교</span>
+              <select className="select" value={vSid} onChange={(e) => setVSid(e.target.value)}>
+                {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <label className="field">
+                <span>날짜</span>
+                <input className="input" type="date" value={vDate} onChange={(e) => setVDate(e.target.value)} />
+              </label>
+              <label className="field">
+                <span>방문자</span>
+                <input className="input" type="text" placeholder="직책/이름" value={vVisitor} onChange={(e) => setVVisitor(e.target.value)} />
+              </label>
+            </div>
+            <label className="field">
+              <span>목적</span>
+              <input className="input" type="text" placeholder="방문 목적" value={vPurpose} onChange={(e) => setVPurpose(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void submitVisit() }} />
+            </label>
+            {vErr && <div style={{ color: 'var(--red-ink)', fontSize: 12.5, fontWeight: 600 }}>{vErr}</div>}
+          </div>
+        </Modal>
+      )}
     </>
   )
 }
