@@ -207,19 +207,6 @@ export function Mail() {
       </div>
 
       {/* ===== 받은편지함 ===== */}
-      {tab === 'inbox' && settings !== null && !connected && (
-        <div className="ledger">
-          <div className="card-body" style={{ padding: '40px 26px', textAlign: 'center' }}>
-            <div className="tstate">
-              개인 이메일을 연동하면 받은편지함이 표시됩니다 (설정 → 이메일 연동).
-            </div>
-            <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => nav('/settings')}>
-              <Plug size={14} /> 연동하러 가기
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* 본문 뷰 */}
       {tab === 'inbox' && connected && detail && (
         <div className="ledger">
@@ -258,8 +245,8 @@ export function Mail() {
         </div>
       )}
 
-      {/* 리스트 뷰 */}
-      {tab === 'inbox' && connected && !detail && (
+      {/* 리스트 뷰 — [189] 미연동·조회 실패여도 빈 받은편지함 표를 항상 보여준다 */}
+      {tab === 'inbox' && !detail && (
         <div className="ledger">
           <div className="twrap">
             <table className="tbl">
@@ -271,17 +258,23 @@ export function Mail() {
                 </tr>
               </thead>
               <tbody>
-                {loading && <tr><td colSpan={3}><div className="tstate">메일 서버에서 불러오는 중…</div></td></tr>}
-                {!loading && error && <tr><td colSpan={3}><div className="tstate">오류: {error}</div></td></tr>}
-                {!loading && !error && rows.map((m) => (
+                {!connected && (
+                  <tr><td colSpan={3}><div className="tstate ml-empty">
+                    받은 메일이 없습니다.
+                    <small>{settingsDone ? '메일 주소를 연동하면 받은 메일이 여기에 표시됩니다.' : '메일 설정을 불러오는 중…'}</small>
+                  </div></td></tr>
+                )}
+                {connected && loading && <tr><td colSpan={3}><div className="tstate">메일 서버에서 불러오는 중…</div></td></tr>}
+                {connected && !loading && error && <tr><td colSpan={3}><div className="tstate">오류: {error}</div></td></tr>}
+                {connected && !loading && !error && rows.map((m) => (
                   <tr key={m.uid} onClick={() => openMessage(m)} style={{ cursor: 'pointer' }}>
                     <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>{m.sender || '—'}</td>
                     <td><b>{m.subject}</b></td>
                     <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{m.date}</td>
                   </tr>
                 ))}
-                {!loading && !error && rows.length === 0 && (
-                  <tr><td colSpan={3}><div className="tstate">메일이 없습니다.</div></td></tr>
+                {connected && !loading && !error && rows.length === 0 && (
+                  <tr><td colSpan={3}><div className="tstate">받은 메일이 없습니다.</div></td></tr>
                 )}
               </tbody>
             </table>
