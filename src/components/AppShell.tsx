@@ -1,3 +1,4 @@
+import { LawDock } from './LawDock'
 import { type MouseEvent as ReactMouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -452,6 +453,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       {children}
+      <LawDock />{/* [190] 작성 화면 법령 찾기 */}
     </div>
   )
 }
