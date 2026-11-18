@@ -1,7 +1,7 @@
-// 경영 콘솔 — 홈페이지·콘텐츠 탭: 공지 관리(CRUD) + 홈페이지 정보 관리(KV). [171] 자료실 임베드 제거(자료실은 왼쪽 메뉴 '자료실'에서)
-// 공지는 기존 /notices API(백엔드 완비), 홈페이지 정보는 org_docs 'homepage-content' KV.
+// 경영 콘솔 — 홈페이지·콘텐츠 탭: 공지 관리(CRUD). [188] 홈페이지 정보 관리(KV) 삭제 — 읽는 화면이 없어 미사용(저장값은 서버 그대로). [171] 자료실 임베드 제거(자료실은 왼쪽 메뉴 '자료실'에서)
+// 공지는 기존 /notices API(백엔드 완비).
 import { useEffect, useState } from 'react'
-import { Globe, Megaphone, Pencil, Pin, Plus, Save, Trash2, X } from 'lucide-react'
+import { Megaphone, Pencil, Pin, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Modal } from '../../components/Modal'
 
@@ -11,20 +11,6 @@ type Notice = {
   body: string
   pinned: boolean
   created_at?: string
-}
-
-type Homepage = {
-  company_intro: string
-  contact_phone: string
-  contact_email: string
-  banner_text: string
-}
-
-const HOMEPAGE_DEFAULT: Homepage = {
-  company_intro: '(주)한국산업안전협회 — 학교 안전관리 통합 플랫폼',
-  contact_phone: '',
-  contact_email: '',
-  banner_text: '',
 }
 
 export default function ConsoleContent() {
@@ -87,42 +73,6 @@ export default function ConsoleContent() {
     }
   }
 
-  // ── 홈페이지 정보 관리 (KV) ──
-  const [hp, setHp] = useState<Homepage>(HOMEPAGE_DEFAULT)
-  const [hpDraft, setHpDraft] = useState<Homepage>(HOMEPAGE_DEFAULT)
-  const [hpEditing, setHpEditing] = useState(false)
-  const [hpSaving, setHpSaving] = useState(false)
-  const [hpMsg, setHpMsg] = useState('')
-
-  useEffect(() => {
-    let alive = true
-    api<{ doc: Partial<Homepage> }>('/ops/docs/homepage-content')
-      .then((d) => {
-        if (!alive) return
-        const merged = { ...HOMEPAGE_DEFAULT, ...(d?.doc || {}) }
-        setHp(merged)
-        setHpDraft(merged)
-      })
-      .catch(() => {})
-    return () => { alive = false }
-  }, [])
-
-  async function saveHp() {
-    setHpSaving(true)
-    setHpMsg('')
-    try {
-      await api('/ops/docs/homepage-content', { method: 'PUT', body: JSON.stringify({ doc: hpDraft }) })
-      setHp(hpDraft)
-      setHpEditing(false)
-      setHpMsg('저장되었습니다.')
-      setTimeout(() => setHpMsg(''), 2000)
-    } catch (e) {
-      setHpMsg(e instanceof Error ? e.message : '저장 실패')
-    } finally {
-      setHpSaving(false)
-    }
-  }
-
   const sorted = [...notices].sort((a, b) => Number(b.pinned) - Number(a.pinned))
 
   return (
@@ -156,62 +106,6 @@ export default function ConsoleContent() {
               )}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* ── 홈페이지 정보 관리 ── */}
-      <div className="ledger" style={{ marginBottom: 24 }}>
-        <div className="lh">
-          <h2><Globe size={18} /> 홈페이지 정보 관리</h2>
-          <div className="sp" />
-          {hpMsg && <span className="pillx ok">{hpMsg}</span>}
-          {!hpEditing ? (
-            <button className="btn btn-ghost" onClick={() => { setHpDraft(hp); setHpEditing(true) }}><Pencil size={14} /> 편집</button>
-          ) : (
-            <>
-              <button className="btn btn-ghost" onClick={() => setHpEditing(false)}><X size={14} /> 취소</button>
-              <button className="btn btn-primary" onClick={saveHp} disabled={hpSaving}><Save size={14} /> {hpSaving ? '저장 중…' : '저장'}</button>
-            </>
-          )}
-        </div>
-        <div className="card-body" style={{ padding: '20px 26px' }}>
-          {!hpEditing ? (
-            <div className="kpis" style={{ marginBottom: 0 }}>
-              <div className="kpi">
-                <div className="l">회사 소개문</div>
-                <div className="v" style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.5 }}>{hp.company_intro || '—'}</div>
-              </div>
-              <div className="kpi">
-                <div className="l">대표 연락처</div>
-                <div className="v" style={{ fontSize: 15 }}>{hp.contact_phone || '—'}</div>
-                <div className="d">{hp.contact_email || '이메일 미등록'}</div>
-              </div>
-              <div className="kpi">
-                <div className="l">배너 문구</div>
-                <div className="v" style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.5 }}>{hp.banner_text || <span className="muted">미설정</span>}</div>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="formrow">
-                <label className="field" style={{ flex: 1, minWidth: 260 }}>
-                  <span>회사 소개문</span>
-                  <input className="input" value={hpDraft.company_intro} onChange={(e) => setHpDraft((d) => ({ ...d, company_intro: e.target.value }))} />
-                </label>
-              </div>
-              <div className="formrow" style={{ marginTop: 12 }}>
-                <label className="field"><span>대표 전화</span>
-                  <input className="input" placeholder="예: 062-000-0000" value={hpDraft.contact_phone} onChange={(e) => setHpDraft((d) => ({ ...d, contact_phone: e.target.value }))} />
-                </label>
-                <label className="field"><span>대표 이메일</span>
-                  <input className="input" placeholder="예: safety@example.com" value={hpDraft.contact_email} onChange={(e) => setHpDraft((d) => ({ ...d, contact_email: e.target.value }))} />
-                </label>
-                <label className="field" style={{ flex: 1, minWidth: 220 }}><span>배너 문구</span>
-                  <input className="input" placeholder="홈페이지 상단 배너에 노출할 문구" value={hpDraft.banner_text} onChange={(e) => setHpDraft((d) => ({ ...d, banner_text: e.target.value }))} />
-                </label>
-              </div>
-            </>
-          )}
         </div>
       </div>
 
