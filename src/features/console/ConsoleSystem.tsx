@@ -1,15 +1,13 @@
-// 경영 콘솔 — 시스템 탭: 메일 연동 요약 + 문서 저장소 현황 + 시스템 정보 + 설정 링크.
+// 경영 콘솔 — 시스템 탭: 프로그램 다운로드 + 문서 저장소 + 외부 산재 연동 현황 + 시스템 정보 + 설정 링크.
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Database, HardDrive, Inbox, Mail as MailIcon, Server, Settings } from 'lucide-react'
+import { Database, HardDrive, Server } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { InfoTip } from '../../components/InfoTip'
 import AccidentFeedPanel from './AccidentFeedPanel'
 import ReleasePanel from './ReleasePanel'
 
-type MailSettings = { address: string; has_password: boolean }
-type MailRow = { uid: string; subject: string; sender: string; date: string }
 type StorageInfo = {
   root: string
   modules: Record<string, { dir: string; files: number; bytes: number }>
@@ -27,17 +25,11 @@ function fmtBytes(n: number): string {
 
 export default function ConsoleSystem() {
   const { user } = useAuth()
-  const [mail, setMail] = useState<MailSettings | null>(null)
-  const [inbox, setInbox] = useState<MailRow[]>([])
-  const [inboxErr, setInboxErr] = useState('')
   const [storage, setStorage] = useState<StorageInfo | null>(null)
   const [backendOk, setBackendOk] = useState<boolean | null>(null)
 
   useEffect(() => {
     let alive = true
-    api<{ settings: MailSettings }>('/mail/settings')
-      .then((d) => { if (alive) setMail(d?.settings ?? null) })
-      .catch(() => {})
     api<StorageInfo>('/files/info')
       .then((d) => { if (alive) setStorage(d) })
       .catch(() => {})
@@ -47,56 +39,12 @@ export default function ConsoleSystem() {
     return () => { alive = false }
   }, [])
 
-  const connected = Boolean(mail?.address && mail?.has_password)
-  useEffect(() => {
-    let alive = true
-    if (!connected) return
-    api<MailRow[]>('/mail/inbox?limit=3')
-      .then((d) => { if (alive) setInbox(Array.isArray(d) ? d : []) })
-      .catch((e) => { if (alive) setInboxErr(e instanceof Error ? e.message : '수신함 조회 실패') })
-    return () => { alive = false }
-  }, [connected])
-
   const modEntries = Object.entries(storage?.modules || {})
 
   return (
     <div>
       {/* [182] 프로그램 다운로드 — 경영 현황에서 이동 */}
       <ReleasePanel />
-
-      {/* ── 메일 연동 요약 ── */}
-      <div className="ledger" style={{ marginBottom: 24 }}>
-        <div className="lh">
-          <h2><MailIcon size={18} /> 이메일 연동
-            <InfoTip>개인 이메일(IMAP)을 연동하면 학교로 발송한 점검·조사지 메일의 <b>회신</b>을 여기서 확인할 수 있습니다. [연동 설정]에서 주소와 앱 비밀번호를 등록하세요.</InfoTip>
-          </h2>
-          <div className="sp" />
-          {connected
-            ? <span className="pillx ok">연동됨 · {mail?.address}</span>
-            : <span className="pillx todo">미연동</span>}
-          <Link to="/mail" className="btn btn-ghost"><Inbox size={14} /> 메일함 열기</Link>
-          <Link to="/settings" className="btn btn-ghost"><Settings size={14} /> 연동 설정</Link>
-        </div>
-        <div className="card-body" style={{ padding: '16px 26px' }}>
-          {!connected && (
-            <div className="muted" style={{ fontSize: 13.5 }}>
-              미연동 상태입니다. <Link to="/settings" style={{ color: 'var(--violet)' }}>[연동 설정]</Link>에서 개인 이메일을 등록하세요.
-            </div>
-          )}
-          {connected && inboxErr && <div className="muted" style={{ fontSize: 13.5 }}>수신함 조회 실패: {inboxErr}</div>}
-          {connected && !inboxErr && (
-            <table className="tbl">
-              <thead><tr><th>보낸 사람</th><th>제목</th><th style={{ width: 130 }}>수신일</th></tr></thead>
-              <tbody>
-                {inbox.map((m) => (
-                  <tr key={m.uid}><td>{m.sender}</td><td><b>{m.subject}</b></td><td>{m.date}</td></tr>
-                ))}
-                {inbox.length === 0 && <tr><td colSpan={3}><div className="tstate">최근 수신 메일이 없습니다.</div></td></tr>}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
 
       {/* ── 문서 저장소 ── */}
       <div className="ledger" style={{ marginBottom: 24 }}>
