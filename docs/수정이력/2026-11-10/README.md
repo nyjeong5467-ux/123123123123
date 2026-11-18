@@ -1,6 +1,6 @@
 # 2026-11-10 수정이력
 
-총 2건 · 최신순 · 한국 시간 기준
+총 3건 · 최신순 · 한국 시간 기준
 
 [← 날짜 목차](../README.md)
 
@@ -17,3 +17,9 @@
   - (수정) `docs/staff-management.md`
   - (수정) `src/features/console/ConsoleStaffHistory.tsx`
   - (수정) `src/features/console/staff/staffData.ts`
+
+## 15:23 — fix(inspection): 사립학교도 제출은 수행 — [163] 보완. 제출은 교육청 전송과 별개(이력·이행점검·메일 기준)이고 백엔드가 사립이면 '전송 불필요'로 기록하므로 교육청에는 올라가지 않음. 안내 문구를 '제출 완료(사립 · 교육청 제외)'로 정리
+
+- 커밋: `78fe3ad` · 작성: Jong-Myeong Kim
+- 바뀐 파일 1개:
+  - (수정) `src/pages/InspectionForm.tsx`

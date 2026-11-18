@@ -1,13 +1,15 @@
-// 메일함 — 탭 2개: 받은편지함(내 개인 이메일 IMAP 연동, 읽기 전용) | 보낸 업무 메일(내 개인 이메일 SMTP 발송 이력).
+// 메일함 — 탭 2개: 받은편지함(내 개인 이메일 IMAP 연동, 읽기 전용) | 보낸편지함(내 개인 이메일 SMTP 발송 이력).
 // 수신함·발송 모두 로그인 계정 본인의 개인 이메일(/mail/my-settings)로 동작한다(공용 대표계정 없음).
 // [메일 쓰기] 모달: 학교 선택 → 담당자 이메일 프리필(/mail/school-contacts), 제목 접두어·서명(/mail/defaults),
 // 첨부(base64, 개당 10MB·합 25MB) → POST /mail/send. 연동 계정 설정은 설정 페이지에서.
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Inbox, Paperclip, PenSquare, Plug, RefreshCw, Send, Trash2 } from 'lucide-react'
+import { ArrowLeft, Inbox, Mail as MailIcon, Paperclip, PenSquare, Plug, RefreshCw, Send, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Modal } from '../components/Modal'
 import { InfoTip } from '../components/InfoTip'
+import { useMyProfile, useStaffProfiles } from '../lib/myProfile'
+import '../styles/mail.css'
 
 type MailRow = { uid: string; subject: string; sender: string; date: string }
 type MailDetail = MailRow & { to: string; body: string; attachments: string[] }
@@ -67,8 +69,12 @@ export function Mail() {
   const nav = useNavigate()
   const [tab, setTab] = useState<'inbox' | 'sent'>('inbox')
   const [settings, setSettings] = useState<MailSettings | null>(null)
+  const me = useMyProfile() // [180] 오른쪽 위 계정 표시(이름 | 소속·직책 / 메일 주소)
+  const staffProfiles = useStaffProfiles()
+  const myName = me.name || staffProfiles.find((x) => x.login === me.login)?.name || ''
+  const [settingsDone, setSettingsDone] = useState(false)
   const [rows, setRows] = useState<MailRow[]>([])
-  const [limit, setLimit] = useState(15)
+  const [limit] = useState(15) // [180] 최근 15통 고정(개수 선택 칸 제거)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -89,8 +95,8 @@ export function Mail() {
   useEffect(() => {
     let alive = true
     api<{ login_id: string; settings: MailSettings }>('/mail/my-settings')
-      .then((d) => { if (alive) setSettings(d.settings) })
-      .catch(() => { if (alive) setSettings(null) })
+      .then((d) => { if (alive) { setSettings(d.settings); setSettingsDone(true) } })
+      .catch(() => { if (alive) { setSettings(null); setSettingsDone(true) } })
     api<SchoolLite[]>('/schools')
       .then((d) => { if (alive) setSchools(Array.isArray(d) ? d : []) })
       .catch(() => { if (alive) setSchools([]) })
@@ -157,14 +163,9 @@ export function Mail() {
       <div className="breadcrumb"><Link to="/">홈</Link> / <b>메일함</b></div>
       <div className="bar">
         <h2><Inbox size={20} /> 메일함</h2>
-        {settings?.address && <span className="pillx doing">{settings.address}</span>}
         <div className="sp" />
         {tab === 'inbox' && connected && !detail && (
           <>
-            <select className="select" style={{ width: 110 }} value={limit}
-              onChange={(e) => setLimit(Number(e.target.value))}>
-              {[15, 30, 50].map((n) => <option key={n} value={n}>최근 {n}통</option>)}
-            </select>
             <button className="btn btn-ghost" onClick={() => load(limit)} disabled={loading}>
               <RefreshCw size={14} /> 새로고침
             </button>
@@ -178,8 +179,13 @@ export function Mail() {
         <button className="btn btn-primary" onClick={() => setCompose(true)}>
           <PenSquare size={14} /> 메일 쓰기
         </button>
-        <button className="btn btn-ghost" onClick={() => nav('/settings')}>
-          <Plug size={14} /> 연동 설정
+        {/* [180] 연동 설정 버튼 대신 지금 쓰는 메일 계정 표시(변경은 설정 탭에서) */}
+        <button className="ml-acct" onClick={() => nav('/settings')} title="메일 주소 변경은 설정 › 이메일 연동에서 합니다">
+          <span className="av">{myName ? myName.slice(0, 1) : <MailIcon size={16} />}</span>
+          <span className="tx">
+            <b>{myName || '내 계정'}{(me.affiliation || me.department || me.position) && <span className="org"> | {[me.affiliation, me.department, me.position].filter(Boolean).join(' ')}</span>}</b>
+            <small className={settings?.address ? '' : 'none'}>{settings?.address || (settingsDone ? '메일 주소 미연동 — 설정에서 연동' : '불러오는 중…')}</small>
+          </span>
         </button>
       </div>
 
@@ -195,7 +201,7 @@ export function Mail() {
           className={'btn ' + (tab === 'sent' ? 'btn-primary' : 'btn-ghost')}
           onClick={() => setTab('sent')}
         >
-          <Send size={14} /> 보낸 업무 메일
+          <Send size={14} /> 보낸편지함
         </button>
         {sentToast && <span className="pillx ok" style={{ alignSelf: 'center' }}>{sentToast}</span>}
       </div>
@@ -333,7 +339,7 @@ export function Mail() {
                   </tr>
                 ))}
                 {!sentLoading && !sentError && sent.length === 0 && (
-                  <tr><td colSpan={7}><div className="tstate">발송한 업무 메일이 없습니다. 우측 상단 [메일 쓰기]로 보내세요.</div></td></tr>
+                  <tr><td colSpan={7}><div className="tstate">보낸 메일이 없습니다. 우측 상단 [메일 쓰기]로 보내세요.</div></td></tr>
                 )}
               </tbody>
             </table>
@@ -482,7 +488,7 @@ function ComposeModal({
 
   return (
     <Modal
-      title={<>업무 메일 쓰기 <InfoTip>보내는 사람은 <b>내 개인 이메일</b>(설정 → 이메일 연동)입니다. 발송한 메일은 [보낸 업무 메일] 탭에 기록됩니다.</InfoTip></>}
+      title={<>업무 메일 쓰기 <InfoTip>보내는 사람은 <b>내 개인 이메일</b>(설정 → 이메일 연동)입니다. 발송한 메일은 [보낸편지함] 탭에 기록됩니다.</InfoTip></>}
       wide
       onClose={onClose}
       footer={(

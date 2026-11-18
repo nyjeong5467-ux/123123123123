@@ -1,0 +1,9 @@
+/* [180] 메일함 — 오른쪽 위 계정 표시(이름 | 소속·직책 / 메일 주소). 누르면 설정으로 */
+.ml-acct { display: inline-flex; align-items: center; gap: 10px; max-width: 340px; border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 6px 14px 6px 6px; cursor: pointer; font-family: inherit; text-align: left; color: var(--ink); transition: 0.15s; }
+.ml-acct:hover { border-color: var(--violet); box-shadow: var(--sh-soft); }
+.ml-acct .av { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--violet-soft); color: var(--violet); display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; }
+.ml-acct .tx { min-width: 0; display: grid; gap: 1px; }
+.ml-acct b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ml-acct .org { font-weight: 600; color: var(--ink-2); }
+.ml-acct small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ml-acct small.none { color: var(--amber-ink, #b26b00); }
