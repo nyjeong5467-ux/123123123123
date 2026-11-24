@@ -5,6 +5,9 @@
 //  - 현장 점검자(field_inspector)은 자기 소속 학교만.
 //  - 소속 판정: 로그인 사용자의 담당 학교(schools.manager==내이름)들의 최빈 inspection_agency.
 //    (staff-registry 태그는 누락·오타가 있어 담당학교 기반이 더 정확.)
+//  - [192] 격리 단위 = 회사 그룹(사용자 확정 2026-11-24): 한국산업안전협회(본사)와 국민안전기술원(자회사)은
+//    한 그룹이라 서로의 학교·점검표를 모두 본다. 나중에 들어오는 다른 회사는 COMPANY_GROUP에 넣지 않으면
+//    소속명 자체가 그룹이 되어 그 회사끼리만 본다(같은 그룹으로 묶으려면 여기에 같은 그룹명으로 추가).
 import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
 
@@ -16,6 +19,13 @@ function normAffil(a?: string | null): string {
   const s = (a || '').trim()
   return s === '한국산업협회' ? '한국산업안전협회' : s
 }
+
+// 소속 → 회사 그룹. 목록에 없는 소속은 소속명이 곧 그룹(그 회사끼리만 열람).
+const COMPANY_GROUP: Record<string, string> = {
+  한국산업안전협회: '한국산업안전협회 그룹',
+  국민안전기술원: '한국산업안전협회 그룹',
+}
+const groupOf = (affil: string) => COMPANY_GROUP[affil] ?? affil
 
 type ScopeState = {
   ready: boolean
@@ -74,7 +84,7 @@ export function useAffiliationScope(): AffiliationScope {
         (school?.name && state.affilByName[normNameKey(school.name)]) ||
         (school?.name && state.affilByName[school.name]) ||
         ''
-      return a === state.myAffil
+      return !!a && groupOf(a) === groupOf(state.myAffil)
     },
     [state],
   )

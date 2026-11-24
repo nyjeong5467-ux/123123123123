@@ -116,12 +116,8 @@ type Part = 'catering' | 'facility' | 'cleaning' | 'commute' | 'night_duty'
 let musSession: { account: string; schools: School[]; map: Record<string, Survey[]>; fetchedAt: number } | null = null
 const MUS_CACHE_TTL = 60_000 // 1분 — 이내 재진입은 캐시만(N+1 억제), 지나면 재검증
 
-// [076] 담당 학교 한정 조회 — 담당 배정이 있는 계정은 담당 학교만 학교별 API를 조회(N+1 축소, [060] 규칙).
-// 배정이 없는 계정은 기존대로 전체 조회. 리스트에는 조회된 학교의 작성물만 표시됨.
-function scopeToAssigned(schools: School[], login?: string): School[] {
-  const mine = login ? schools.filter((s) => s.assigned_inspector_id === login) : []
-  return mine.length ? mine : schools
-}
+// [193] (구) scopeToAssigned 삭제 — 담당 배정 학교만 목록에 싣던 제한을 없앴다. 작성된 점검표·보고서·조사는
+//       같은 회사 그룹(affiliationScope) 안의 모든 작성자 것을 보여준다.
 type BurdenResult = { has_burden: boolean; burden_clauses: number[] }
 
 // ===== 1단계(개편 0807): 작성된 조사 리스트 — 점검자들이 작성한 조사가 곧 첫 화면 =====
@@ -348,7 +344,7 @@ export function Musculo() {
       .then((bySchool) => {
         if (!alive) return
         const map: Record<string, Survey[]> = {}
-        for (const s of scopeToAssigned(schools, user?.login)) map[s.id] = bySchool[s.id] ?? []
+        for (const s of schools) map[s.id] = bySchool[s.id] ?? []
         musSession = { account: user?.login ?? '', schools, map, fetchedAt: Date.now() } // [073]
         setSurveyMap(map)
         setSumLoading(false)

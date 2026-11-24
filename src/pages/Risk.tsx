@@ -42,12 +42,8 @@ let riskSession: { account: string; schools: School[]; map: Record<string, RiskI
 let riskDocSession: { account: string; schools: School[]; map: Record<string, { d: SurveyData; updated: string }>; fetchedAt: number } | null = null
 const RISK_CACHE_TTL = 60_000
 
-// [076] 담당 학교 한정 조회 — 담당 배정이 있는 계정은 담당 학교만 학교별 API를 조회(N+1 축소, [060] 규칙).
-// 배정이 없는 계정은 기존대로 전체 조회. 리스트에는 조회된 학교의 작성물만 표시됨.
-function scopeToAssigned(schools: School[], login?: string): School[] {
-  const mine = login ? schools.filter((s) => s.assigned_inspector_id === login) : []
-  return mine.length ? mine : schools
-}
+// [193] (구) scopeToAssigned 삭제 — 담당 배정 학교만 목록에 싣던 제한을 없앴다. 작성된 점검표·보고서·조사는
+//       같은 회사 그룹(affiliationScope) 안의 모든 작성자 것을 보여준다.
 
 // category('regular'|'adhoc')·산재 연동 필드는 백엔드가 병렬 추가 중 — 없으면 정기로 간주
 type RiskItem = {
@@ -354,7 +350,7 @@ export function Risk() {
     void api<Record<string, { sections?: Record<string, unknown>; updated_at?: string }>>('/risk/survey/summary')
       .then((bySchool) => {
         if (!alive) return
-        const assigned = new Set(scopeToAssigned(schools, user?.login).map((s) => s.id)) // [076]
+        const assigned = new Set(schools.map((s) => s.id)) // [076]
         const m: Record<string, { d: SurveyData; updated: string }> = {}
         for (const [sid2, r] of Object.entries(bySchool)) {
           if (!assigned.has(sid2)) continue
@@ -556,7 +552,7 @@ export function Risk() {
       .then((bySchool) => {
         if (!alive) return
         const map: Record<string, RiskItem[]> = {}
-        for (const s of scopeToAssigned(schools, user?.login)) map[s.id] = bySchool[s.id] ?? [] // [076]
+        for (const s of schools) map[s.id] = bySchool[s.id] ?? [] // [076]
         riskSession = { account: user?.login ?? '', schools, map, fetchedAt: Date.now() } // [073]
         setRiskMap(map)
         setSumLoading(false)

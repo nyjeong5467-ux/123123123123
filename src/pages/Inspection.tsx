@@ -81,12 +81,8 @@ let insSession: {
 } | null = null
 const INS_CACHE_TTL = 60_000
 
-// [076] 담당 학교 한정 조회 — 담당 배정이 있는 계정은 담당 학교만 학교별 API를 조회(N+1 축소, [060] 규칙).
-// 배정이 없는 계정은 기존대로 전체 조회. 리스트에는 조회된 학교의 작성물만 표시됨.
-function scopeToAssigned(schools: School[], login?: string): School[] {
-  const mine = login ? schools.filter((s) => s.assigned_inspector_id === login) : []
-  return mine.length ? mine : schools
-}
+// [193] (구) scopeToAssigned 삭제 — 담당 배정 학교만 목록에 싣던 제한을 없앴다. 작성된 점검표·보고서·조사는
+//       같은 회사 그룹(affiliationScope) 안의 모든 작성자 것을 보여준다.
 
 // 점검 일자 — 엔티티에 created_at 이 없어 제출일 → 서명일 → 서명기록 순으로 방어적으로 산출
 function dateOf(r: Inspection): string {
@@ -381,8 +377,8 @@ export function Inspection() {
     api<Record<string, InsSummary[]>>('/inspections/summary')
       .then((d) => {
         if (!alive) return
-        // HQ는 전체가 오므로 기존 scopeToAssigned와 동일하게 클라이언트에서 담당 학교로 한정 [076]
-        const scoped = scopeToAssigned(schools, user?.login)
+        // [193] 담당 학교 한정 없이 전체 — 소속(회사 그룹) 격리는 화면에서 scope.visible로 한다
+        const scoped = schools
         const allowed = new Set(scoped.map((s) => s.id))
         const map: Record<string, Inspection[]> = {}
         for (const s of scoped) map[s.id] = []
